@@ -28,6 +28,8 @@ Open `http://localhost:8080`. The API is served under `/api` by the same port; `
 answers `{"status":"ok"}` when the API reaches the database.
 
 The `migrate` service applies pending migrations from `apps/api/migrations` before the API starts.
+A migration that was applied is never edited: the runner stores a checksum and stops if a file
+changed. Add a new file instead.
 
 ## Sign-in
 
@@ -65,7 +67,7 @@ Requires Node 22.18 or later (the API runs its TypeScript sources directly) and 
 npm install
 npm test            # Vitest
 npm run typecheck
-npm run dev:api     # needs DATABASE_URL
+npm run dev:api     # needs DATABASE_URL and PUBLIC_URL
 npm run dev:web     # proxies /api to localhost:3000
 ```
 

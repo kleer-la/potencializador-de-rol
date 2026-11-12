@@ -75,4 +75,15 @@ describe('migration runner', () => {
     expect(await run()).toEqual(['0003_third.sql']);
     expect(await tableExists('third')).toBe(true);
   });
+
+  it('refuses to run when an applied migration was edited afterwards', async () => {
+    await writeFile(join(directory, '0001_first.sql'), 'create table first (id int, extra int);');
+
+    await expect(run()).rejects.toThrow(
+      'migration 0001_first.sql was changed after it was applied; add a new migration instead',
+    );
+
+    await writeFile(join(directory, '0001_first.sql'), 'create table first (id int);');
+    expect(await run()).toEqual([]);
+  });
 });

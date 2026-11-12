@@ -24,8 +24,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }
       });
 
-      if (dependencies.identity !== undefined) {
-        await registerIdentity(api, dependencies.identity);
+      // Everything that needs the signed-in person lives in its own scope, so the session
+      // lookup never runs for /health.
+      const identity = dependencies.identity;
+      if (identity !== undefined) {
+        await api.register(async (secured) => {
+          await registerIdentity(secured, identity);
+        });
       }
     },
     { prefix: '/api' },

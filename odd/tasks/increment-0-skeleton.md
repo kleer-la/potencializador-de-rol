@@ -96,3 +96,11 @@ L11 (2026-11-12, T3 evidence and decisions): RED observed (sign-in suites failed
 - `sessions` and `person_identities` are read before a person is known, so the API role has no privilege on them and uses four SECURITY DEFINER functions.
 - Session: 32 random bytes in an HttpOnly, SameSite=Lax cookie (`Secure` when `PUBLIC_URL` is https); the database stores its SHA-256. Default lifetime 12 hours (assumption).
 - State-changing requests whose `Origin` differs from `PUBLIC_URL` get `403`.
+
+L12 (2026-11-12, T3 review): native review of commits beca264 and 5cf57e9 (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Fixed in a follow-up commit, each with RED then GREEN:
+- Migration 0001 had been edited in place (the membership foreign key). No database had applied it outside throwaway test containers, so the edit stands; the runner now stores a checksum per file and refuses to run when an applied file changed.
+- A session lookup that fails (database down) answered `500`; it now answers `503`, and `/api/health` no longer goes through the session lookup.
+- A database failure in the sign-in callback now ends in the `sign_in_failed` redirect and clears the start cookie.
+- Added the test for a provider that cannot be reached when sign-in starts.
+- `PUBLIC_URL` is required by the API; Compose supplies the default, and the README now says so for local development.
+Checks: `npm test` 41 passed, `npm run typecheck` clean.

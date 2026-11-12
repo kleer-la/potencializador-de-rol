@@ -219,6 +219,101 @@ describe('sign-in with Google or Microsoft', () => {
     }
   });
 
+  it('fails sign-in cleanly when the provider cannot be reached', async () => {
+    const unreachable: IdentityProvider = {
+      id: 'google',
+      beginSignIn: async () => {
+        throw new Error('discovery failed');
+      },
+      completeSignIn: async () => {
+        throw new Error('unreachable');
+      },
+    };
+    const isolated = buildApp({
+      databaseProbe: async () => {},
+      identity: {
+        database: createDatabase(appPool),
+        providers: [unreachable],
+        publicUrl: PUBLIC_URL,
+        sessionTtlHours: 12,
+      },
+    });
+
+    const response = await isolated.inject({ method: 'GET', url: '/api/auth/google/login' });
+    await isolated.close();
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe('/?error=sign_in_failed');
+    expect(response.cookies.find((cookie) => cookie.name === 'sign_in')?.value ?? '').toBe('');
+  });
+
+  describe('when the database is unavailable', () => {
+    let brokenPool: pg.Pool;
+    let broken: FastifyInstance;
+
+    beforeAll(() => {
+      brokenPool = new pg.Pool({
+        connectionString: 'postgres://nobody:nothing@127.0.0.1:1/none',
+        connectionTimeoutMillis: 500,
+      });
+      broken = buildApp({
+        databaseProbe: async () => {
+          throw new Error('database down');
+        },
+        identity: {
+          database: createDatabase(brokenPool),
+          providers: [fakeProvider('google')],
+          publicUrl: PUBLIC_URL,
+          sessionTtlHours: 12,
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await broken.close();
+      await brokenPool.end();
+    });
+
+    it('health still answers 503 unavailable for a browser that carries a session cookie', async () => {
+      const response = await broken.inject({
+        method: 'GET',
+        url: '/api/health',
+        cookies: { session: 'any-session' },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ status: 'unavailable' });
+    });
+
+    it('answers 503 instead of an internal error to a request with a session cookie', async () => {
+      const response = await broken.inject({
+        method: 'GET',
+        url: '/api/me',
+        cookies: { session: 'any-session' },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: 'unavailable' });
+    });
+
+    it('ends the sign-in callback with the failure redirect and clears the start cookie', async () => {
+      nextIdentity = identity(`${randomUUID()}@example.test`);
+      const start = await broken.inject({ method: 'GET', url: '/api/auth/google/login' });
+      const startCookie = start.cookies.find((cookie) => cookie.name === 'sign_in')!.value;
+
+      const callback = await broken.inject({
+        method: 'GET',
+        url: `/api/auth/google/callback?code=fake-code&state=${FAKE_STATE}`,
+        cookies: { sign_in: startCookie },
+      });
+
+      expect(callback.statusCode).toBe(302);
+      expect(callback.headers.location).toBe('/?error=sign_in_failed');
+      expect(callback.cookies.find((cookie) => cookie.name === 'sign_in')?.value).toBe('');
+      expect(callback.cookies.find((cookie) => cookie.name === 'session')).toBeUndefined();
+    });
+  });
+
   it('answers 401 on /api/me without a session, with an unknown one, or with an expired one', async () => {
     const invited = await invitedPerson();
     nextIdentity = identity(invited.email);

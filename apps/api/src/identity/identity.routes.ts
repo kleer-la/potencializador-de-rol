@@ -47,8 +47,8 @@ function parsePendingSignIn(raw: string | undefined): PendingSignIn | null {
 }
 
 /**
- * Sign-in, sign-out and the current person. Registers directly on the given instance (no
- * encapsulation), so `request.personId` and the origin check apply to every sibling route.
+ * Sign-in, sign-out and the current person. Registers directly on the given instance, so
+ * `request.personId` and the origin check apply to every route registered on it afterwards.
  */
 export async function registerIdentity(api: FastifyInstance, options: IdentityOptions): Promise<void> {
   const store = createIdentityStore(options.database);
@@ -67,7 +67,13 @@ export async function registerIdentity(api: FastifyInstance, options: IdentityOp
       return reply.code(403).send({ error: 'forbidden_origin' });
     }
     const token = request.cookies[SESSION_COOKIE];
-    request.personId = token ? await store.findSessionPerson(token) : null;
+    if (!token) return;
+    try {
+      request.personId = await store.findSessionPerson(token);
+    } catch (error) {
+      request.log.error(error, 'session lookup failed');
+      return reply.code(503).send({ error: 'unavailable' });
+    }
   });
 
   const callbackAddress = (providerId: string) =>
@@ -118,12 +124,17 @@ export async function registerIdentity(api: FastifyInstance, options: IdentityOp
       return failSignIn(reply, 'sign_in_failed');
     }
 
-    const personId = await store.resolvePerson(identity);
-    if (personId === null) {
-      return failSignIn(reply, 'not_invited');
+    let token;
+    try {
+      const personId = await store.resolvePerson(identity);
+      if (personId === null) {
+        return failSignIn(reply, 'not_invited');
+      }
+      token = await store.createSession(personId, options.sessionTtlHours);
+    } catch (error) {
+      request.log.error(error, 'could not complete sign-in');
+      return failSignIn(reply, 'sign_in_failed');
     }
-
-    const token = await store.createSession(personId, options.sessionTtlHours);
     return reply
       .clearCookie(SIGN_IN_COOKIE, { path: SIGN_IN_COOKIE_PATH })
       .setCookie(SESSION_COOKIE, token, {

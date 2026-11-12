@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import pg from 'pg';
 
@@ -27,22 +28,39 @@ export async function migrate(options: MigrateOptions): Promise<string[]> {
     await client.query(
       `create table if not exists schema_migrations (
          name text primary key,
+         checksum text not null,
          applied_at timestamptz not null default now()
        )`,
     );
 
-    const appliedRows = await client.query<{ name: string }>('select name from schema_migrations');
-    const applied = new Set(appliedRows.rows.map((row) => row.name));
+    const appliedRows = await client.query<{ name: string; checksum: string }>(
+      'select name, checksum from schema_migrations',
+    );
+    const applied = new Map(appliedRows.rows.map((row) => [row.name, row.checksum]));
     const files = (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort();
 
     const newlyApplied: string[] = [];
     for (const file of files) {
-      if (applied.has(file)) continue;
       const statements = await readFile(new URL(file, directory), 'utf8');
+      const checksum = createHash('sha256').update(statements).digest('hex');
+      const appliedChecksum = applied.get(file);
+      if (appliedChecksum !== undefined) {
+        // An applied file is never run again, so an edit would silently reach only new
+        // databases. Stop instead of letting schemas drift apart.
+        if (appliedChecksum !== checksum) {
+          throw new Error(
+            `migration ${file} was changed after it was applied; add a new migration instead`,
+          );
+        }
+        continue;
+      }
       await client.query('begin');
       try {
         await client.query(statements);
-        await client.query('insert into schema_migrations (name) values ($1)', [file]);
+        await client.query('insert into schema_migrations (name, checksum) values ($1, $2)', [
+          file,
+          checksum,
+        ]);
         await client.query('commit');
       } catch (error) {
         await client.query('rollback');
