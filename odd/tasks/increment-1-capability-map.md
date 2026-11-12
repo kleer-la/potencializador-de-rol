@@ -54,7 +54,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 ## Tasks
 
-- [ ] T1 — Domain rules: map life cycle, publish requirements, what a published map accepts, permissions. Specs: S3, S4, S5, S9. Route: inline. Risk: none expected (new pure code). Commit: —
+- [x] T1 — Domain rules: map life cycle, publish requirements, what a published map accepts, permissions. Specs: S3, S4, S5, S9. Route: inline. Risk: none (new pure code in `packages/domain`; existing policy functions unchanged). Commit: `feat: domain rules of the capability map` (see L4).
 - [ ] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: —
 - [ ] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
@@ -71,3 +71,5 @@ L1 (2026-11-12, user, original request): "Inicia"
 L2 (2026-11-12, context): the request answers the question "¿Empiezo incremento 1 ahora, o prefieres probar primero ingreso real con Google y Microsoft?". Increment 1 is row 1 of the build plan the user approved: "Mapa: editor, escala, publicar, solo-agregar. Carga del mapa de PO", covering invariant 10.
 
 L3 (2026-11-12, decisions before code): the assumptions marked in S2, S3, S4 and S7 were taken without asking, because the document leaves them open and each can be changed later without redoing the rest. They are reported to the user with this document.
+
+L4 (2026-11-12, T1 evidence): RED observed (`capability-map.ts` missing; `canDesignMaps is not a function`), then GREEN: unit project 29 passed, `npm run typecheck` clean. Rules: `canApplyChange`, `canTransition`, `canStartNewVersionFrom`, `publishObstacles`, and the policies `canDesignMaps` and `canReadOrganization`. An administrator who is not map designer does not design maps.

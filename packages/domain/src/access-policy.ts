@@ -26,3 +26,22 @@ export function canAdministerOrganization(actor: Actor, organizationId: string):
     )
   );
 }
+
+const hasMembership = (actor: Actor, organizationId: string, role?: MembershipRole) =>
+  actor.memberships.some(
+    (membership) =>
+      membership.organizationId === organizationId && (role === undefined || membership.role === role),
+  );
+
+/**
+ * Designing covers the capability maps of the organization and its catalogs of tools and
+ * strategic objectives. Being administrator does not include it.
+ */
+export function canDesignMaps(actor: Actor, organizationId: string): boolean {
+  return actor.isSuperAdmin || hasMembership(actor, organizationId, 'map_designer');
+}
+
+/** Roles, maps and catalogs of an organization are readable by all its members. */
+export function canReadOrganization(actor: Actor, organizationId: string): boolean {
+  return actor.isSuperAdmin || hasMembership(actor, organizationId);
+}
