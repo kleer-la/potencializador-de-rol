@@ -35,6 +35,14 @@ services:
     environment:
       # The API connects as the restricted role, never as the schema owner.
       DATABASE_URL: postgres://potencializador_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-potencializador}
+      # Address the browser uses; sign-in callbacks are built from it.
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT: ${MICROSOFT_TENANT:-common}
     depends_on:
       migrate:
         condition: service_completed_successfully

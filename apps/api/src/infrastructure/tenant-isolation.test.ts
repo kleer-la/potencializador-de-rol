@@ -247,6 +247,22 @@ describe('INV-11 isolation by organization (database)', () => {
     expect(connectedAs.rows[0]?.current_user).toBe(APP_ROLE);
   });
 
+  it('INV-11 the API role cannot read or write sign-in tables directly', async () => {
+    const outcomes = await Promise.all([
+      rejectionText(appPool.query('select * from sessions')),
+      rejectionText(appPool.query('select * from person_identities')),
+      rejectionText(
+        appPool.query("insert into sessions (token_hash, person_id, expires_at) values ('x', $1, now())", [
+          personA,
+        ]),
+      ),
+    ]);
+
+    for (const outcome of outcomes) {
+      expect(outcome).toMatch(/permission denied/);
+    }
+  });
+
   it('INV-11 every table the API role can reach has row level security enabled', async () => {
     const unprotected = await ownerPool.query(
       `select c.relname

@@ -46,7 +46,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Scaffold: npm workspaces, TypeScript, Vitest, API `/health`, web shell, Dockerfiles, Compose. Specs: S1, S2 (domain package deferred to T2, its first user). Route: inline. Risk: item 5 (dependencies, environment). Commit: `feat: scaffold dockerized api and web` (see L5).
 - [x] T2 — Persistence and tenancy: schema (`organizations`, `persons`, `organization_memberships`), migrations, database roles, Row Level Security, scoped transaction, `INV-11` database tests. Specs: S3 (database level; API level is T4), S7. Route: inline. Risk: item 2 (security guard). Commit: `feat: isolate organizations with row level security` (see L8).
-- [ ] T3 — Sign-in: OpenID Connect port with Google and Microsoft adapters, sessions, invitation check, `/me`, sign-out. Specs: S4. Route: inline. Risk: item 2 (authentication). Commit: —
+- [x] T3 — Sign-in: OpenID Connect port with Google and Microsoft adapters, sessions, invitation check, `/me`, sign-out. Specs: S4. Route: inline. Risk: item 2 (authentication). Commit: `feat: sign in with google or microsoft` (see L11). Not proven: a real sign-in round trip, which needs the user's provider credentials.
 - [ ] T4 — Organizations and memberships API with authorization, `INV-11` API tests, super administrator bootstrap. Specs: S3, S5, S7. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Web interface: sign-in, organizations, members. Specs: S6. Route: inline. Risk: none expected. Commit: —
 
@@ -88,3 +88,11 @@ L10 (2026-11-12, T2 review): native review of commit e3c615e (lenses risk, relia
 - Read assertions depended on exact table contents of a shared database. They now assert ownership.
 - Open for T4: the email is unique across organizations, so an invitation that repeats an email of another organization must answer without revealing that the email exists elsewhere.
 Checks after the fix: `npm test` 14 passed, `npm run typecheck` clean.
+
+L11 (2026-11-12, T3 evidence and decisions): RED observed (sign-in suites failed: routes and claim mapping missing), then GREEN: `npm test` 36 passed, `npm run typecheck` clean. Compose probe without credentials: both migrations applied, `/api/auth/providers` `{"providers":[]}`, `/api/me` `401`, unconfigured provider `404`, warning logged. Smoke test of the real adapter with placeholder credentials: discovery and authorization URL build for Google and for Microsoft `common` (PKCE, state and nonce present). Not proven: the token exchange with real credentials.
+- Library: openid-client 6 (handles the Microsoft multi-tenant issuer).
+- Microsoft's claims reference says the `email` claim "isn't guaranteed to be correct" and must never be used for authorization. So for Microsoft the email counts only with the optional claim `xms_edov` true; otherwise a first sign-in is refused. Whether `xms_edov` is emitted for the user's tenant must be checked with a real app registration.
+- Identity key is issuer + subject. A person may have several provider accounts.
+- `sessions` and `person_identities` are read before a person is known, so the API role has no privilege on them and uses four SECURITY DEFINER functions.
+- Session: 32 random bytes in an HttpOnly, SameSite=Lax cookie (`Secure` when `PUBLIC_URL` is https); the database stores its SHA-256. Default lifetime 12 hours (assumption).
+- State-changing requests whose `Origin` differs from `PUBLIC_URL` get `403`.

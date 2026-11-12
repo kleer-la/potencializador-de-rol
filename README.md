@@ -14,6 +14,11 @@ Create a `.env` file at the repository root:
 | `POSTGRES_USER` | no | `potencializador` | Database user. |
 | `POSTGRES_DB` | no | `potencializador` | Database name. |
 | `WEB_PORT` | no | `8080` | Host port of the web application. |
+| `PUBLIC_URL` | no | `http://localhost:8080` | Address the browser uses. Sign-in callbacks are built from it; with `https` the cookies are marked `Secure`. |
+| `SESSION_TTL_HOURS` | no | `12` | Lifetime of a session. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | no | — | Enable sign-in with Google. Set both or neither. |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | no | — | Enable sign-in with Microsoft. Set both or neither. |
+| `MICROSOFT_TENANT` | no | `common` | `common`, `organizations`, or one tenant id. |
 
 ```sh
 docker compose up --build
@@ -23,6 +28,25 @@ Open `http://localhost:8080`. The API is served under `/api` by the same port; `
 answers `{"status":"ok"}` when the API reaches the database.
 
 The `migrate` service applies pending migrations from `apps/api/migrations` before the API starts.
+
+## Sign-in
+
+People sign in only with a Google or a Microsoft account; the system stores no passwords. Access is
+by invitation: a person signs in only if a person with that email already exists. On the first
+sign-in the provider account is bound to the person, and later sign-ins use that binding, not the
+email. With no provider configured the application starts, but nobody can sign in.
+
+Register one application per provider and copy its client id and secret to `.env`:
+
+| Provider | Where | Redirect URI |
+| --- | --- | --- |
+| Google | Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application) | `<PUBLIC_URL>/api/auth/google/callback` |
+| Microsoft | Microsoft Entra admin center → App registrations (Web platform) | `<PUBLIC_URL>/api/auth/microsoft/callback` |
+
+Microsoft needs one more step. Entra does not verify the `email` claim, so the first sign-in is
+accepted only when the token also carries `xms_edov` (email domain owner verified). In the app
+registration, under Token configuration, add the optional ID token claims `email` and `xms_edov`.
+Without them a Microsoft first sign-in is refused as not invited.
 
 ## Isolation by organization
 
