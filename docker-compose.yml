@@ -14,16 +14,30 @@ services:
       timeout: 3s
       retries: 10
 
+  # One-shot: applies pending migrations as the schema owner, then exits.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ['node', 'apps/api/src/infrastructure/migrate-cli.ts']
+    environment:
+      MIGRATION_DATABASE_URL: postgres://${POSTGRES_USER:-potencializador}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-potencializador}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-potencializador}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-potencializador}
+      # The API connects as the restricted role, never as the schema owner.
+      DATABASE_URL: postgres://potencializador_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-potencializador}
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:

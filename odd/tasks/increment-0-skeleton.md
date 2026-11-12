@@ -45,7 +45,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Scaffold: npm workspaces, TypeScript, Vitest, API `/health`, web shell, Dockerfiles, Compose. Specs: S1, S2 (domain package deferred to T2, its first user). Route: inline. Risk: item 5 (dependencies, environment). Commit: `feat: scaffold dockerized api and web` (see L5).
-- [ ] T2 — Persistence and tenancy: schema (`organizations`, `persons`, `organization_memberships`), migrations, database roles, Row Level Security, scoped transaction, `INV-11` database tests. Specs: S3, S7. Route: inline. Risk: item 2 (security guard). Commit: —
+- [x] T2 — Persistence and tenancy: schema (`organizations`, `persons`, `organization_memberships`), migrations, database roles, Row Level Security, scoped transaction, `INV-11` database tests. Specs: S3 (database level; API level is T4), S7. Route: inline. Risk: item 2 (security guard). Commit: `feat: isolate organizations with row level security` (see L8).
 - [ ] T3 — Sign-in: OpenID Connect port with Google and Microsoft adapters, sessions, invitation check, `/me`, sign-out. Specs: S4. Route: inline. Risk: item 2 (authentication). Commit: —
 - [ ] T4 — Organizations and memberships API with authorization, `INV-11` API tests, super administrator bootstrap. Specs: S3, S5, S7. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Web interface: sign-in, organizations, members. Specs: S6. Route: inline. Risk: none expected. Commit: —
@@ -69,3 +69,14 @@ L5 (2026-11-12, T1 evidence): RED observed (`app.test.ts` failed, `./app.ts` mis
 L6 (2026-11-12, limitation): writing `.env.example` is denied by the session permission settings, so the environment variables are documented in `README.md` instead.
 
 L7 (2026-11-12, T1 review): native review of commit 7293f82 (lenses risk, resilience; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Four informational resilience findings were fixed in a follow-up commit: restart policy on the three services, a pool-wide `query_timeout`, per-request DNS resolution of the API upstream in nginx, and a guarded shutdown. Probe after the fix: health `200` after recreating the `api` container without restarting `web`, and `200` again after the API process exited (restart count 1).
+
+L8 (2026-11-12, T2 evidence): RED observed (suite could not load: `migrate.ts`, `schema.ts`, `scoped-transaction.ts` missing), then GREEN: `npm test` 11 passed (9 titled `INV-11`), `npm run typecheck` clean. Mutation check on the migration: making `persons` readable by everyone failed 4 tests; deriving super administrator without the `organization_id IS NULL` condition failed 4 tests; both restored. Compose probe: `migrate` applied `0001_identity_and_organizations.sql`, a second run reported `no pending migrations`, the API connected as `potencializador_app`, 12 policies and Row Level Security enabled on the three tables, health `200`.
+
+L9 (2026-11-12, T2 decisions):
+- A person with `organization_id` null belongs to the mentoring firm and is super administrator (document §4.2). The database derives it from the stored person through `app_is_super_admin()`; the application cannot claim it with a setting.
+- `app.organization_id` is trusted by the database: the application sets it only after authorizing the person for that organization (T4).
+- SQL files are the source of truth for structure and policies; `schema.ts` is the typed view Drizzle queries use. A small runner applies them, so drizzle-kit is not a dependency.
+- Row Level Security is enabled but not forced: the owner role runs migrations only, and `app_is_super_admin()` must read `persons` as owner.
+- The domain package of S2 moves to T4, where the first domain rule (who may administer an organization) appears.
+- `npm audit`: one moderate advisory (glob, through testcontainers → archiver). Development dependency only; it is not in the production images. Left as is: the offered fix downgrades testcontainers two majors.
+- The follow-up commit ca60876 (24 lines) was assessed `under_budget`, so it carries no review of its own.

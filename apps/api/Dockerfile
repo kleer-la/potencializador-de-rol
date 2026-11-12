@@ -8,6 +8,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev --workspace @potencializador/api
 
+COPY apps/api/migrations apps/api/migrations
 COPY apps/api/src apps/api/src
 
 USER node

@@ -16,6 +16,7 @@
     "dev:web": "npm run dev --workspace @potencializador/web"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^22.20.5",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
