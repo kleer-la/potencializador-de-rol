@@ -47,7 +47,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Scaffold: npm workspaces, TypeScript, Vitest, API `/health`, web shell, Dockerfiles, Compose. Specs: S1, S2 (domain package deferred to T2, its first user). Route: inline. Risk: item 5 (dependencies, environment). Commit: `feat: scaffold dockerized api and web` (see L5).
 - [x] T2 — Persistence and tenancy: schema (`organizations`, `persons`, `organization_memberships`), migrations, database roles, Row Level Security, scoped transaction, `INV-11` database tests. Specs: S3 (database level; API level is T4), S7. Route: inline. Risk: item 2 (security guard). Commit: `feat: isolate organizations with row level security` (see L8).
 - [x] T3 — Sign-in: OpenID Connect port with Google and Microsoft adapters, sessions, invitation check, `/me`, sign-out. Specs: S4. Route: inline. Risk: item 2 (authentication). Commit: `feat: sign in with google or microsoft` (see L11). Not proven: a real sign-in round trip, which needs the user's provider credentials.
-- [ ] T4 — Organizations and memberships API with authorization, `INV-11` API tests, super administrator bootstrap. Specs: S3, S5, S7. Route: inline. Risk: item 2 (permissions). Commit: —
+- [x] T4 — Organizations and memberships API with authorization, `INV-11` API tests, super administrator bootstrap, domain package. Specs: S2 (domain package), S3, S5, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer organizations and members` (see L13).
 - [ ] T5 — Web interface: sign-in, organizations, members. Specs: S6. Route: inline. Risk: none expected. Commit: —
 
 Route evidence: tasks depend on each other in sequence (T2 needs T1, T3 and T4 need T2, T5 needs T3 and T4), so no parallel writer applies; the parent writes inline.
@@ -104,3 +104,10 @@ L12 (2026-11-12, T3 review): native review of commits beca264 and 5cf57e9 (lense
 - Added the test for a provider that cannot be reached when sign-in starts.
 - `PUBLIC_URL` is required by the API; Compose supplies the default, and the README now says so for local development.
 Checks: `npm test` 41 passed, `npm run typecheck` clean.
+
+L13 (2026-11-12, T4 evidence and decisions): RED observed (13 failing: domain policy and routes missing; then bootstrap module missing), then GREEN: `npm test` 63 passed (20 titled `INV-11`), `npm run typecheck` clean. Compose probe with `SUPER_ADMIN_EMAILS` holding two emails: both created as persons of the firm, lowercased; second run created none; `/api/organizations` without session `401`; the API image runs with the domain package.
+- Authorization is decided by the domain policy (`packages/domain`, no framework import) before any transaction; Row Level Security stays as the second barrier.
+- A member gets the same `403` for another organization and for one that does not exist. A super administrator gets `404` for one that does not exist.
+- Inviting: creates the person in the organization when the email is new, adds the role when the person is already there, and is safe to repeat. An email that belongs elsewhere answers `409 invitation_not_possible` and changes nothing. Residual leak, accepted: the administrator can infer that the email exists somewhere in the system; avoiding it would need emails unique per organization, which breaks sign-in by email.
+- `SUPER_ADMIN_EMAILS` never promotes a person of a client organization; it logs a count, not the emails.
+- The members list returns every person of the organization, with or without roles.

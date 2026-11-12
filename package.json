@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p apps/api && tsc -p apps/web",
+    "typecheck": "tsc -p packages/domain && tsc -p apps/api && tsc -p apps/web",
     "dev:api": "npm run dev --workspace @potencializador/api",
     "dev:web": "npm run dev --workspace @potencializador/web"
   },

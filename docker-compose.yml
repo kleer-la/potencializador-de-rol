@@ -23,6 +23,8 @@ services:
     environment:
       MIGRATION_DATABASE_URL: postgres://${POSTGRES_USER:-potencializador}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-potencializador}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      # Comma-separated emails of the mentoring firm's people; created on start if missing.
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-}
     depends_on:
       db:
         condition: service_healthy

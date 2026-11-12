@@ -16,6 +16,7 @@ Create a `.env` file at the repository root:
 | `WEB_PORT` | no | `8080` | Host port of the web application. |
 | `PUBLIC_URL` | no | `http://localhost:8080` | Address the browser uses. Sign-in callbacks are built from it; with `https` the cookies are marked `Secure`. |
 | `SESSION_TTL_HOURS` | no | `12` | Lifetime of a session. |
+| `SUPER_ADMIN_EMAILS` | no | — | Comma-separated emails of the mentoring firm's people. Each is created as super administrator on start if no person has that email. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | no | — | Enable sign-in with Google. Set both or neither. |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | no | — | Enable sign-in with Microsoft. Set both or neither. |
 | `MICROSOFT_TENANT` | no | `common` | `common`, `organizations`, or one tenant id. |
@@ -50,6 +51,16 @@ accepted only when the token also carries `xms_edov` (email domain owner verifie
 registration, under Token configuration, add the optional ID token claims `email` and `xms_edov`.
 Without them a Microsoft first sign-in is refused as not invited.
 
+## Roles
+
+- **Super administrator**: a person of the mentoring firm. Creates organizations and may administer
+  any of them for support. The first ones come from `SUPER_ADMIN_EMAILS`.
+- **Administrator** of an organization: invites its people and assigns their roles.
+- **Map designer** of an organization: no administration rights; used from the next increment on.
+
+An email belongs to one person in the whole system. Inviting an email that already belongs to
+another organization is refused without saying where it belongs.
+
 ## Isolation by organization
 
 Every table holds data of one organization and is protected by PostgreSQL Row Level Security.
@@ -73,6 +84,7 @@ npm run dev:web     # proxies /api to localhost:3000
 
 ## Layout
 
+- `packages/domain` — domain rules, with no framework or database dependency.
 - `apps/api` — Fastify API.
 - `apps/web` — React application, served by nginx in Docker.
 - `odd/tasks` — one feature document (specs, tasks, log) per increment, written before its code.

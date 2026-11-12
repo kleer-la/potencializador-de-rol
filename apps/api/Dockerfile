@@ -4,10 +4,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
+COPY packages/domain/package.json packages/domain/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev --workspace @potencializador/api
 
+COPY packages/domain/src packages/domain/src
 COPY apps/api/migrations apps/api/migrations
 COPY apps/api/src apps/api/src
 

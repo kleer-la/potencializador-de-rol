@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
+    "@potencializador/domain": "*",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "openid-client": "^6.8.9",
