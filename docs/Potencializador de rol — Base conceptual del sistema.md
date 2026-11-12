@@ -326,14 +326,13 @@ La descripción de origen no define todo; lo que sigue separa lo que se asumió 
 | Bonificaciones | Se modelan como bonificación otorgada (`BonusAward`): propuesta, evidencia y aprobación de un integrante del panel |
 | Papeles por organización | Se agrega la membresía (`OrganizationMembership`) para administrador y diseñador del mapa |
 | Personas de la firma de mentores | Son superadministradoras: crean cuentas de organizaciones cliente y pueden administrar dentro de ellas por soporte |
-| Autenticación | Inicio de sesión con cuenta de Google o de Microsoft |
+| Autenticación | Inicio de sesión solo con cuenta de Google o de Microsoft, para delegar en ellos la autenticación; el sistema no guarda contraseñas. El acceso es por invitación |
 | Tarjetas verdes del mapa de ejemplo | Son las capacidades priorizadas para la organización y el programa de ejemplo; en los datos de prueba se cargan como selección base de ese programa |
 | Tecnología | Monolito modular con arquitectura hexagonal, TypeScript de punta a punta: Fastify, Zod y Drizzle en la API; React y Vite en la web; PostgreSQL con aislamiento por organización; todo en contenedores con Docker Compose |
 
 ### 9.3 Decisiones abiertas
 
 - [ ] **Alcance del agregado de brechas.** ¿Qué ve el líder y con qué nivel de anonimato? Las selecciones distintas por participante limitan lo comparable.
-- [ ] **Cuentas con contraseña propia.** ¿Además de Google y Microsoft se ofrece correo y contraseña, o solo esos dos proveedores?
 - [ ] **Panel de calibración.** `PanelAssignment` necesita atributos: participante, integrante y papel.
 - [ ] **Transferencia en la calibración.** ¿Fijar un nivel que exige transferencia en la línea base pide evidencia registrada?
 - [ ] **Asteriscos del mapa de ejemplo.** Algunas herramientas llevan asterisco sin leyenda.
