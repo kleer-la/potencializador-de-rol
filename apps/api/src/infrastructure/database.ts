@@ -4,6 +4,9 @@ export function createPool(databaseUrl: string): pg.Pool {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     connectionTimeoutMillis: 5_000,
+    // Bounds every query, so a stalled database fails fast instead of holding
+    // connections until the pool is exhausted.
+    query_timeout: 10_000,
   });
   // An idle connection that loses the database emits 'error'. Without a listener
   // Node treats it as unhandled and the process exits; the pool already discards

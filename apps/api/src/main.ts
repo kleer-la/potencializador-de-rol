@@ -7,8 +7,13 @@ const pool = createPool(config.databaseUrl);
 const app = buildApp({ databaseProbe: createDatabaseProbe(pool), logger: true });
 
 const shutdown = async () => {
-  await app.close();
-  await pool.end();
+  try {
+    await app.close();
+    await pool.end();
+  } catch (error) {
+    console.error('shutdown failed:', error);
+    process.exitCode = 1;
+  }
 };
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);
