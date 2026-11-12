@@ -20,17 +20,6 @@ const invitationInput = z.object({
 });
 const organizationParams = z.object({ organizationId: z.uuid() });
 
-const UNIQUE_VIOLATION = '23505';
-
-/** Drizzle wraps the driver error; the PostgreSQL code is somewhere in the cause chain. */
-function postgresCode(error: unknown): string | undefined {
-  for (let current = error; current instanceof Error; current = current.cause) {
-    const code = (current as { code?: unknown }).code;
-    if (typeof code === 'string') return code;
-  }
-  return undefined;
-}
-
 type Member = { personId: string; name: string; email: string; roles: MembershipRole[] };
 
 /**
@@ -174,27 +163,34 @@ export async function registerOrganizations(
     if (!input.success) return reply.code(400).send({ error: 'invalid_request' });
     const { email, name, role } = input.data;
 
-    let outcome;
-    try {
-      outcome = await withScope(db, { personId, organizationId }, async (tx) => {
+    const outcome = await withScope(db, { personId, organizationId }, async (tx) => {
         const [organization] = await tx
           .select({ id: organizations.id })
           .from(organizations)
           .where(eq(organizations.id, organizationId));
         if (organization === undefined) return null;
 
-        let [person] = await tx
-          .select({ id: persons.id, name: persons.name, email: persons.email })
-          .from(persons)
-          .where(and(eq(persons.organizationId, organizationId), sql`lower(${persons.email}) = ${email}`));
-        const created = person === undefined;
-        if (person === undefined) {
-          [person] = await tx
+        const findInOrganization = () =>
+          tx
+            .select({ id: persons.id, name: persons.name, email: persons.email })
+            .from(persons)
+            .where(and(eq(persons.organizationId, organizationId), sql`lower(${persons.email}) = ${email}`));
+
+        let [invited] = await findInOrganization();
+        let created = false;
+        if (invited === undefined) {
+          // Emails are unique across organizations. No row comes back when the email is
+          // taken: by a concurrent invitation to this organization, or by a person elsewhere.
+          [invited] = await tx
             .insert(persons)
             .values({ organizationId, email, name })
+            .onConflictDoNothing()
             .returning({ id: persons.id, name: persons.name, email: persons.email });
+          created = invited !== undefined;
+          if (invited === undefined) [invited] = await findInOrganization();
+          // Still nothing: it belongs to a person the caller cannot see.
+          if (invited === undefined) return 'email_taken' as const;
         }
-        const invited = person!;
 
         await tx
           .insert(organizationMemberships)
@@ -219,16 +215,10 @@ export async function registerOrganizations(
         };
         return { created, member };
       });
-    } catch (error) {
-      // Emails are unique across organizations. The email already belongs to a person the
-      // caller cannot see; the answer says only that the invitation cannot be made.
-      if (postgresCode(error) === UNIQUE_VIOLATION) {
-        return reply.code(409).send({ error: 'invitation_not_possible' });
-      }
-      throw error;
-    }
 
     if (outcome === null) return reply.code(404).send({ error: 'organization_not_found' });
+    // The answer says only that the invitation cannot be made, never where the email belongs.
+    if (outcome === 'email_taken') return reply.code(409).send({ error: 'invitation_not_possible' });
     return reply.code(outcome.created ? 201 : 200).send(outcome.member);
   });
 }

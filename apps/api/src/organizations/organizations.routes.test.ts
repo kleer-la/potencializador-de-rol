@@ -197,6 +197,19 @@ describe('organizations and memberships', () => {
     expect([persons.rowCount, memberships.rowCount]).toEqual([1, 2]);
   });
 
+  it('gives every concurrent invitation of the same new email the same person', async () => {
+    const body = { email: newEmail(), name: 'Carlos Peña', role: 'map_designer' };
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () => invite(sessions.administratorA, organizationA, body)),
+    );
+
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 200, 200, 201]);
+    expect(new Set(responses.map((response) => response.json().personId)).size).toBe(1);
+    const persons = await ownerPool.query('select 1 from persons where email = $1', [body.email]);
+    expect(persons.rowCount).toBe(1);
+  });
+
   it('INV-11 lists the members of the organization and nobody from another one', async () => {
     const response = await call(sessions.administratorA, 'GET', `/api/organizations/${organizationA}/members`);
 

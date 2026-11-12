@@ -10,6 +10,9 @@ const environment = z
   })
   .parse(process.env);
 
+// Parsed before migrating, so a malformed value stops the run with the database untouched.
+const superAdministratorEmails = parseEmailList(environment.SUPER_ADMIN_EMAILS);
+
 const applied = await migrate({
   ownerDatabaseUrl: environment.MIGRATION_DATABASE_URL,
   appRolePassword: environment.APP_DB_PASSWORD,
@@ -18,7 +21,7 @@ console.log(applied.length === 0 ? 'no pending migrations' : `applied: ${applied
 
 const superAdministrators = await ensureSuperAdministrators(
   environment.MIGRATION_DATABASE_URL,
-  parseEmailList(environment.SUPER_ADMIN_EMAILS),
+  superAdministratorEmails,
 );
 if (superAdministrators.created.length > 0) {
   console.log(`super administrators created: ${superAdministrators.created.length}`);

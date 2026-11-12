@@ -111,3 +111,10 @@ L13 (2026-11-12, T4 evidence and decisions): RED observed (13 failing: domain po
 - Inviting: creates the person in the organization when the email is new, adds the role when the person is already there, and is safe to repeat. An email that belongs elsewhere answers `409 invitation_not_possible` and changes nothing. Residual leak, accepted: the administrator can infer that the email exists somewhere in the system; avoiding it would need emails unique per organization, which breaks sign-in by email.
 - `SUPER_ADMIN_EMAILS` never promotes a person of a client organization; it logs a count, not the emails.
 - The members list returns every person of the organization, with or without roles.
+
+L14 (2026-11-12, T4 review): native review of commits bc99526 and b124a96 (lenses risk, reliability; consent granted by the user) found one blocking defect: the migration runner failed on a database whose `schema_migrations` table was created before checksums existed (`column "checksum" does not exist`), so an existing Compose volume could not start. Corrected in commit ad2b099 (RED reproduced with that exact error, then GREEN): the column is added to an existing table and files applied earlier adopt their current checksum. The targeted validation passed; the review ended `approved` and was acknowledged.
+Informational findings handled in a follow-up commit:
+- Concurrent invitations of the same new email to one organization could answer a misleading `409`. The insert now ignores the conflict and looks the person up again; a new test sends four at once. RED was not observed separately for this test: it was written together with the fix.
+- `SUPER_ADMIN_EMAILS` is validated before migrating.
+- Not changed, accepted and recorded in L13: the invitation endpoint lets an administrator infer that an email exists somewhere in the system. No rate limit exists yet.
+Checks: `npm test` 65 passed, `npm run typecheck` clean.
