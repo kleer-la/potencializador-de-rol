@@ -124,3 +124,12 @@ L15 (2026-11-12, T5 evidence and decisions): RED observed (11 interface tests fa
 - The interface offers actions with the same domain policy the API enforces (`@potencializador/domain`); the API stays the authority.
 - No router or data-fetching library yet: one screen, plain hooks. Revisit when the map editor arrives.
 - Not proven: the interface in a real browser, and a real provider sign-in; both need the user's provider credentials.
+
+L16 (2026-11-12, independent verification at feature end): a separate verifier worked on a scratch copy of head ae1e330 against baseline 58a5e78. `npm ci`, `npm test` (76 passed) and `npm run typecheck` passed. Verdicts: S1 pass, S2 pass, S3 pass, S4 pass for what can run (real provider round trip not verifiable), S5 pass, S6 pass at bundle level (real browser not verifiable), S7 pass. Blockers: none. It attacked isolation as the restricted role (no scope, scope A against B, cross-organization rows, claiming super administrator, role and schema tricks, sign-in tables) and through the API; every attempt was refused with data unchanged. Parent spot check: `npm test` re-run, 76 passed.
+Correction of L13: the tests titled `INV-11` are 17, not 20.
+Advisories recorded, not changed:
+- The database trusts `app.person_id` and `app.organization_id` from the API role (L9). A SQL injection in the API would defeat isolation, so queries stay parameterized and authorization stays before `withScope`.
+- The origin check lets through requests without an `Origin` header (non-browser clients); browsers are covered by it and by `SameSite=Lax`.
+- A person cannot update their own row without an organization scope; relevant when profile editing arrives.
+- No membership removal and no rate limit on invitations; neither is in the specs.
+Fixed after it (RED then GREEN): an organization id in upper case answered `403` to its own administrator; the id is now lowercased. `npm test` 77 passed.

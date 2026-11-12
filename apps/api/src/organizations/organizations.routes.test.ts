@@ -139,6 +139,16 @@ describe('organizations and memberships', () => {
     expect(unknown.json()).toEqual(forbidden.json());
   });
 
+  it('accepts the organization id in upper case', async () => {
+    const response = await call(
+      sessions.administratorA,
+      'GET',
+      `/api/organizations/${organizationA.toUpperCase()}/members`,
+    );
+
+    expect(response.statusCode).toBe(200);
+  });
+
   it('refuses member administration to a map designer of the organization', async () => {
     const listed = await call(sessions.designerA, 'GET', `/api/organizations/${organizationA}/members`);
     const invited = await invite(sessions.designerA, organizationA, {

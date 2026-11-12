@@ -18,7 +18,8 @@ const invitationInput = z.object({
   name: z.string().trim().min(1).max(120),
   role: z.enum(MEMBERSHIP_ROLES),
 });
-const organizationParams = z.object({ organizationId: z.uuid() });
+// Lower case, as PostgreSQL returns identifiers; memberships are compared as text.
+const organizationParams = z.object({ organizationId: z.uuid().toLowerCase() });
 
 type Member = { personId: string; name: string; email: string; roles: MembershipRole[] };
 
