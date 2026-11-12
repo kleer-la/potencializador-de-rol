@@ -12,10 +12,13 @@ export type MigrateOptions = {
   /** Connection of the role that owns the schema. Never used by the API at runtime. */
   ownerDatabaseUrl: string;
   appRolePassword: string;
+  /** Directory with the `.sql` files; defaults to `apps/api/migrations`. */
+  migrationsDirectory?: URL;
 };
 
 /** Applies pending SQL migrations in file-name order, each in its own transaction. */
 export async function migrate(options: MigrateOptions): Promise<string[]> {
+  const directory = options.migrationsDirectory ?? MIGRATIONS_DIRECTORY;
   const client = new pg.Client({ connectionString: options.ownerDatabaseUrl });
   await client.connect();
   try {
@@ -30,12 +33,12 @@ export async function migrate(options: MigrateOptions): Promise<string[]> {
 
     const appliedRows = await client.query<{ name: string }>('select name from schema_migrations');
     const applied = new Set(appliedRows.rows.map((row) => row.name));
-    const files = (await readdir(MIGRATIONS_DIRECTORY)).filter((file) => file.endsWith('.sql')).sort();
+    const files = (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort();
 
     const newlyApplied: string[] = [];
     for (const file of files) {
       if (applied.has(file)) continue;
-      const statements = await readFile(new URL(file, MIGRATIONS_DIRECTORY), 'utf8');
+      const statements = await readFile(new URL(file, directory), 'utf8');
       await client.query('begin');
       try {
         await client.query(statements);

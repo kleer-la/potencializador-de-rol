@@ -65,10 +65,37 @@ describe('INV-11 isolation by organization (database)', () => {
       personsOfB: await tx.select().from(persons).where(eq(persons.organizationId, organizationB)),
     }));
 
+    // The database is shared by the whole run, so assert on ownership, not on exact contents.
     expect(seen.organizations.map((row) => row.id)).toEqual([organizationA]);
-    expect(seen.persons.map((row) => row.id)).toEqual([personA]);
-    expect(seen.memberships.map((row) => row.organizationId)).toEqual([organizationA]);
+    expect(seen.persons.map((row) => row.id)).toContain(personA);
+    expect(seen.persons.every((row) => row.organizationId === organizationA)).toBe(true);
+    expect(seen.memberships.length).toBeGreaterThan(0);
+    expect(seen.memberships.every((row) => row.organizationId === organizationA)).toBe(true);
     expect(seen.personsOfB).toEqual([]);
+  });
+
+  it('INV-11 a membership cannot tie an organization to a person of another organization', async () => {
+    const scopeA = { personId: personA, organizationId: organizationA };
+    const superScope = { personId: superAdministrator, organizationId: null };
+    const foreignMembership = {
+      organizationId: organizationA,
+      personId: personB,
+      role: 'map_designer' as const,
+    };
+
+    const fromOrganization = rejectionText(
+      withScope(db, scopeA, (tx) => tx.insert(organizationMemberships).values(foreignMembership)),
+    );
+    const fromSuperAdministrator = rejectionText(
+      withScope(db, superScope, (tx) => tx.insert(organizationMemberships).values(foreignMembership)),
+    );
+
+    expect(await fromOrganization).toMatch(/foreign key/);
+    expect(await fromSuperAdministrator).toMatch(/foreign key/);
+    const seenByPersonB = await withScope(db, { personId: personB, organizationId: null }, (tx) =>
+      tx.select().from(organizations),
+    );
+    expect(seenByPersonB.map((row) => row.id)).toEqual([organizationB]);
   });
 
   it('INV-11 a scope of organization A cannot insert a person or a membership into organization B', async () => {
@@ -198,6 +225,7 @@ describe('INV-11 isolation by organization (database)', () => {
 
     expect(seen.persons).toEqual([personA]);
     expect(seen.organizations).toEqual([organizationA]);
+    expect(seen.organizations).not.toContain(organizationB);
     expect(await createOrganization).toMatch(ROW_LEVEL_SECURITY_ERROR);
   });
 

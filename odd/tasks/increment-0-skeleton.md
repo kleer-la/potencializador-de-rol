@@ -80,3 +80,11 @@ L9 (2026-11-12, T2 decisions):
 - The domain package of S2 moves to T4, where the first domain rule (who may administer an organization) appears.
 - `npm audit`: one moderate advisory (glob, through testcontainers → archiver). Development dependency only; it is not in the production images. Left as is: the offered fix downgrades testcontainers two majors.
 - The follow-up commit ca60876 (24 lines) was assessed `under_budget`, so it carries no review of its own.
+
+L10 (2026-11-12, T2 review): native review of commit e3c615e (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Informational findings and what was done in a follow-up commit:
+- A scope of organization A could create a membership of A for a person of organization B. Fixed structurally: composite foreign key `(person_id, organization_id)` to `persons`; RED observed, then GREEN with a new `INV-11` test. Consequence: persons of the mentoring firm hold no memberships; they are super administrators.
+- The migration runner had no tests. Added: name order, second run applies nothing, a failing file rolls back completely.
+- The database setup ran for every test. Vitest now has two projects: `api` (needs Docker) and `unit` (does not).
+- Read assertions depended on exact table contents of a shared database. They now assert ownership.
+- Open for T4: the email is unique across organizations, so an invitation that repeats an email of another organization must answer without revealing that the email exists elsewhere.
+Checks after the fix: `npm test` 14 passed, `npm run typecheck` clean.

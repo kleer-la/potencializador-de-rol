@@ -20,7 +20,9 @@ CREATE TABLE persons (
   organization_id uuid REFERENCES organizations (id),
   email text NOT NULL,
   name text NOT NULL CHECK (length(btrim(name)) > 0),
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  -- Target of the composite foreign key of organization_memberships.
+  UNIQUE (id, organization_id)
 );
 
 CREATE UNIQUE INDEX persons_email_unique ON persons (lower(email));
@@ -29,10 +31,13 @@ CREATE INDEX persons_organization_id_index ON persons (organization_id);
 CREATE TABLE organization_memberships (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES organizations (id),
-  person_id uuid NOT NULL REFERENCES persons (id),
+  person_id uuid NOT NULL,
   role text NOT NULL CHECK (role IN ('administrator', 'map_designer')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (organization_id, person_id, role)
+  UNIQUE (organization_id, person_id, role),
+  -- A membership is only for a person of that same organization. Foreign keys are
+  -- checked regardless of Row Level Security, so this holds for every caller.
+  FOREIGN KEY (person_id, organization_id) REFERENCES persons (id, organization_id)
 );
 
 CREATE INDEX organization_memberships_person_id_index ON organization_memberships (person_id);

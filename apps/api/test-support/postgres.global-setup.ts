@@ -2,7 +2,8 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import type { TestProject } from 'vitest/node';
 import { APP_ROLE, migrate } from '../src/infrastructure/migrate.ts';
 
-const APP_ROLE_PASSWORD = 'app-role-test-password';
+/** The role is shared by the whole cluster: every `migrate` call in tests must use this password. */
+export const APP_ROLE_PASSWORD = 'app-role-test-password';
 
 /**
  * Starts one throwaway PostgreSQL for the whole run and migrates it.
