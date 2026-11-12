@@ -48,7 +48,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T2 — Persistence and tenancy: schema (`organizations`, `persons`, `organization_memberships`), migrations, database roles, Row Level Security, scoped transaction, `INV-11` database tests. Specs: S3 (database level; API level is T4), S7. Route: inline. Risk: item 2 (security guard). Commit: `feat: isolate organizations with row level security` (see L8).
 - [x] T3 — Sign-in: OpenID Connect port with Google and Microsoft adapters, sessions, invitation check, `/me`, sign-out. Specs: S4. Route: inline. Risk: item 2 (authentication). Commit: `feat: sign in with google or microsoft` (see L11). Not proven: a real sign-in round trip, which needs the user's provider credentials.
 - [x] T4 — Organizations and memberships API with authorization, `INV-11` API tests, super administrator bootstrap, domain package. Specs: S2 (domain package), S3, S5, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer organizations and members` (see L13).
-- [ ] T5 — Web interface: sign-in, organizations, members. Specs: S6. Route: inline. Risk: none expected. Commit: —
+- [x] T5 — Web interface: sign-in, organizations, members. Specs: S6. Route: inline. Risk: none (new interface code over existing API; no shared code changed). Commit: `feat: web interface for sign-in, organizations and members` (see L15).
 
 Route evidence: tasks depend on each other in sequence (T2 needs T1, T3 and T4 need T2, T5 needs T3 and T4), so no parallel writer applies; the parent writes inline.
 Forecast: about 1,500 authored changed lines, generated files excluded. No remote and no pull requests, so slices are the five work-unit commits above.
@@ -118,3 +118,9 @@ Informational findings handled in a follow-up commit:
 - `SUPER_ADMIN_EMAILS` is validated before migrating.
 - Not changed, accepted and recorded in L13: the invitation endpoint lets an administrator infer that an email exists somewhere in the system. No rate limit exists yet.
 Checks: `npm test` 65 passed, `npm run typecheck` clean.
+
+L15 (2026-11-12, T5 evidence and decisions): RED observed (11 interface tests failing against the shell), then GREEN: `npm test` 76 passed in 10 files, `npm run typecheck` clean. Compose probe through the `web` container with a session inserted for a super administrator: page, script and stylesheet served; `/api/me` reported super administrator; organization created; member invited (`201`) and listed; a request with another `Origin` got `403`; sign-out `204` and `/api/me` `401` afterwards.
+- Presentational components in `apps/web/src/components`, containers in `apps/web/src/containers`, all interface text in `copy.ts`.
+- The interface offers actions with the same domain policy the API enforces (`@potencializador/domain`); the API stays the authority.
+- No router or data-fetching library yet: one screen, plain hooks. Revisit when the map editor arrives.
+- Not proven: the interface in a real browser, and a real provider sign-in; both need the user's provider credentials.

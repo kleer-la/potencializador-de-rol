@@ -1,26 +1,75 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { api, type CurrentPerson, type ProviderId } from './api/client.ts';
+import { SignInPanel } from './components/SignInPanel.tsx';
+import { OrganizationsPage } from './containers/OrganizationsPage.tsx';
+import { messages, signInErrors } from './copy.ts';
 
-type ServiceStatus = 'checking' | 'ok' | 'unavailable';
+type Session =
+  | { status: 'loading' }
+  | { status: 'unavailable' }
+  | { status: 'signed_out'; providers: ProviderId[] }
+  | { status: 'signed_in'; me: CurrentPerson };
 
-const statusText: Record<ServiceStatus, string> = {
-  checking: 'Verificando el servicio…',
-  ok: 'Servicio disponible',
-  unavailable: 'Servicio no disponible',
-};
+/** The sign-in callback reports a refusal as `?error=<code>` in the address. */
+function signInErrorFromAddress(): string | null {
+  const code = new URLSearchParams(window.location.search).get('error');
+  return code === null ? null : (signInErrors[code] ?? signInErrors.sign_in_failed ?? null);
+}
 
 export function App() {
-  const [status, setStatus] = useState<ServiceStatus>('checking');
+  const [session, setSession] = useState<Session>({ status: 'loading' });
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((response) => setStatus(response.ok ? 'ok' : 'unavailable'))
-      .catch(() => setStatus('unavailable'));
+  const load = useCallback(async () => {
+    try {
+      const me = await api.currentPerson();
+      setSession(
+        me === null ? { status: 'signed_out', providers: await api.providers() } : { status: 'signed_in', me },
+      );
+    } catch {
+      setSession({ status: 'unavailable' });
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const signOut = async () => {
+    try {
+      await api.signOut();
+    } finally {
+      await load();
+    }
+  };
+
+  if (session.status === 'loading') return <p className="status">{messages.loading}</p>;
+  if (session.status === 'unavailable') {
+    return (
+      <p className="status" role="alert">
+        {messages.unavailable}
+      </p>
+    );
+  }
+  if (session.status === 'signed_out') {
+    return <SignInPanel providers={session.providers} error={signInErrorFromAddress()} />;
+  }
+
+  const { me } = session;
   return (
-    <main>
-      <h1>Potencializador de rol</h1>
-      <p role="status">{statusText[status]}</p>
-    </main>
+    <>
+      <header className="top-bar">
+        <strong>Potencializador de rol</strong>
+        <span>
+          <span>{me.person.name}</span>
+          {me.isSuperAdmin && <span className="tag">Superadministrador</span>}
+          <button type="button" onClick={signOut}>
+            Cerrar sesión
+          </button>
+        </span>
+      </header>
+      <main>
+        <OrganizationsPage me={me} />
+      </main>
+    </>
   );
 }

@@ -9,6 +9,7 @@ COPY apps/web/package.json apps/web/
 RUN npm ci --workspace @potencializador/web
 
 COPY tsconfig.base.json ./
+COPY packages/domain packages/domain
 COPY apps/web apps/web
 RUN npm run build --workspace @potencializador/web
 
