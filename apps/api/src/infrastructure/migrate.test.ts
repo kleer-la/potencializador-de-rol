@@ -76,6 +76,51 @@ describe('migration runner', () => {
     expect(await tableExists('third')).toBe(true);
   });
 
+  it('upgrades a database migrated before checksums existed, then guards its files', async () => {
+    const databaseName = `migrate_${randomUUID().replaceAll('-', '')}`;
+    await ownerPool.query(`create database ${databaseName}`);
+    const url = new URL(inject('ownerDatabaseUrl'));
+    url.pathname = `/${databaseName}`;
+    const legacyPool = new pg.Pool({ connectionString: url.toString() });
+    const legacyDirectory = await mkdtemp(join(tmpdir(), 'migrations-legacy-'));
+    const runLegacy = () =>
+      migrate({
+        ownerDatabaseUrl: url.toString(),
+        appRolePassword: APP_ROLE_PASSWORD,
+        migrationsDirectory: pathToFileURL(`${legacyDirectory}/`),
+      });
+    try {
+      // The table exactly as the first runner created it, with one file already applied.
+      await legacyPool.query(
+        `create table schema_migrations (
+           name text primary key,
+           applied_at timestamptz not null default now()
+         )`,
+      );
+      await legacyPool.query("insert into schema_migrations (name) values ('0001_first.sql')");
+      await legacyPool.query('create table first (id int)');
+      await writeFile(join(legacyDirectory, '0001_first.sql'), 'create table first (id int);');
+      await writeFile(join(legacyDirectory, '0002_second.sql'), 'create table second (id int);');
+
+      const upgraded = await runLegacy();
+
+      expect(upgraded).toEqual(['0002_second.sql']);
+      const stored = await legacyPool.query<{ name: string; checksum: string | null }>(
+        'select name, checksum from schema_migrations order by name',
+      );
+      expect(stored.rows.map((row) => row.name)).toEqual(['0001_first.sql', '0002_second.sql']);
+      expect(stored.rows.every((row) => /^[0-9a-f]{64}$/.test(row.checksum ?? ''))).toBe(true);
+
+      await writeFile(join(legacyDirectory, '0001_first.sql'), 'create table first (id bigint);');
+      await expect(runLegacy()).rejects.toThrow(
+        'migration 0001_first.sql was changed after it was applied; add a new migration instead',
+      );
+    } finally {
+      await legacyPool.end();
+      await rm(legacyDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('refuses to run when an applied migration was edited afterwards', async () => {
     await writeFile(join(directory, '0001_first.sql'), 'create table first (id int, extra int);');
 

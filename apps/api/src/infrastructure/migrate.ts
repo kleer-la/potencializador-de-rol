@@ -28,12 +28,14 @@ export async function migrate(options: MigrateOptions): Promise<string[]> {
     await client.query(
       `create table if not exists schema_migrations (
          name text primary key,
-         checksum text not null,
+         checksum text,
          applied_at timestamptz not null default now()
        )`,
     );
+    // Databases migrated before checksums existed have the table without the column.
+    await client.query('alter table schema_migrations add column if not exists checksum text');
 
-    const appliedRows = await client.query<{ name: string; checksum: string }>(
+    const appliedRows = await client.query<{ name: string; checksum: string | null }>(
       'select name, checksum from schema_migrations',
     );
     const applied = new Map(appliedRows.rows.map((row) => [row.name, row.checksum]));
@@ -44,6 +46,11 @@ export async function migrate(options: MigrateOptions): Promise<string[]> {
       const statements = await readFile(new URL(file, directory), 'utf8');
       const checksum = createHash('sha256').update(statements).digest('hex');
       const appliedChecksum = applied.get(file);
+      if (appliedChecksum === null) {
+        // Applied before checksums existed: adopt the file as it is now, guard it from here on.
+        await client.query('update schema_migrations set checksum = $2 where name = $1', [file, checksum]);
+        continue;
+      }
       if (appliedChecksum !== undefined) {
         // An applied file is never run again, so an edit would silently reach only new
         // databases. Stop instead of letting schemas drift apart.
