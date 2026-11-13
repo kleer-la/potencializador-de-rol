@@ -418,25 +418,36 @@ export function createMapStore(tx: ScopedTransaction, organizationId: string) {
     },
 
     /**
-     * Ids of catalog entries with the given names, creating the missing ones. Names match
-     * ignoring case, as the catalogs' unique indexes do.
+     * Ids of catalog entries with the given names, keyed by each name as given, creating the
+     * missing ones. Names match ignoring case the way PostgreSQL lowercases them, as the
+     * catalogs' unique indexes do; JavaScript lowercasing differs for some letters.
      */
     async catalogIds(kind: 'tools' | 'objectives', names: string[]): Promise<Map<string, string>> {
       const table = kind === 'tools' ? tools : strategicObjectives;
-      // First spelling of each name wins; one insert and one select for all of them.
-      const byKey = new Map<string, string>();
-      for (const name of names) if (!byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
       const ids = new Map<string, string>();
-      if (byKey.size === 0) return ids;
+      const unique = [...new Set(names)];
+      if (unique.length === 0) return ids;
+      const keyed = (
+        await tx.execute<{ name: string; key: string }>(
+          sql`select n as name, lower(n) as key from unnest(array[${sql.join(
+            unique.map((name) => sql`${name}`),
+            sql`, `,
+          )}]::text[]) as n`,
+        )
+      ).rows;
+      // First spelling of each name wins; one insert and one select for all of them.
+      const firstSpelling = new Map<string, string>();
+      for (const row of keyed) if (!firstSpelling.has(row.key)) firstSpelling.set(row.key, row.name);
       await tx
         .insert(table)
-        .values([...byKey.values()].map((name) => ({ organizationId, name })))
+        .values([...firstSpelling.values()].map((name) => ({ organizationId, name })))
         .onConflictDoNothing();
       const found = await tx
-        .select({ id: table.id, name: table.name })
+        .select({ id: table.id, key: sql<string>`lower(${table.name})` })
         .from(table)
-        .where(and(inOrganization(table as never), inArray(sql`lower(${table.name})`, [...byKey.keys()])));
-      for (const row of found) ids.set(row.name.toLowerCase(), row.id);
+        .where(and(inOrganization(table as never), inArray(sql`lower(${table.name})`, [...firstSpelling.keys()])));
+      const idByKey = new Map(found.map((row) => [row.key, row.id]));
+      for (const row of keyed) ids.set(row.name, idByKey.get(row.key)!);
       return ids;
     },
   };

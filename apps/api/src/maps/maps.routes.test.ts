@@ -414,6 +414,21 @@ describe('capability maps', () => {
       expect(map.dimensions[1].capabilities[0]).toMatchObject({ difficulty: 'low', objectiveIds: [expect.any(String)] });
     });
 
+    it('matches tool names the way the database lowercases them, also for non-ASCII letters', async () => {
+      const roleId = await newRole();
+      const suffix = randomUUID().slice(0, 8);
+      const names = [`İnnovación ${suffix}`, `Straẞe ${suffix}`];
+
+      const imported = await asDesigner('POST', `roles/${roleId}/maps/import`, {
+        ...file(suffix),
+        dimensions: [{ name: 'Crear', kind: 'work_cycle', capabilities: [{ statement: 'Con nombres', tools: names }] }],
+      });
+
+      expect(imported.statusCode, imported.body).toBe(201);
+      const map = await read(imported.json().id);
+      expect(map.dimensions[0].capabilities[0].toolIds).toHaveLength(2);
+    });
+
     it('refuses a file larger than the limits of a map', async () => {
       const roleId = await newRole();
       const capabilities = Array.from({ length: 101 }, (_, index) => ({ statement: `Capacidad ${index}` }));

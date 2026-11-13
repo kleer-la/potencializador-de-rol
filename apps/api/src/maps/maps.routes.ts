@@ -218,8 +218,8 @@ export async function registerMaps(api: FastifyInstance, options: { database: Da
           await store.addCapability(dimensionId, {
             statement: item.statement,
             difficulty: item.difficulty,
-            toolIds: item.tools.map((name) => toolIds.get(name.toLowerCase())!),
-            objectiveIds: item.objectives.map((name) => objectiveIds.get(name.toLowerCase())!),
+            toolIds: item.tools.map((name) => toolIds.get(name)!),
+            objectiveIds: item.objectives.map((name) => objectiveIds.get(name)!),
           });
         }
       }

@@ -238,9 +238,7 @@
         {
           "statement": "Balancea el desarrollo nuevo con la deuda técnica",
           "tools": [
-            "Balance entre nuevo desarrollo",
-            "deuda técnica",
-            "riesgo y operación",
+            "Balance entre nuevo desarrollo, deuda técnica, riesgo y operación",
             "Deuda técnica"
           ]
         },
