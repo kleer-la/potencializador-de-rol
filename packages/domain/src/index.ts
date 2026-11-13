@@ -23,3 +23,14 @@ export {
   type MapStatus,
   type PublishObstacle,
 } from './capability-map.ts';
+export {
+  ENROLLMENT_ROLES,
+  PANEL_ROLES,
+  canAdjustSelection,
+  canEnrollAs,
+  canSeeBoardContent,
+  missingPanelRoles,
+  type BoardAccess,
+  type EnrollmentRole,
+  type PanelRole,
+} from './program.ts';

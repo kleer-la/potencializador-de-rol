@@ -1,0 +1,68 @@
+# Increment 2 — Programs, enrollments, panels and boards
+
+Objective: an administrator creates a program on a published map, a map designer chooses its base selection of capabilities, people are enrolled with their panel, and each participant gets a board that only they and their panel can see.
+Branch: `feat/increment-2-programs-and-boards`, from `main` at `37523b1`. Delivery: work-unit commits on the branch; merge and push are the user's decisions.
+Test runner: `npm test` (Vitest; project `api` needs Docker), `npm run typecheck`, `npm run build --workspace @potencializador/web`.
+Conceptual base: `docs/Potencializador de rol — Base conceptual del sistema.md` ("the document"). Design system: `apps/web/src/design-system/` (Board component of the artifact).
+
+## Specs
+
+S1. Program. Document §4.2: "`Program` | nombre, fechas, máximo de focos por ciclo, roles obligatorios del panel | usa una versión publicada del mapa de un rol; tiene la selección base de capacidades para todos sus participantes". Document §7: "Administrador de la organización | Crea roles, programas e inscripciones".
+- An administrator of the organization or a super administrator creates a program on a published map version of one of its roles, with name, start and end dates, maximum focuses per cycle, and the mandatory panel roles.
+- Only a published version can be used. An archived version keeps serving the programs that already use it.
+- Assumption: by default the three panel roles (leader, specialist, mentor) are mandatory and the maximum of focuses is 3.
+
+S2. Base selection. Document §6.1 step 3: "El diseñador del mapa selecciona, de la versión elegida, las capacidades que cubrirán a todos los participantes del programa." User: "Las verdes son las priorizadas para la organización y programa de ejemplo."
+- A map designer of the organization or a super administrator sets the base selection from the capabilities of the program's map version.
+- Capabilities added later to the published map can be added to the selection.
+- Assumption: changing the base selection affects only boards created afterwards; existing boards keep their own selection (invariant 1 lets the panel adjust each one).
+
+S3. Enrollment. Document §4.2: "`Enrollment` | papel en el programa (participante, líder, especialista, mentor, administrador) | une una persona con un programa".
+- An administrator or a super administrator enrolls persons of the organization in a program with one or more roles: participant, leader, specialist, mentor.
+- User decision (2026-11-13, answer "1"): a person of the mentoring firm (Kleer) is enrolled in the client's program like any panel member, with role leader, specialist or mentor, never participant.
+- Assumption: the role "administrador" of the document is not stored per program; organization administrators already administer every program of their organization.
+
+S4. Panel. Document §4.2: "`PanelAssignment` | — | asigna líder, especialista y mentor a un participante". Document §9.3 left its attributes open; decided here as an assumption: a panel assignment names the participant's enrollment, the panel member's enrollment, and the role (leader, specialist, mentor) that member plays for that participant. A participant may have several members per role. The panel member must be enrolled in the same program with that role.
+- An administrator or a super administrator assigns and removes panel members.
+
+S5. Board and invariant 1. Document §5.1: "**Una ubicación por capacidad.** En un tablero, cada capacidad seleccionada para el participante está en exactamente un nivel o sin ubicar. Sin ubicar es un estado válido en cualquier momento y suma cero al puntaje. Cada tablero parte de la selección base del programa, tomada del conjunto del mapa; cualquier integrante del panel puede agregarle capacidades en cualquier momento, y quitarle solo antes de fijar la línea base."
+- Enrolling a person as participant creates their board, with one placement per capability of the base selection, all unplaced.
+- A capability appears at most once on a board, and only capabilities of the program's map version can be placed.
+- A panel member of that participant (or a super administrator who is on that panel) adds capabilities at any time and removes them while the board has no baseline. Each placement records who added it and when.
+- Tests are titled `INV-1`.
+
+S6. Who sees a board, invariant 9. Document §5.1: "**Sin comparación entre personas.** No existen rankings ni vistas que ordenen participantes por puntaje. Un tablero lo ven su dueño y su panel." Document §7: the administrator sees "Configuración y estado de avance del proceso, no el contenido de los tableros". Document §9.1: "El superadministrador ve dentro de una organización lo mismo que su administrador; no ve el contenido de los tableros salvo que esté inscrito en el panel".
+- The content of a board (its placements) is visible only to its owner and to the members of their panel, enforced in the database as well as in the API.
+- An administrator and a super administrator see each board's existence and state, not its content.
+- No endpoint returns placements of more than one board, and no endpoint orders participants by any measure.
+- Tests are titled `INV-9`.
+
+S7. Isolation. Document §5.1 invariant 11. Every new table has `organization_id` and Row Level Security; a firm person enrolled in a client program acts inside that organization only through their enrollment. Tests titled `INV-11`.
+
+S8. Web interface (Spanish, design system).
+- Administrators: programs of a role (create; enroll persons; assign panels). Map designers: base selection.
+- Everyone: "Mis tableros" (the person's own boards) and "Tableros que acompaño" (boards where they are on the panel).
+- The board uses the design system's Board: capabilities in rows by dimension, a column "Sin ubicar" and one column per level of the scale. Panel members add and remove capabilities from it.
+
+S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar cubiertas por pruebas automatizadas." This increment covers invariants 1 and 9 and extends 11.
+
+## Tasks
+
+- [x] T1 — Domain rules: enrollment roles, who sees and who adjusts a board, selection rules. Specs: S3, S4, S5, S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of programs and boards` (see L4).
+- [ ] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: —
+- [ ] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: —
+- [ ] T4 — API: boards (mine, accompanied, one board, add and remove capabilities). Specs: S5, S6, S7. Route: inline. Risk: item 2 (permissions). Commit: —
+- [ ] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none expected. Commit: —
+
+Route evidence: each task builds on the previous one; no parallel writer applies.
+Forecast: about 3,500 authored changed lines.
+
+## Log
+
+L1 (2026-11-13, user, original request): "1" — answer to: "¿Cómo quieres que entre el mentor de Kleer al panel: inscrito en el programa del cliente (1) o con otro correo dentro de la organización cliente (2)?", after the proposal to continue with increment 2 ("Listo, ya validé. Vamos bien. ¿Con qué seguimos?").
+
+L2 (2026-11-13, context): increment 2 is row 2 of the approved build plan: "Programa, inscripción, panel, tablero con selección base y ajuste", covering invariants 1 and 9. The user validated increment 0 and 1 with a real Google sign-in before this.
+
+L3 (2026-11-13, decisions before code): the assumptions marked in S1–S4 were taken without asking; each can change later without redoing the rest. A baseline does not exist yet (increment 4), so in this increment every board is "sin línea base" and removals are always allowed to its panel.
+
+L4 (2026-11-13, T1 evidence): RED observed (`program.ts` missing), then GREEN: unit project passes (domain tests titled `INV-1` and `INV-9` included), `npm run typecheck` clean. Rules: `canEnrollAs` (a firm person is never a participant), `canSeeBoardContent` (owner or panel), `canAdjustSelection` (panel only; removal only before a baseline), `missingPanelRoles`.
