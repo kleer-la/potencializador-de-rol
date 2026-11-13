@@ -104,6 +104,16 @@ export const boardStatusLabels: Record<BoardStatus, string> = {
   closed: 'Cerrado',
 };
 
+/** Messages for the `error` code of a refused calibration or initial level. */
+export const calibrationErrors: Record<string, string> = {
+  baseline_set: 'El tablero ya tiene línea base: la calibración no se repite.',
+  not_self_assessed: 'La calibración empieza cuando el participante envía su autoevaluación.',
+  no_baseline: 'Antes de la línea base, los niveles se acuerdan en la calibración.',
+  already_leveled: 'Esa capacidad ya tiene su nivel inicial en la línea base.',
+  unknown_reference: 'Hay un asistente, una capacidad o un nivel que no corresponde a este tablero.',
+  invalid_request: 'Revisa los datos: hay un valor que no es válido.',
+};
+
 /** Messages for the `error` code of a refused program or board change. */
 export const programErrors: Record<string, string> = {
   map_not_published: 'Solo se puede usar una versión publicada del mapa.',

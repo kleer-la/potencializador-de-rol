@@ -233,18 +233,43 @@ export type BoardSummary = {
 export type Board = {
   id: string;
   organizationId: string;
-  program: { id: string; name: string };
+  program: { id: string; name: string; mandatoryPanelRoles: PanelRole[] };
   ownerName: string;
+  owner: { personId: string; name: string };
+  panel: { personId: string; name: string; role: PanelRole }[];
   status: BoardStatus;
   hasBaseline: boolean;
-  viewer: { isOwner: boolean; panelRoles: PanelRole[]; canAdd: boolean; canRemove: boolean; canSelfAssess: boolean };
+  viewer: {
+    isOwner: boolean;
+    panelRoles: PanelRole[];
+    canAdd: boolean;
+    canRemove: boolean;
+    canSelfAssess: boolean;
+    canCalibrate: boolean;
+    canRecordInitialLevel: boolean;
+  };
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
   capabilities: { id: string; dimensionId: string; statement: string; difficulty: Difficulty | null; position: number }[];
   placements: { capabilityId: string; levelId: string | null; addedAt: string }[];
   /** The owner's proposal; `null` when the viewer may not see it (the panel, before submission). */
   selfAssessment: SelfAssessment | null;
+  /** What the panel and the participant agreed; `null` before the calibration. */
+  calibration: Calibration | null;
+  /** Invariant 3: entries never change; capabilities added later join with their initial level. */
+  baseline: Baseline | null;
 };
+export type Calibration = {
+  heldOn: string;
+  notes: string;
+  attendees: { personId: string; name: string }[];
+  levels: { capabilityId: string; selfAssessedLevelId: string | null; agreedLevelId: string }[];
+};
+export type Baseline = {
+  setAt: string;
+  entries: { capabilityId: string; levelId: string; origin: 'calibration' | 'initial_leveling'; setAt: string }[];
+};
+export type CalibrationRecord = { heldOn: string; notes: string; attendees: string[]; levels: ProposedLevel[] };
 export type ProposedLevel = { capabilityId: string; levelId: string };
 export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel[] };
 
@@ -259,4 +284,8 @@ export const boardApi = {
     request<unknown>(`/boards/${boardId}/self-assessment`, 'PUT', { levels }),
   submitSelfAssessment: (boardId: string) =>
     request<{ submittedAt: string }>(`/boards/${boardId}/self-assessment/submit`, 'POST'),
+  calibrate: (boardId: string, calibration: CalibrationRecord) =>
+    request<{ calibrationId: string }>(`/boards/${boardId}/calibration`, 'POST', calibration),
+  recordInitialLevel: (boardId: string, level: ProposedLevel) =>
+    request<{ levelChangeId: string }>(`/boards/${boardId}/initial-levels`, 'POST', level),
 };

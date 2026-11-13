@@ -666,3 +666,8 @@ fieldset {
   color: var(--ink-muted);
   margin-left: var(--space-1);
 }
+
+/* Calibration notes keep the panel's line breaks. */
+.notes {
+  white-space: pre-wrap;
+}

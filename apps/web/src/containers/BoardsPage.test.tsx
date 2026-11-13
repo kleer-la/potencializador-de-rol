@@ -20,8 +20,10 @@ const summary = {
 const board = (viewer: Board['viewer']): Board => ({
   id: 'board-1',
   organizationId: 'org-a',
-  program: { id: 'program-1', name: 'Product Owners 2027' },
+  program: { id: 'program-1', name: 'Product Owners 2027', mandatoryPanelRoles: ['leader'] },
   ownerName: 'Ana Gómez',
+  owner: { personId: 'ana', name: 'Ana Gómez' },
+  panel: [{ personId: 'luis', name: 'Luis Mora', role: 'leader' }],
   status: 'not_started',
   hasBaseline: false,
   viewer,
@@ -43,10 +45,20 @@ const board = (viewer: Board['viewer']): Board => ({
     { capabilityId: 'capability-3', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
   ],
   selfAssessment: null,
+  calibration: null,
+  baseline: null,
 });
 
-const owner = { isOwner: true, panelRoles: [], canAdd: false, canRemove: false, canSelfAssess: false };
-const leader = { isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true, canSelfAssess: false };
+const owner = {
+  isOwner: true,
+  panelRoles: [],
+  canAdd: false,
+  canRemove: false,
+  canSelfAssess: false,
+  canCalibrate: false,
+  canRecordInitialLevel: false,
+};
+const leader = { ...owner, isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true };
 const selfAssessing = { ...owner, canSelfAssess: true };
 
 afterEach(() => {
