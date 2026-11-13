@@ -353,6 +353,24 @@ describe('catalogs', () => {
     expect(within(section).queryByRole('alert')).toBeNull();
   });
 
+  it('drops from the list an entry someone else already deleted', async () => {
+    fakeBackend({
+      [`GET ${base}/tools`]: () => json({ items: tools }),
+      [`GET ${base}/strategic-objectives`]: () => json({ items: objectives }),
+      [`DELETE ${base}/tools/tool-2`]: () => json({ error: 'not_found' }, 404),
+    });
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace me={designer} organization={organization} />);
+    await user.click(await screen.findByRole('tab', { name: 'Catálogos' }));
+    const section = await screen.findByRole('region', { name: 'Herramientas' });
+    await user.click(await within(section).findByRole('button', { name: 'Eliminar «OKR»' }));
+    await user.click(within(section).getByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => expect(within(section).queryByText('OKR')).toBeNull());
+    expect(within(section).queryByRole('alert')).toBeNull();
+  });
+
   it('offers no deletion to a member who is not map designer', async () => {
     fakeBackend({
       [`GET ${base}/tools`]: () => json({ items: tools }),

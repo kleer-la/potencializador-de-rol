@@ -38,8 +38,11 @@ export function CatalogSection({ api, kind, title, canDesign }: Props) {
     try {
       await api.removeFromCatalog(kind, id);
     } catch (failure) {
-      setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
-      return;
+      // Already deleted by someone else: the outcome wanted, so drop it like a success.
+      if (!(failure instanceof ApiError && failure.status === 404)) {
+        setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
+        return;
+      }
     }
     // Deleted: take it out at once, so a failed reload cannot show it again.
     setItems((current) => current?.filter((item) => item.id !== id) ?? current);

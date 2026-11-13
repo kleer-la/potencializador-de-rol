@@ -71,7 +71,8 @@ export function SearchPicker({ legend, options, selected, onChange }: Props) {
         onChange={(event) => setQuery(event.target.value)}
         // Enter picks the first match; it must never submit the form around the picker.
         onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
+          // The Enter that confirms an input method composition is not a choice.
+          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
           event.preventDefault();
           const first = matches[0];
           if (first !== undefined) add(first);

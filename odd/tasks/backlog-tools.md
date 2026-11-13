@@ -37,3 +37,8 @@ L4 (2026-11-13, review of the branch): native review of `feat/backlog-tools` aga
 - After a successful delete, a failed reload of the list showed an error and the deleted entry again. The entry is removed from the list at once; a failed reload no longer shows anything.
 - Added the test that a super administrator deletes an entry (`204`).
 Checks: `npm test` 235 passed, `npm run typecheck` clean.
+
+L5 (2026-11-13, review after the merge into the local main): native review of b153ac5..3219332 (lens reliability; consent granted by the user) ended `approved` and was acknowledged. Handled on branch `fix/catalog-delete-404`, RED then GREEN for both:
+- Deleting an entry someone else already deleted answered `404` and the page kept showing it with an error. The page now drops it like a successful delete.
+- The Enter that confirms an input method composition (Japanese, Chinese, accented input) no longer adds a match.
+Checks: `npm test` 237 passed, `npm run typecheck` clean.

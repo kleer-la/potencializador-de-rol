@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -86,6 +86,16 @@ describe('SearchPicker', () => {
 
     expect(screen.getByRole('status').textContent).toBe('t2');
     expect(submitted).toBe(0);
+  });
+
+  it('ignores the Enter that confirms an input method composition', () => {
+    render(<Harness />);
+    const search = screen.getByLabelText('Buscar herramientas');
+
+    fireEvent.change(search, { target: { value: 'jobs' } });
+    fireEvent.keyDown(search, { key: 'Enter', isComposing: true });
+
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 
   it('lists nothing before typing, and tells how many options there are', () => {
