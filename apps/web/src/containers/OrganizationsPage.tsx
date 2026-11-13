@@ -1,16 +1,16 @@
-import { canAdministerOrganization, canCreateOrganization } from '@potencializador/domain';
+import { canCreateOrganization } from '@potencializador/domain';
 import { useEffect, useState } from 'react';
 import { api, type CurrentPerson, type Organization } from '../api/client.ts';
 import { CreateOrganizationForm } from '../components/CreateOrganizationForm.tsx';
 import { OrganizationList } from '../components/OrganizationList.tsx';
 import { messages } from '../copy.ts';
-import { MembersSection } from './MembersSection.tsx';
+import { OrganizationWorkspace } from './OrganizationWorkspace.tsx';
 
 type Props = { me: CurrentPerson };
 
 /**
- * Organizations the person can see and, for the selected one, its people. What is offered
- * follows the same domain policy the API enforces; the API remains the authority.
+ * Organizations the person can see and, for the selected one, its workspace. What is
+ * offered follows the same domain policy the API enforces; the API remains the authority.
  */
 export function OrganizationsPage({ me }: Props) {
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
@@ -58,14 +58,9 @@ export function OrganizationsPage({ me }: Props) {
         )}
       </section>
       {selected !== null && (
-        <section className="panel">
-          <h2>Personas de {selected.name}</h2>
-          {canAdministerOrganization(me, selected.id) ? (
-            <MembersSection organization={selected} />
-          ) : (
-            <p>{messages.notAdministrator}</p>
-          )}
-        </section>
+        <div className="workspace">
+          <OrganizationWorkspace key={selected.id} me={me} organization={selected} />
+        </div>
       )}
     </div>
   );

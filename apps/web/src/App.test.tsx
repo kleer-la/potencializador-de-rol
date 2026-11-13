@@ -222,21 +222,22 @@ describe('administrador de una organización', () => {
 });
 
 describe('diseñador del mapa', () => {
-  it('ve su organización pero no administra a sus personas', async () => {
+  it('ve los roles de su organización pero no administra a sus personas', async () => {
     const calls = fakeBackend({
       ...signedInAs({
         isSuperAdmin: false,
         memberships: [{ organizationId: 'org-a', organizationName: 'Universidad A', role: 'map_designer' }],
       }),
       'GET /api/organizations': () => ({ status: 200, body: { organizations: [organizationA] } }),
+      'GET /api/organizations/org-a/roles': () => ({ status: 200, body: { roles: [] } }),
     });
     const user = userEvent.setup();
 
     render(<App />);
     await user.click(await screen.findByRole('button', { name: 'Universidad A' }));
 
-    expect(await screen.findByText('No administras las personas de esta organización.')).toBeTruthy();
-    expect(screen.queryByRole('table')).toBeNull();
+    expect(await screen.findByRole('tab', { name: 'Roles y mapas' })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Personas' })).toBeNull();
     expect(calls.some((call) => call.route.includes('/members'))).toBe(false);
   });
 });

@@ -59,7 +59,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions); item 3 (shared code: the access checks of the organizations routes moved to `access/organization-access.ts`). Commit: `feat: roles and catalogs of an organization` (see L7).
 - [x] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: design, publish and grow capability maps` (see L9).
 - [x] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none (data file and a test). Commit: `feat: product owner example map` (see L11).
-- [ ] T6 — Web interface: roles and map editor. Specs: S8. Route: inline. Risk: none expected. Commit: —
+- [x] T6 — Web interface: roles and map editor. Specs: S8. Route: inline. Risk: none (interface over the existing API; the designer view of the organization page changed on purpose). Commit: `feat: map editor in the web interface` (see L12).
 
 Route evidence: each task builds on the previous one (T2 on T1, T3 and T4 on T2, T5 on T4, T6 on T3 to T5), so no parallel writer applies.
 Forecast: about 3,500 authored changed lines. No remote and no pull requests; slices are the work-unit commits.
@@ -124,3 +124,10 @@ L11 (2026-11-13, T5 evidence and decisions): `data/maps/product-owner.json` tran
 - Text is as written in the PDF, except letters lost by the PDF text layer ("Identifca" → "Identifica", "Defnir" → "Definir", "Infuencia" → "Influencia", "confictos" → "conflictos"), read from the picture. "ventana de Yohari" and the asterisks are kept.
 - Scale: the five level names and multipliers 0 to 4 of the document (§2, §9.1); descriptions empty except the transfer requirement of level 4 (§5.1 invariant 6). Bonus rule from §5.1 invariant 7.
 - No objectives: the PDF links none.
+
+L12 (2026-11-13, T6 evidence and decisions): RED observed (the workspace module missing), then GREEN: `npm test` 156 passed in 16 files, `npm run typecheck` clean.
+- An organization opens in tabs: "Personas" (administrators), "Roles y mapas", "Catálogos". A map designer now sees "Roles y mapas" where before they saw "No administras las personas de esta organización."; that interface test was updated.
+- The editor offers each change only when `canApplyChange` allows it, the same rule as the API and the database. Publish, archive and discard ask inside the page; no browser dialogs.
+- Compose probe: the three migrations applied; the Product Owner file was imported through the API and published (9 dimensions, 55 capabilities); renaming a dimension of the published map answered `409 map_frozen`; an update of its capabilities as the schema owner was refused by the guard.
+- Real browser check (Chrome, local stack, session inserted for a super administrator): organization → "Roles y mapas" → Product Owner → version 1 shows the scale, the 9 dimensions and the tools of each capability, with "Archivar" as the only state action. The map panel was too narrow beside the list of roles; it now spans the full width. Sign-in with a real provider is still not proven.
+- Found on the way, not a defect of the interface: `POST .../publish` with `content-type: application/json` and no body answers Fastify's `400 FST_ERR_CTP_EMPTY_JSON_BODY`; the web client sends no content type without a body.
