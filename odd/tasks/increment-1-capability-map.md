@@ -80,3 +80,11 @@ L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "roles" does
 - One draft per role (partial unique index). Positions are deferred unique constraints, so reordering within one transaction works.
 - Refusals carry SQL state `PM010` and start with `invariant 10:`; the API maps them in T4.
 - Tests settle every refused attempt together (`Promise.allSettled`): awaiting them one by one left rejections unhandled.
+
+L6 (2026-11-13, review of T1 and T2): native review of commits fa9887a to 9e901d2 (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Informational findings fixed in a follow-up commit, each with RED then GREEN (3 new tests):
+- A map could be inserted already published or archived, skipping the draft state. The guard now runs on insert too: a map is born a draft with no life-cycle dates.
+- `created_at`, `published_at` and `archived_at` could be overwritten by an update that kept the status. The guard now keeps them; only a transition sets them.
+- Content inserted under a map of another organization failed with an `invariant 10` message for published or archived maps and with a foreign key error for drafts, which revealed the other map's state. The state lookup now ignores parents of another organization, so every case ends in the same foreign key error.
+Migration 0003 was edited instead of adding 0004: it exists only on this unmerged branch and was applied only to throwaway test databases.
+Not changed: inserting a link whose capability and tool both belong to another organization and are already linked fails with a duplicate key error; it needs two random identifiers of the other organization.
+Checks: `npm test` 109 passed, `npm run typecheck` clean.

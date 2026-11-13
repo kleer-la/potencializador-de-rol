@@ -263,6 +263,53 @@ describe('capability map storage', () => {
       expect(stored.rows).toEqual([{ status: 'archived', published: true, archived: true }]);
     });
 
+    it('INV-10 a map is born as a draft, with no life-cycle dates', async () => {
+      const role = (
+        await ownerPool.query("insert into roles (organization_id, name) values ($1, $2) returning id", [
+          organizationA,
+          `Role ${randomUUID()}`,
+        ])
+      ).rows[0].id as string;
+
+      await expectAllRefused(
+        [
+          run("insert into capability_maps (organization_id, role_id, version, status) values ($1, $2, 1, 'published')", [
+            organizationA,
+            role,
+          ]),
+          run("insert into capability_maps (organization_id, role_id, version, status) values ($1, $2, 2, 'archived')", [
+            organizationA,
+            role,
+          ]),
+          run(
+            'insert into capability_maps (organization_id, role_id, version, published_at) values ($1, $2, 3, now())',
+            [organizationA, role],
+          ),
+        ],
+        INVARIANT_10,
+      );
+      expect(await count('capability_maps', 'role_id', role)).toBe(0);
+    });
+
+    it('INV-10 keeps the recorded creation, publication and archival dates', async () => {
+      const map = await seedMap(ownerPool, organizationA, 'archived');
+      const before = await ownerPool.query(
+        'select created_at, published_at, archived_at from capability_maps where id = $1',
+        [map.mapId],
+      );
+
+      await run(
+        "update capability_maps set created_at = now() - interval '1 year', published_at = null, archived_at = now() + interval '1 day' where id = $1",
+        [map.mapId],
+      );
+
+      const after = await ownerPool.query(
+        'select created_at, published_at, archived_at from capability_maps where id = $1',
+        [map.mapId],
+      );
+      expect(after.rows).toEqual(before.rows);
+    });
+
     it('refuses to archive a draft directly', async () => {
       const map = await seedMap(ownerPool, organizationA, 'draft');
 
@@ -362,6 +409,29 @@ describe('capability map storage', () => {
           mapB.toolId,
         ]),
       ];
+
+      await expectAllRefused(attempts, /foreign key/);
+    });
+
+    it('INV-11 refuses content under a map of organization B the same way whatever its state', async () => {
+      const published = await seedMap(ownerPool, organizationB, 'published');
+      const archived = await seedMap(ownerPool, organizationB, 'archived');
+      const ownTool = (await seedMap(ownerPool, organizationA, 'draft')).toolId;
+      const attempts = [mapB, published, archived].flatMap((foreign) => [
+        run(
+          "insert into levels (organization_id, map_id, position, name, multiplier) values ($1, $2, 7, 'Ajeno', 1)",
+          [organizationA, foreign.mapId],
+        ),
+        run(
+          "insert into capabilities (organization_id, dimension_id, position, statement) values ($1, $2, 7, 'Ajena')",
+          [organizationA, foreign.dimensionId],
+        ),
+        run('insert into capability_tools (organization_id, capability_id, tool_id) values ($1, $2, $3)', [
+          organizationA,
+          foreign.capabilityId,
+          ownTool,
+        ]),
+      ]);
 
       await expectAllRefused(attempts, /foreign key/);
     });

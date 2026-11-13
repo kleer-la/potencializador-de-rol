@@ -154,12 +154,20 @@ $$;
 
 -- Invariant 10 -------------------------------------------------------------------------
 
--- The map moves draft → published → archived; its identity never changes; only a draft
--- can be discarded.
+-- A map is born a draft; it moves draft → published → archived; its identity and its
+-- recorded dates never change; only a draft can be discarded.
 CREATE FUNCTION guard_capability_map() RETURNS trigger
   LANGUAGE plpgsql
   AS $$
   BEGIN
+    IF TG_OP = 'INSERT' THEN
+      IF NEW.status <> 'draft' OR NEW.published_at IS NOT NULL OR NEW.archived_at IS NOT NULL THEN
+        RAISE EXCEPTION 'invariant 10: a map is created as a draft' USING ERRCODE = 'PM010';
+      END IF;
+      NEW.created_at := transaction_timestamp();
+      RETURN NEW;
+    END IF;
+
     IF TG_OP = 'DELETE' THEN
       IF OLD.status <> 'draft' THEN
         RAISE EXCEPTION 'invariant 10: a % map cannot be deleted', OLD.status USING ERRCODE = 'PM010';
@@ -171,6 +179,11 @@ CREATE FUNCTION guard_capability_map() RETURNS trigger
        OR NEW.role_id <> OLD.role_id OR NEW.version <> OLD.version THEN
       RAISE EXCEPTION 'invariant 10: the role and version of a map never change' USING ERRCODE = 'PM010';
     END IF;
+
+    -- Dates are set here and nowhere else.
+    NEW.created_at := OLD.created_at;
+    NEW.published_at := OLD.published_at;
+    NEW.archived_at := OLD.archived_at;
 
     IF NEW.status <> OLD.status THEN
       IF OLD.status = 'draft' AND NEW.status = 'published' THEN
@@ -186,30 +199,36 @@ CREATE FUNCTION guard_capability_map() RETURNS trigger
   END
   $$;
 
-CREATE TRIGGER capability_maps_guard BEFORE UPDATE OR DELETE ON capability_maps
+CREATE TRIGGER capability_maps_guard BEFORE INSERT OR UPDATE OR DELETE ON capability_maps
   FOR EACH ROW EXECUTE FUNCTION guard_capability_map();
 
 -- State of the map a content row belongs to, found through its parent column.
 -- NULL when the parent is gone: the row is being removed by the cascade of a draft, the
--- only kind of parent that can be deleted. p_created is the capability's creation time
--- when the parent is a capability.
+-- only kind of parent that can be deleted. Also NULL when the parent belongs to another
+-- organization: the composite foreign key refuses the row next, with the same error
+-- whatever that map's state, so nothing about another organization leaks. p_created is
+-- the capability's creation time when the parent is a capability.
 CREATE FUNCTION map_state_of(p_parent text, p_row jsonb, OUT p_status text, OUT p_created timestamptz)
   LANGUAGE plpgsql STABLE SECURITY DEFINER
   SET search_path = public, pg_temp
   AS $$
   BEGIN
     IF p_parent = 'map' THEN
-      SELECT m.status INTO p_status FROM capability_maps m WHERE m.id = (p_row ->> 'map_id')::uuid;
+      SELECT m.status INTO p_status FROM capability_maps m
+       WHERE m.id = (p_row ->> 'map_id')::uuid
+         AND m.organization_id = (p_row ->> 'organization_id')::uuid;
     ELSIF p_parent = 'dimension' THEN
       SELECT m.status INTO p_status
         FROM dimensions d JOIN capability_maps m ON m.id = d.map_id
-       WHERE d.id = (p_row ->> 'dimension_id')::uuid;
+       WHERE d.id = (p_row ->> 'dimension_id')::uuid
+         AND d.organization_id = (p_row ->> 'organization_id')::uuid;
     ELSE
       SELECT m.status, c.created_at INTO p_status, p_created
         FROM capabilities c
         JOIN dimensions d ON d.id = c.dimension_id
         JOIN capability_maps m ON m.id = d.map_id
-       WHERE c.id = (p_row ->> 'capability_id')::uuid;
+       WHERE c.id = (p_row ->> 'capability_id')::uuid
+         AND c.organization_id = (p_row ->> 'organization_id')::uuid;
     END IF;
   END
   $$;
