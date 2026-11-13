@@ -21,6 +21,9 @@ const entryParams = z.object({ entryId: z.uuid().toLowerCase() });
 
 const nameTaken = { error: 'name_taken' } as const;
 
+/** A change names at least one field; an empty one is a malformed request. */
+const nonEmpty = (value: Record<string, unknown>) => Object.keys(value).length > 0;
+
 /**
  * What an organization defines outside its maps: roles, the tool catalog and the strategic
  * objectives. Must be registered after `registerIdentity`.
@@ -127,7 +130,7 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
   const toolColumns = { id: tools.id, name: tools.name, description: tools.description, link: tools.link };
   registerEntries('tools', {
     create: toolInput,
-    change: z.object({ name, description, link }).partial().strict(),
+    change: z.object({ name, description, link }).partial().strict().refine(nonEmpty),
     list: (tx, organizationId) =>
       tx.select(toolColumns).from(tools).where(eq(tools.organizationId, organizationId)).orderBy(tools.name),
     insert: async (tx, organizationId, values) =>
@@ -152,7 +155,7 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
   };
   registerEntries('strategic-objectives', {
     create: objectiveInput,
-    change: z.object({ name, description }).partial().strict(),
+    change: z.object({ name, description }).partial().strict().refine(nonEmpty),
     list: (tx, organizationId) =>
       tx
         .select(objectiveColumns)

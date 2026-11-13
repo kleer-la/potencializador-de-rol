@@ -93,3 +93,9 @@ L7 (2026-11-13, T3 evidence and decisions): RED observed (14 failing, routes mis
 - Endpoints under `/api/organizations/:organizationId`: `roles` (GET members, POST administrators), `tools` and `strategic-objectives` (GET members; POST and PATCH map designers). A repeated name, ignoring case, answers `409 name_taken`. A tool link must be http or https.
 - The access checks of the organizations routes moved to `apps/api/src/access/organization-access.ts` and are shared by every route that works inside an organization. The existing 16 organizations tests pass unchanged; behavior is the same, including 404 for a super administrator on an organization that does not exist.
 - A change through PATCH touches only the fields it names. The first version reused the creation schema, whose defaults erased the tool link; the test caught it.
+
+L8 (2026-11-13, review of the guard fix and T3): native review of commits 8733edd and 306782e (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Handled in a follow-up commit (RED then GREEN, 2 new test runs):
+- An empty PATCH answered `500`; a change must now name at least one field, otherwise `400`.
+- Added tests for a malformed entry id and for a rename to a taken name (`409`).
+- Recorded, not changed: since the access checks moved to the shared helper, a super administrator who sends an invalid body for an organization that does not exist gets `404` before `400`. Organizations cannot be deleted, so the separate existence check cannot race.
+Checks: `npm test` 125 passed, `npm run typecheck` clean.

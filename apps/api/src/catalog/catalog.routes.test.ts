@@ -177,8 +177,23 @@ describe('roles, tools and strategic objectives', () => {
       expect(empty.statusCode).toBe(400);
     });
 
+    it('refuses an empty change, a malformed id and a rename to a taken name', async () => {
+      const first = await call(sessions.designerA, 'POST', path(organizationA), { name: unique('Primera') });
+      const second = await call(sessions.designerA, 'POST', path(organizationA), { name: unique('Segunda') });
+
+      const empty = await call(sessions.designerA, 'PATCH', path(organizationA, first.json().id), {});
+      const malformed = await call(sessions.designerA, 'PATCH', path(organizationA, 'not-a-uuid'), { name: 'X' });
+      const taken = await call(sessions.designerA, 'PATCH', path(organizationA, second.json().id), {
+        name: first.json().name,
+      });
+
+      expect([empty.statusCode, malformed.statusCode, taken.statusCode]).toEqual([400, 400, 409]);
+      expect(taken.json()).toEqual({ error: 'name_taken' });
+    });
+
     it('INV-11 refuses to read, create or change entries of another organization', async () => {
       const ofB = await call(sessions.designerB, 'POST', path(organizationB), { name: unique('Ajena') });
+      expect(ofB.statusCode).toBe(201);
 
       const responses = await Promise.all([
         call(sessions.designerA, 'GET', path(organizationB)),
