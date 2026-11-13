@@ -62,6 +62,19 @@ export async function enroll(
   ).rows[0]!.id;
 }
 
+/**
+ * Test shortcut: gives a board a baseline as a calibration would, without its levels.
+ * Migration 0006 accepts a baseline only with a calibration session, so one is recorded.
+ * With a status, the board also moves to it.
+ */
+export async function giveBaseline(ownerPool: pg.Pool, boardId: string, status?: 'calibrated' | 'in_cycle'): Promise<void> {
+  await ownerPool.query(
+    'insert into calibration_sessions (organization_id, board_id, held_on, recorded_by) select organization_id, id, current_date, owner_person_id from boards where id = $1',
+    [boardId],
+  );
+  await ownerPool.query('update boards set baseline_set_at = now(), status = coalesce($2, status) where id = $1', [boardId, status ?? null]);
+}
+
 export type SeededBoard = {
   boardId: string;
   owner: string;

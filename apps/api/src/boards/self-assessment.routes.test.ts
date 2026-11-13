@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
+import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
 import { seedMap } from '../../test-support/seed-map.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
@@ -160,7 +160,7 @@ describe('self-assessment', () => {
   it('is open only while the board has not started: a board further on refuses it', async () => {
     const seed = createSeeder(ownerPool);
     const later = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
-    await ownerPool.query("update boards set status = 'calibrated' where id = $1", [later.boardId]);
+    await giveBaseline(ownerPool, later.boardId, 'calibrated');
     const email = (await ownerPool.query('select email from persons where id = $1', [later.owner])).rows[0].email;
     const session = await createSignedInApp(appPool).signInAs(email);
     const request = (method: 'GET' | 'PUT' | 'POST', url: string, payload?: object) =>

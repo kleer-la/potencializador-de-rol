@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { enroll, seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
+import { enroll, giveBaseline, seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
 import { seedMap } from '../../test-support/seed-map.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 
@@ -60,6 +60,7 @@ describe('program storage', () => {
     const client = await ownerPool.connect();
     try {
       await client.query('set session_replication_role = replica');
+      await client.query('delete from calibration_sessions where board_id = $1', [boardId]);
       await client.query('update boards set baseline_set_at = null where id = $1', [boardId]);
     } finally {
       await client.query('set session_replication_role = origin');
@@ -278,7 +279,7 @@ describe('program storage', () => {
           people.leader,
         ]],
       ]);
-      await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [boardId]);
+      await giveBaseline(ownerPool, boardId);
       try {
         await expect(
           one(people.leader, 'delete from placements where id = $1', [added!.rows[0].id]),
@@ -440,7 +441,7 @@ describe('program storage', () => {
 
   describe('INV-1 a board with a baseline keeps its capabilities', () => {
     it('INV-1 refuses to delete it, its enrollment, or to clear its baseline', async () => {
-      await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [boardId]);
+      await giveBaseline(ownerPool, boardId);
       try {
         await expectAllRefused(
           [

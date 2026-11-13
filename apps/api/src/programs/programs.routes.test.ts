@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { seedMap } from '../../test-support/seed-map.ts';
-import { seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
+import { giveBaseline, seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
@@ -305,7 +305,7 @@ describe('programs, enrollments and panels', () => {
       const enrolled = await enroll(await emailOf(newcomer), ['participant']);
       const keeper = await seed.person(organizationA);
       const kept = await enroll(await emailOf(keeper), ['participant']);
-      await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [kept.json().boardId]);
+      await giveBaseline(ownerPool, kept.json().boardId);
 
       const removed = await asAdmin('DELETE', `programs/${program.programId}/enrollments/${enrolled.json().enrollments[0].id}`);
       const refused = await asAdmin('DELETE', `programs/${program.programId}/enrollments/${kept.json().enrollments[0].id}`);

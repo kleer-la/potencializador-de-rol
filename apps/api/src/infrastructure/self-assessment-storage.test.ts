@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { seedMap } from '../../test-support/seed-map.ts';
-import { seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
+import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 
 async function expectAllRefused(attempts: Promise<unknown>[], pattern: RegExp): Promise<void> {
@@ -187,7 +187,7 @@ describe('self-assessment storage', () => {
   it('refuses to start or write a self-assessment on a board that has moved on', async () => {
     const seed_ = createSeeder(ownerPool);
     const later = await seedBoard(ownerPool, program, (organizationId) => seed_.person(organizationId));
-    await ownerPool.query("update boards set status = 'in_cycle' where id = $1", [later.boardId]);
+    await giveBaseline(ownerPool, later.boardId, 'in_cycle');
 
     await expect(
       one(later.owner, 'insert into self_assessments (organization_id, board_id) values ($1, $2)', [

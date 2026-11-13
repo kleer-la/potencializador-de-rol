@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { seedMap } from '../../test-support/seed-map.ts';
-import { enroll, seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
+import { enroll, giveBaseline, seedProgram, type SeededProgram } from '../../test-support/seed-program.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
@@ -170,7 +170,7 @@ describe('boards', () => {
     const third = program.capabilityIds[2];
     const removed = await call(sessions.leader, 'DELETE', `/${boardId}/capabilities/${third}`);
     await call(sessions.leader, 'POST', `/${boardId}/capabilities`, { capabilityId: third });
-    await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [boardId]);
+    await giveBaseline(ownerPool, boardId);
 
     const afterBaseline = await call(sessions.leader, 'DELETE', `/${boardId}/capabilities/${third}`);
     const view = (await call(sessions.leader, 'GET', `/${boardId}`)).json();
