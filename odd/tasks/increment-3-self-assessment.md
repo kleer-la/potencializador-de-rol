@@ -83,3 +83,9 @@ L9 (2026-11-13, review of the whole branch): native review of the increment (len
 - Submitting on a board without capabilities answered `500` before any save, and after saving an empty draft it moved the board to "autoevaluado" with nothing proposed. It now answers `422 empty_board` and the board stays "sin iniciar".
 - Added the route test the log of T3 claimed: a level of another map answers `400 unknown_reference`.
 Checks: `npm test` 265 passed in 27 files, `npm run typecheck` clean.
+
+L10 (2026-11-13, independent verification at `b73eef9`, baseline `d46c013`): S1–S7 PASS, no blockers; `npm test` 263 passed, `npm run typecheck` clean in a scratch copy. Probes through the API and SQL as the API role confirmed invariant 2 (placements unchanged on submit, submitted self-assessment immutable even for the schema owner), invariant 9 (draft only for the owner; nobody off the panel reads it) and invariant 11. Advisories, recorded for later increments, not changed:
+- Since migration 0004 an administrator can update `boards.status` directly as the API role; no route does it, so S3 holds at the API, not in the database.
+- The panel can still add or remove placements before the baseline, so a submitted self-assessment can stop matching the board. Increment 4 (calibration) must handle capabilities without a proposal.
+- `app_is_super_admin()` and `map_state_of` (earlier migrations) keep the default `PUBLIC` execute.
+- Direct SQL by the owner could race a level delete against a submit; the API's advisory lock prevents it.
