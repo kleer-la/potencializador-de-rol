@@ -110,6 +110,7 @@ export const calibrationErrors: Record<string, string> = {
   not_self_assessed: 'La calibración empieza cuando el participante envía su autoevaluación.',
   no_baseline: 'Antes de la línea base, los niveles se acuerdan en la calibración.',
   already_leveled: 'Esa capacidad ya tiene su nivel inicial en la línea base.',
+  panel_changed: 'El panel del participante cambió mientras se registraba la calibración. Vuelve a abrir el tablero y revisa los asistentes.',
   unknown_reference: 'Hay un asistente, una capacidad o un nivel que no corresponde a este tablero.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };

@@ -480,9 +480,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           // or its panel changed in between.
           if (postgresCode(error) === 'PM003') throw new Refusal(409, { error: 'baseline_set' });
           if (postgresCode(error) === 'PM032') throw new Refusal(409, { error: 'not_self_assessed' });
-          if (postgresCode(error) === 'PM031') {
-            throw new Refusal(422, { error: 'attendance', participantMissing: absent.participant, missingRoles: absent.roles });
-          }
+          // The attendance passed above, so the panel changed meanwhile: what is missing is unknown here.
+          if (postgresCode(error) === 'PM031') throw new Refusal(409, { error: 'panel_changed' });
           throw error;
         }
       }),
