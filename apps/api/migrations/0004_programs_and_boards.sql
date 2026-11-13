@@ -416,6 +416,43 @@ CREATE FUNCTION app_find_enrollable_person(p_email text)
        AND (p.organization_id IS NULL OR p.organization_id = app_current_organization_id())
   $$;
 REVOKE ALL ON FUNCTION app_find_enrollable_person(text) FROM PUBLIC;
+
+-- The boards the person acting owns or accompanies, in any organization: a participant
+-- may hold no organization role and a Kleer mentor belongs to none, so this cannot go
+-- through an organization scope. Returns only what lists need, never placements.
+CREATE FUNCTION app_my_boards()
+  RETURNS TABLE (
+    board_id uuid, organization_id uuid, organization_name text, program_id uuid, program_name text,
+    owner_name text, status text, relation text, panel_roles text[]
+  )
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT b.id, b.organization_id, o.name, p.id, p.name, owner.name, b.status,
+           CASE WHEN b.owner_person_id = app_current_person_id() THEN 'owner' ELSE 'panel' END,
+           coalesce(
+             (SELECT array_agg(pa.role ORDER BY pa.role)
+                FROM panel_assignments pa JOIN enrollments m ON m.id = pa.member_enrollment_id
+               WHERE pa.participant_enrollment_id = b.enrollment_id AND m.person_id = app_current_person_id()),
+             '{}')
+      FROM boards b
+      JOIN organizations o ON o.id = b.organization_id
+      JOIN programs p ON p.id = b.program_id
+      JOIN persons owner ON owner.id = b.owner_person_id
+     WHERE app_current_person_id() IS NOT NULL
+       AND (b.owner_person_id = app_current_person_id() OR app_on_board_panel(b.id))
+     ORDER BY p.starts_on, p.name, owner.name
+  $$;
+REVOKE ALL ON FUNCTION app_my_boards() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_my_boards() TO potencializador_app;
+
+-- The organization of a board, only for its owner or a panel member; NULL otherwise.
+CREATE FUNCTION app_board_organization(p_board_id uuid) RETURNS uuid
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT organization_id FROM boards WHERE id = p_board_id AND app_sees_board(p_board_id)
+  $$;
+REVOKE ALL ON FUNCTION app_board_organization(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_board_organization(uuid) TO potencializador_app;
 GRANT EXECUTE ON FUNCTION app_find_enrollable_person(text) TO potencializador_app;
 GRANT EXECUTE ON FUNCTION app_create_board(uuid) TO potencializador_app;
 

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { registerBoards } from './boards/boards.routes.ts';
 import { registerCatalog } from './catalog/catalog.routes.ts';
 import { registerIdentity, type IdentityOptions } from './identity/identity.routes.ts';
 import { registerMaps } from './maps/maps.routes.ts';
@@ -38,6 +39,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           await registerCatalog(secured, { database: identity.database });
           await registerMaps(secured, { database: identity.database });
           await registerPrograms(secured, { database: identity.database });
+          await registerBoards(secured, { database: identity.database });
         });
       }
     },
