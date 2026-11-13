@@ -55,7 +55,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Domain rules: map life cycle, publish requirements, what a published map accepts, permissions. Specs: S3, S4, S5, S9. Route: inline. Risk: none (new pure code in `packages/domain`; existing policy functions unchanged). Commit: `feat: domain rules of the capability map` (see L4).
-- [ ] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: —
+- [x] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: `feat: store capability maps and guard invariant 10` (see L5).
 - [ ] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none expected. Commit: —
@@ -73,3 +73,10 @@ L2 (2026-11-12, context): the request answers the question "¿Empiezo incremento
 L3 (2026-11-12, decisions before code): the assumptions marked in S2, S3, S4 and S7 were taken without asking, because the document leaves them open and each can be changed later without redoing the rest. They are reported to the user with this document.
 
 L4 (2026-11-12, T1 evidence): RED observed (`capability-map.ts` missing; `canDesignMaps is not a function`), then GREEN: unit project 29 passed, `npm run typecheck` clean. Rules: `canApplyChange`, `canTransition`, `canStartNewVersionFrom`, `publishObstacles`, and the policies `canDesignMaps` and `canReadOrganization`. An administrator who is not map designer does not design maps.
+
+L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "roles" does not exist`), then GREEN: `npm test` 106 passed in 12 files, `npm run typecheck` clean. Mutation check on the guard: letting links be added to any published capability failed 2 tests; treating published maps like drafts failed 5; both restored.
+- Migration `0003_capability_maps.sql`: ten tables, each with `organization_id`, one Row Level Security policy and composite foreign keys to its parent, so content cannot hang from another organization.
+- Invariant 10 is enforced by triggers that apply to every database role, the owner included. A published map refuses update and delete of levels, bonus rules, dimensions, capabilities and their links; it accepts new dimensions and capabilities; tools and objectives of a new capability are accepted only in the transaction that created it. An archived map refuses everything. A map moves only draft → published → archived, records `published_at` and `archived_at`, and only a draft can be deleted (with its content).
+- One draft per role (partial unique index). Positions are deferred unique constraints, so reordering within one transaction works.
+- Refusals carry SQL state `PM010` and start with `invariant 10:`; the API maps them in T4.
+- Tests settle every refused attempt together (`Promise.allSettled`): awaiting them one by one left rejections unhandled.
