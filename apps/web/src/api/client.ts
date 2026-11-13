@@ -123,6 +123,7 @@ export function organizationApi(organizationId: string) {
       request<CatalogEntry>(at(kind), 'POST', entry),
     changeInCatalog: (kind: CatalogKind, id: string, entry: Partial<Omit<Tool, 'id'>>) =>
       request<CatalogEntry>(at(`${kind}/${id}`), 'PATCH', entry),
+    removeFromCatalog: (kind: CatalogKind, id: string) => request<void>(at(`${kind}/${id}`), 'DELETE'),
 
     versions: async (roleId: string) => (await request<{ maps: MapHeader[] }>(at(`roles/${roleId}/maps`))).maps,
     newDraft: (roleId: string, copyFrom?: string) =>

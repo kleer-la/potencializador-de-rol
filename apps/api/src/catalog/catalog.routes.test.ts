@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { seedMap } from '../../test-support/seed-map.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
@@ -21,7 +22,7 @@ describe('roles, tools and strategic objectives', () => {
 
   const call = (
     session: string | null,
-    method: 'GET' | 'POST' | 'PATCH',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     url: string,
     body?: Record<string, unknown>,
   ) =>
@@ -191,6 +192,30 @@ describe('roles, tools and strategic objectives', () => {
       expect(taken.json()).toEqual({ error: 'name_taken' });
     });
 
+    it('lets a map designer delete an unused entry, and refuses one used by a capability', async () => {
+      const unused = await call(sessions.designerA, 'POST', path(organizationA), { name: unique('Sin uso') });
+      const used = await call(sessions.designerA, 'POST', path(organizationA), { name: unique('En uso') });
+      const map = await seedMap(ownerPool, organizationA, 'draft');
+      const link =
+        catalog === 'tools'
+          ? 'insert into capability_tools (organization_id, capability_id, tool_id) values ($1, $2, $3)'
+          : 'insert into capability_objectives (organization_id, capability_id, objective_id) values ($1, $2, $3)';
+      await ownerPool.query(link, [organizationA, map.capabilityId, used.json().id]);
+
+      const deleted = await call(sessions.designerA, 'DELETE', path(organizationA, unused.json().id));
+      const inUse = await call(sessions.designerA, 'DELETE', path(organizationA, used.json().id));
+      const byAdministrator = await call(sessions.administratorA, 'DELETE', path(organizationA, used.json().id));
+      const missing = await call(sessions.designerA, 'DELETE', path(organizationA, randomUUID()));
+
+      expect([deleted.statusCode, inUse.statusCode, byAdministrator.statusCode, missing.statusCode]).toEqual([
+        204, 409, 403, 404,
+      ]);
+      expect(inUse.json()).toEqual({ error: 'in_use' });
+      const ids = (await call(sessions.designerA, 'GET', path(organizationA))).json().items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(used.json().id);
+      expect(ids).not.toContain(unused.json().id);
+    });
+
     it('INV-11 refuses to read, create or change entries of another organization', async () => {
       const ofB = await call(sessions.designerB, 'POST', path(organizationB), { name: unique('Ajena') });
       expect(ofB.statusCode).toBe(201);
@@ -201,9 +226,11 @@ describe('roles, tools and strategic objectives', () => {
         call(sessions.designerA, 'PATCH', path(organizationB, ofB.json().id), { name: 'Cambiada' }),
         // The entry of B addressed through organization A: not found there.
         call(sessions.designerA, 'PATCH', path(organizationA, ofB.json().id), { name: 'Cambiada' }),
+        call(sessions.designerA, 'DELETE', path(organizationB, ofB.json().id)),
+        call(sessions.designerA, 'DELETE', path(organizationA, ofB.json().id)),
       ]);
 
-      expect(responses.map((response) => response.statusCode)).toEqual([403, 403, 403, 404]);
+      expect(responses.map((response) => response.statusCode)).toEqual([403, 403, 403, 404, 403, 404]);
       const listed = await call(sessions.designerB, 'GET', path(organizationB));
       expect(listed.json().items).toContainEqual(ofB.json());
     });

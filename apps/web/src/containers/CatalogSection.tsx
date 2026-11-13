@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { ApiError, type CatalogEntry, type CatalogKind, type OrganizationApi } from '../api/client.ts';
+import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { mapErrors, messages } from '../copy.ts';
 
 type Props = { api: OrganizationApi; kind: CatalogKind; title: string; canDesign: boolean };
@@ -31,6 +32,20 @@ export function CatalogSection({ api, kind, title, canDesign }: Props) {
     withLink
       ? { name: value.name, description: value.description, link: value.link.trim() === '' ? null : value.link.trim() }
       : { name: value.name, description: value.description };
+
+  const remove = async (id: string) => {
+    setError(null);
+    try {
+      await api.removeFromCatalog(kind, id);
+      setItems(await api.catalog(kind));
+      if (editingId === id) {
+        setEditingId(null);
+        setDraft(emptyDraft);
+      }
+    } catch (failure) {
+      setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
+    }
+  };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -76,6 +91,16 @@ export function CatalogSection({ api, kind, title, canDesign }: Props) {
                 >
                   Editar
                 </button>
+              )}
+              {canDesign && (
+                <ConfirmAction
+                  label="Eliminar"
+                  accessibleLabel={`Eliminar «${item.name}»`}
+                  prompt={`¿Eliminar «${item.name}» del catálogo?`}
+                  confirmLabel="Confirmar"
+                  variant="quiet-danger"
+                  onConfirm={() => remove(item.id)}
+                />
               )}
             </li>
           ))}

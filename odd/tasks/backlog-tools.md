@@ -17,9 +17,13 @@ S2. `docs/Backlog.md`: "Búsqueda de herramientas simple para añadir a una Capa
 
 ## Tasks
 
-- [ ] T1 — Delete catalog entries: API and interface. Specs: S1. Route: inline. Risk: item 1 (deletes stored data; guarded by the foreign keys). Commit: —
+- [x] T1 — Delete catalog entries: API and interface. Specs: S1. Route: inline. Risk: item 1 (deletes stored data; guarded by the foreign keys). Commit: `feat: delete tools and objectives from the catalogs` (see L2).
 - [ ] T2 — Search picker for tools and objectives in the capability form. Specs: S2. Route: inline. Risk: none expected. Commit: —
 
 ## Log
 
 L1 (2026-11-13, user, original request): "si, vamos con lo del Backlog" — answer to the proposal to do the backlog items before increment 3.
+
+L2 (2026-11-13, T1 evidence): RED observed (4 API tests, 1 interface test), then GREEN: `npm test` 229 passed, `npm run typecheck` clean.
+- `DELETE /api/organizations/:organizationId/tools/:entryId` and `.../strategic-objectives/:entryId` (map designers and super administrators): `204`; `409 in_use` when a capability of any map version links it (the foreign keys of migration 0003 refuse it, so a published map never loses a tool); `404` for an entry not in the organization, including one of another organization addressed through it.
+- "Catálogos" shows "Eliminar" next to each entry for map designers, with confirmation; an entry in use stays and the page says why.

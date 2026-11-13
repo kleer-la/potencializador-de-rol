@@ -20,6 +20,7 @@ const objectiveInput = z.object({ name, description: description.default('') });
 const entryParams = z.object({ entryId: z.uuid().toLowerCase() });
 
 const nameTaken = { error: 'name_taken' } as const;
+const FOREIGN_KEY_VIOLATION = '23503';
 
 /** A change names at least one field; an empty one is a malformed request. */
 const nonEmpty = (value: Record<string, unknown>) => Object.keys(value).length > 0;
@@ -82,6 +83,8 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
       id: string,
       values: Record<string, unknown>,
     ) => Promise<Entry | undefined>;
+    /** Whether an entry was deleted. A foreign key refuses an entry still linked to a capability. */
+    remove: (tx: ScopedTransaction, organizationId: string, id: string) => Promise<boolean>;
   };
 
   const registerEntries = <Entry>(path: string, store: CatalogStore<Entry>) => {
@@ -125,6 +128,24 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
         throw error;
       }
     });
+
+    api.delete(`/organizations/:organizationId/${path}/:entryId`, async (request, reply) => {
+      const access = await requireOrganization(request, reply, canDesignMaps);
+      if (access === null) return reply;
+      const params = entryParams.safeParse(request.params);
+      if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+      try {
+        const deleted = await withScope(db, access.scope, (tx) =>
+          store.remove(tx, access.organizationId, params.data.entryId),
+        );
+        if (!deleted) return reply.code(404).send({ error: 'not_found' });
+        return reply.code(204).send();
+      } catch (error) {
+        // Linked to a capability of some map version; published maps never change.
+        if (postgresCode(error) === FOREIGN_KEY_VIOLATION) return reply.code(409).send({ error: 'in_use' });
+        throw error;
+      }
+    });
   };
 
   const toolColumns = { id: tools.id, name: tools.name, description: tools.description, link: tools.link };
@@ -146,6 +167,13 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
           .where(and(eq(tools.id, id), eq(tools.organizationId, organizationId)))
           .returning(toolColumns)
       )[0],
+    remove: async (tx, organizationId, id) =>
+      (
+        await tx
+          .delete(tools)
+          .where(and(eq(tools.id, id), eq(tools.organizationId, organizationId)))
+          .returning({ id: tools.id })
+      ).length > 0,
   });
 
   const objectiveColumns = {
@@ -175,5 +203,12 @@ export async function registerCatalog(api: FastifyInstance, options: { database:
           .where(and(eq(strategicObjectives.id, id), eq(strategicObjectives.organizationId, organizationId)))
           .returning(objectiveColumns)
       )[0],
+    remove: async (tx, organizationId, id) =>
+      (
+        await tx
+          .delete(strategicObjectives)
+          .where(and(eq(strategicObjectives.id, id), eq(strategicObjectives.organizationId, organizationId)))
+          .returning({ id: strategicObjectives.id })
+      ).length > 0,
   });
 }

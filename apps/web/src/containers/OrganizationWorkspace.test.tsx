@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentPerson } from '../api/client.ts';
@@ -304,6 +304,50 @@ describe('map editor', () => {
 });
 
 describe('catalogs', () => {
+  it('lets a map designer delete an unused tool, and explains why a tool in use stays', async () => {
+    const toolItems = [...tools];
+    const calls = fakeBackend({
+      [`GET ${base}/tools`]: () => json({ items: toolItems }),
+      [`GET ${base}/strategic-objectives`]: () => json({ items: objectives }),
+      [`DELETE ${base}/tools/tool-2`]: () => {
+        toolItems.splice(1, 1);
+        return { status: 204 };
+      },
+      [`DELETE ${base}/tools/tool-1`]: () => json({ error: 'in_use' }, 409),
+    });
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace me={designer} organization={organization} />);
+    await user.click(await screen.findByRole('tab', { name: 'Catálogos' }));
+    const section = await screen.findByRole('region', { name: 'Herramientas' });
+    await user.click(await within(section).findByRole('button', { name: 'Eliminar «OKR»' }));
+    await user.click(within(section).getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(within(section).queryByText('OKR')).toBeNull());
+    await user.click(within(section).getByRole('button', { name: 'Eliminar «Jobs To Be Done»' }));
+    await user.click(within(section).getByRole('button', { name: 'Confirmar' }));
+
+    expect((await within(section).findByRole('alert')).textContent).toBe(
+      'No se puede eliminar: alguna capacidad de un mapa la usa.',
+    );
+    expect(within(section).getByText('Jobs To Be Done')).toBeTruthy();
+    expect(calls.filter((call) => call.route.startsWith('DELETE'))).toHaveLength(2);
+  });
+
+  it('offers no deletion to a member who is not map designer', async () => {
+    fakeBackend({
+      [`GET ${base}/tools`]: () => json({ items: tools }),
+      [`GET ${base}/strategic-objectives`]: () => json({ items: objectives }),
+      [`GET ${base}/members`]: () => json({ members: [] }),
+    });
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace me={person(['administrator'])} organization={organization} />);
+    await user.click(await screen.findByRole('tab', { name: 'Catálogos' }));
+    await screen.findByText('OKR');
+
+    expect(screen.queryByRole('button', { name: /Eliminar/ })).toBeNull();
+  });
+
   it('lets a map designer add a tool and an objective', async () => {
     const toolItems = [...tools];
     const calls = fakeBackend({

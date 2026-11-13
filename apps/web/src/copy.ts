@@ -72,6 +72,7 @@ export const mapErrors: Record<string, string> = {
   draft_exists: 'Este rol ya tiene un borrador.',
   name_taken: 'Ya existe un elemento con ese nombre.',
   unknown_reference: 'Una herramienta u objetivo ya no está en el catálogo.',
+  in_use: 'No se puede eliminar: alguna capacidad de un mapa la usa.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };
 
