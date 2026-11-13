@@ -203,7 +203,8 @@ describe('map editor', () => {
     const dimension = screen.getByRole('region', { name: 'Entender' });
     await user.type(within(dimension).getByLabelText('Enunciado observable'), 'Lee el estado actual del producto');
     await user.selectOptions(within(dimension).getByLabelText('Dificultad'), 'Alta');
-    await user.selectOptions(within(dimension).getByLabelText('Herramientas'), ['OKR']);
+    await user.type(within(dimension).getByLabelText('Buscar herramientas'), 'ok');
+    await user.click(within(dimension).getByRole('button', { name: 'Agregar «OKR»' }));
     await user.click(within(dimension).getByRole('button', { name: 'Agregar capacidad' }));
     await user.click(screen.getByRole('button', { name: 'Agregar nivel' }));
     await user.type(screen.getByLabelText('Nombre del nivel 3'), 'Experiencia');

@@ -18,7 +18,7 @@ S2. `docs/Backlog.md`: "Búsqueda de herramientas simple para añadir a una Capa
 ## Tasks
 
 - [x] T1 — Delete catalog entries: API and interface. Specs: S1. Route: inline. Risk: item 1 (deletes stored data; guarded by the foreign keys). Commit: `feat: delete tools and objectives from the catalogs` (see L2).
-- [ ] T2 — Search picker for tools and objectives in the capability form. Specs: S2. Route: inline. Risk: none expected. Commit: —
+- [x] T2 — Search picker for tools and objectives in the capability form. Specs: S2. Route: inline. Risk: none (interface only). Commit: `feat: search tools and objectives by name in the capability form` (see L3).
 
 ## Log
 
@@ -27,3 +27,7 @@ L1 (2026-11-13, user, original request): "si, vamos con lo del Backlog" — answ
 L2 (2026-11-13, T1 evidence): RED observed (4 API tests, 1 interface test), then GREEN: `npm test` 229 passed, `npm run typecheck` clean.
 - `DELETE /api/organizations/:organizationId/tools/:entryId` and `.../strategic-objectives/:entryId` (map designers and super administrators): `204`; `409 in_use` when a capability of any map version links it (the foreign keys of migration 0003 refuse it, so a published map never loses a tool); `404` for an entry not in the organization, including one of another organization addressed through it.
 - "Catálogos" shows "Eliminar" next to each entry for map designers, with confirmation; an entry in use stays and the page says why.
+
+L3 (2026-11-13, T2 evidence): RED observed (picker missing; the existing capability test could not find "Buscar herramientas"), then GREEN: `npm test` 233 passed in 24 files, `npm run typecheck` and `npm run build` clean.
+- `SearchPicker` replaces the two multiple selects of the capability form: typing part of a name lists up to 8 matches that are not chosen yet, ignoring case and accents ("gestion" finds "Gestión de riesgos"); chosen entries show as tags with "×" to remove; before typing it says how many entries there are.
+- The existing interface test of adding a capability now searches "ok" and adds "OKR" instead of picking from a list; it is the requested change in behavior.

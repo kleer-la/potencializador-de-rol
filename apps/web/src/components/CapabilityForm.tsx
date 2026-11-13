@@ -2,6 +2,7 @@ import { DIFFICULTIES, type Difficulty } from '@potencializador/domain';
 import { useState, type FormEvent } from 'react';
 import type { CapabilityInput, Objective, Tool } from '../api/client.ts';
 import { difficultyLabels } from '../copy.ts';
+import { SearchPicker } from './SearchPicker.tsx';
 
 type Props = {
   tools: Tool[];
@@ -14,7 +15,6 @@ type Props = {
 };
 
 const empty: CapabilityInput = { statement: '', difficulty: null, toolIds: [], objectiveIds: [] };
-const selected = (select: HTMLSelectElement) => [...select.selectedOptions].map((option) => option.value);
 
 export function CapabilityForm({ tools, objectives, initial = empty, submitLabel, onSubmit, onCancel }: Props) {
   const [value, setValue] = useState(initial);
@@ -60,36 +60,18 @@ export function CapabilityForm({ tools, objectives, initial = empty, submitLabel
           ))}
         </select>
       </label>
-      <label>
-        Herramientas
-        <select
-          multiple
-          size={Math.min(6, Math.max(2, tools.length))}
-          value={value.toolIds}
-          onChange={(event) => setValue({ ...value, toolIds: selected(event.target) })}
-        >
-          {tools.map((tool) => (
-            <option key={tool.id} value={tool.id}>
-              {tool.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Objetivos estratégicos
-        <select
-          multiple
-          size={Math.min(4, Math.max(2, objectives.length))}
-          value={value.objectiveIds}
-          onChange={(event) => setValue({ ...value, objectiveIds: selected(event.target) })}
-        >
-          {objectives.map((objective) => (
-            <option key={objective.id} value={objective.id}>
-              {objective.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <SearchPicker
+        legend="Herramientas"
+        options={tools}
+        selected={value.toolIds}
+        onChange={(toolIds) => setValue({ ...value, toolIds })}
+      />
+      <SearchPicker
+        legend="Objetivos estratégicos"
+        options={objectives}
+        selected={value.objectiveIds}
+        onChange={(objectiveIds) => setValue({ ...value, objectiveIds })}
+      />
       <div className="actions">
         <button type="submit" disabled={submitting}>
           {submitLabel}

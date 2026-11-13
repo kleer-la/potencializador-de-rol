@@ -579,3 +579,38 @@ fieldset {
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
 }
+
+/* Search picker ---------------------------------------------------------------------- */
+
+.search-picker {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.search-picker .tag.chosen {
+  gap: var(--space-1);
+  padding-right: 0;
+  color: var(--ink);
+}
+
+.search-picker .tag.chosen button {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+}
+
+.search-label {
+  font: 600 14px/20px var(--font-sans);
+}
+
+.search-results .link-button {
+  min-height: 36px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
