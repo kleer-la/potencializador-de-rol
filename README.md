@@ -61,6 +61,21 @@ Without them a Microsoft first sign-in is refused as not invited.
 An email belongs to one person in the whole system. Inviting an email that already belongs to
 another organization is refused without saying where it belongs.
 
+## Capability maps
+
+A map designer builds the capability map of a role: a maturity scale, bonus rules, and dimensions
+with their capabilities, each linked to tools and strategic objectives from the organization's
+catalogs. A version moves from draft to published to archived.
+
+- A **draft** accepts any change and can be discarded.
+- A **published** version only grows: new dimensions and new capabilities. Any other change needs a
+  new version, which starts as a draft copy (invariant 10). The database refuses those changes too.
+- An **archived** version accepts nothing.
+
+A map can be imported from a JSON file in the format `potencializador.capability-map/v1`; tools
+and objectives are named, matched ignoring case, and added to the catalogs when missing.
+`data/maps/product-owner.json` is the Product Owner map of the first client, ready to import.
+
 ## Isolation by organization
 
 Every table holds data of one organization and is protected by PostgreSQL Row Level Security.
@@ -85,6 +100,7 @@ npm run dev:web     # proxies /api to localhost:3000
 ## Layout
 
 - `packages/domain` — domain rules, with no framework or database dependency.
+- `data/maps` — capability maps ready to import.
 - `apps/api` — Fastify API.
 - `apps/web` — React application, served by nginx in Docker.
 - `odd/tasks` — one feature document (specs, tasks, log) per increment, written before its code.
