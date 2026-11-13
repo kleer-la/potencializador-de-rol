@@ -42,3 +42,5 @@ L5 (2026-11-13, review after the merge into the local main): native review of b1
 - Deleting an entry someone else already deleted answered `404` and the page kept showing it with an error. The page now drops it like a successful delete.
 - The Enter that confirms an input method composition (Japanese, Chinese, accented input) no longer adds a match.
 Checks: `npm test` 237 passed, `npm run typecheck` clean.
+
+L6 (2026-11-13, correction of L5): commit bb4c48f was made and fast-forwarded into the local `main` with its new interface test failing: the fake backend kept returning the entry after "someone else" deleted it, which a real server would not. The test now returns it only on the first load. Without the `404` handling the test fails (checked by removing it), so it pins the fix. `npm test` 237 passed, `npm run typecheck` clean. Process note: commits must wait for the suite's result; L16 of increment 2 recorded the same mistake.

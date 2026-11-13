@@ -354,8 +354,10 @@ describe('catalogs', () => {
   });
 
   it('drops from the list an entry someone else already deleted', async () => {
+    let loads = 0;
     fakeBackend({
-      [`GET ${base}/tools`]: () => json({ items: tools }),
+      // The first load is from before someone else deleted "OKR"; later ones no longer have it.
+      [`GET ${base}/tools`]: () => json({ items: loads++ === 0 ? tools : tools.slice(0, 1) }),
       [`GET ${base}/strategic-objectives`]: () => json({ items: objectives }),
       [`DELETE ${base}/tools/tool-2`]: () => json({ error: 'not_found' }, 404),
     });
