@@ -58,7 +58,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: `feat: store capability maps and guard invariant 10` (see L5).
 - [x] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions); item 3 (shared code: the access checks of the organizations routes moved to `access/organization-access.ts`). Commit: `feat: roles and catalogs of an organization` (see L7).
 - [x] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: design, publish and grow capability maps` (see L9).
-- [ ] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none expected. Commit: —
+- [x] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none (data file and a test). Commit: `feat: product owner example map` (see L11).
 - [ ] T6 — Web interface: roles and map editor. Specs: S8. Route: inline. Risk: none expected. Commit: —
 
 Route evidence: each task builds on the previous one (T2 on T1, T3 and T4 on T2, T5 on T4, T6 on T3 to T5), so no parallel writer applies.
@@ -117,3 +117,10 @@ L10 (2026-11-13, review of T4): native review of commits a14232d and 15436d7 (le
 - Draft creation now locks the role, so concurrent requests get one draft and `draft_exists`, never a version collision. Test sends four at once.
 - Added the test for `invalid_source` (copy from a draft, copy from another role) and for a repeated dimension name.
 Checks: `npm test` 144 passed, `npm run typecheck` clean.
+
+L11 (2026-11-13, T5 evidence and decisions): `data/maps/product-owner.json` transcribes the attached PDF: 9 dimensions (7, 10, 6, 6, 7, 6, 3, 4, 6 capabilities), 55 capabilities, 15 marked `prioritized` (the green cards), 162 distinct tool names. The test imports it into a role and publishes it unchanged; `npm test` 146 passed.
+- Capability order inside a dimension follows the picture from left to right.
+- Tools are the "Técnicas y conocimientos asociados" split at top-level commas and semicolons; text in parentheses stays with its item.
+- Text is as written in the PDF, except letters lost by the PDF text layer ("Identifca" → "Identifica", "Defnir" → "Definir", "Infuencia" → "Influencia", "confictos" → "conflictos"), read from the picture. "ventana de Yohari" and the asterisks are kept.
+- Scale: the five level names and multipliers 0 to 4 of the document (§2, §9.1); descriptions empty except the transfer requirement of level 4 (§5.1 invariant 6). Bonus rule from §5.1 invariant 7.
+- No objectives: the PDF links none.

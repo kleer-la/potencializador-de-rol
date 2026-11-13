@@ -1,0 +1,568 @@
+{
+  "format": "potencializador.capability-map/v1",
+  "scale": [
+    {
+      "name": "No sabe",
+      "description": "",
+      "multiplier": 0,
+      "requiresTransfer": false
+    },
+    {
+      "name": "Principiante",
+      "description": "",
+      "multiplier": 1,
+      "requiresTransfer": false
+    },
+    {
+      "name": "En práctica",
+      "description": "",
+      "multiplier": 2,
+      "requiresTransfer": false
+    },
+    {
+      "name": "Experiencia",
+      "description": "",
+      "multiplier": 3,
+      "requiresTransfer": false
+    },
+    {
+      "name": "Transferencia",
+      "description": "Exige evidencia de haber enseñado a otros.",
+      "multiplier": 4,
+      "requiresTransfer": true
+    }
+  ],
+  "bonusRules": [
+    {
+      "name": "Plus por IA con transferencia",
+      "extraPoints": 1,
+      "condition": "Usó IA para potenciar la capacidad y transfirió esa práctica a sus compañeros."
+    }
+  ],
+  "dimensions": [
+    {
+      "name": "Entender",
+      "description": "",
+      "kind": "work_cycle",
+      "capabilities": [
+        {
+          "statement": "Entendimiento general del contexto en el cual se desarrollará cada iniciativa",
+          "tools": [
+            "Inception",
+            "preguntas poderosas",
+            "entrevistas de conceptualización",
+            "Nemawashi",
+            "preinception"
+          ]
+        },
+        {
+          "statement": "Describe la arquitectura, las integraciones y las restricciones técnicas de su producto",
+          "tools": [
+            "Panorama tecnológico y de datos",
+            "Arqu. Empresarial",
+            "Modelo C4"
+          ]
+        },
+        {
+          "statement": "Identifica a los stakeholders, sus intereses y su poder de decisión, y gestiona la relación con ellos",
+          "tools": [
+            "Gestión de stakeholders",
+            "Mapa de stakeholders y de quién decide qué"
+          ]
+        },
+        {
+          "statement": "Lee el estado actual del producto con datos y con la voz del usuario",
+          "tools": [
+            "Métricas de uso",
+            "PQR's de los clientes",
+            "Análisis de datos"
+          ]
+        },
+        {
+          "statement": "Explica cómo opera UniAndes: modelo descentralizado, ciclo de vida de estudiantes, profesores y administrativos, y normativa",
+          "tools": [
+            "Contexto institucional (procesos, normativa, gobierno)",
+            "Benchmark y tendencias del sector"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Conecta los objetivos de su producto con el PDI y explica cómo la tecnología habilita esa estrategia",
+          "tools": [
+            "Estrategia de producto",
+            "Visión de negocio",
+            "OKR's Org",
+            "Modelo de valor del producto",
+            "PDI",
+            "diferencia entre implementar software y transformar"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Identifica a quién sirve el producto y qué necesita lograr cada segmento",
+          "tools": [
+            "Segmentos de clientes / usuarios",
+            "Jobs To Be Done"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Descubrir",
+      "description": "",
+      "kind": "work_cycle",
+      "capabilities": [
+        {
+          "statement": "Define los resultados esperados antes de construir",
+          "tools": [
+            "Definición de resultados esperados",
+            "Caso de negocio y retorno"
+          ]
+        },
+        {
+          "statement": "Identifica oportunidades de automatización e IA en los procesos que atiende su producto",
+          "tools": [
+            "Automatización de procesos",
+            "IA generativa"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Acuerda con los stakeholders qué problemas se exploran primero y sostiene esas decisiones",
+          "tools": [
+            "Negociación",
+            "Persuasión",
+            "escucha activa",
+            "comunicación asertiva"
+          ]
+        },
+        {
+          "statement": "Mantiene un backlog de discovery ordenado, vigente y comprensible",
+          "tools": [
+            "Backlog de oportunidades"
+          ]
+        },
+        {
+          "statement": "Acota cada oportunidad a la apuesta más pequeña que permita aprender",
+          "tools": [
+            "MVP",
+            "Slicing",
+            "User Story Mapping"
+          ]
+        },
+        {
+          "statement": "Prioriza las oportunidades y problemas a resolver según el valor esperado y el costo de explorarlos",
+          "tools": [
+            "KANO",
+            "Impact Mapping",
+            "Opportunity Solution Tree"
+          ]
+        },
+        {
+          "statement": "Cuida la experiencia del usuario en las soluciones que propone",
+          "tools": [
+            "Pruebas de usabilidad",
+            "User Experience"
+          ]
+        },
+        {
+          "statement": "Formula hipótesis y las valida con experimentos antes de construir",
+          "tools": [
+            "Prototipado",
+            "Diseño de experimentos y criterios de validación",
+            "Evaluación de riesgos de valor",
+            "usabilidad",
+            "viabilidad y factibilidad",
+            "HDD",
+            "Definir hipótesis"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Indaga hasta encontrar la necesidad de fondo antes de comprometerse con una solución o una herramienta comercial",
+          "tools": [
+            "Formulación del problema antes de la solución",
+            "Opportunity Solution Tree",
+            "Design Thinking",
+            "Preguntas de indagación"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Investiga a los usuarios para entender sus problemas y su contexto",
+          "tools": [
+            "Técnicas de entrevista",
+            "Empathy Mapping",
+            "Síntesis de investigación",
+            "Uso de IA para investigación (también apoya el prototipado)",
+            "Pruebas de usabilidad"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Priorizar",
+      "description": "",
+      "kind": "work_cycle",
+      "capabilities": [
+        {
+          "statement": "Divide el trabajo en incrementos y logra que los stakeholders acepten salidas tempranas a producción",
+          "tools": [
+            "Slicing",
+            "User Story Mapping",
+            "argumentos frente al “todo o nada”"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Traduce las prioridades en un roadmap y en objetivos de producto",
+          "tools": [
+            "Roadmap por resultados",
+            "OKR de producto",
+            "Gestión de dependencias entre equipos y áreas",
+            "MVP"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Sustenta sus prioridades ante directores, vicerrectores y sponsors con datos, y dice que no cuando un compromiso es inviable",
+          "tools": [
+            "Negociación",
+            "Persuasión",
+            "Decir que no y gestionar expectativas",
+            "gestión de capacidades",
+            "estimación"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Balancea el desarrollo nuevo con la deuda técnica",
+          "tools": [
+            "Balance entre nuevo desarrollo",
+            "deuda técnica",
+            "riesgo y operación",
+            "Deuda técnica"
+          ]
+        },
+        {
+          "statement": "Mantiene un backlog ordenado, vigente y comprensible",
+          "tools": [
+            "Salud del backlog",
+            "Refinamiento y orden del backlog"
+          ]
+        },
+        {
+          "statement": "Prioriza con criterios explícitos de impacto estratégico, esfuerzo y riesgo, en lugar de atender pedidos por orden de llegada",
+          "tools": [
+            "Costo de la demora",
+            "WSJF",
+            "RICE",
+            "impacto y esfuerzo",
+            "matriz de priorización"
+          ],
+          "prioritized": true
+        }
+      ]
+    },
+    {
+      "name": "Crear",
+      "description": "",
+      "kind": "work_cycle",
+      "capabilities": [
+        {
+          "statement": "Rediseña el proceso junto con la solución, para eliminar cuellos de botella y no solo digitalizar lo existente",
+          "tools": [
+            "Mapeo de procesos",
+            "Lean / Kanban"
+          ]
+        },
+        {
+          "statement": "Lleva el producto a sus usuarios y facilita su adopción",
+          "tools": [
+            "Salida a producción y gestión del cambio y la adopción",
+            "Onboarding de producto",
+            "Go To Market"
+          ]
+        },
+        {
+          "statement": "Contrata y gestiona proveedores con foco en resultados",
+          "tools": [
+            "Supervisión de proveedores por resultados",
+            "Contratación",
+            "Gestión de proveedores"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Gestiona el costo y la sostenibilidad económica del producto",
+          "tools": [
+            "Costeo y sostenibilidad del producto",
+            "PyG"
+          ]
+        },
+        {
+          "statement": "Gestiona el flujo de trabajo para entregar de forma continua",
+          "tools": [
+            "Planeación de entregas y releases",
+            "Lean / Kanban*"
+          ]
+        },
+        {
+          "statement": "Traduce la necesidad de la unidad en historias e incrementos con criterios claros para el equipo técnico",
+          "tools": [
+            "Historias de usuario y criterios de aceptación",
+            "Definición de terminado y calidad",
+            "Requisitos no funcionales (seguridad, privacidad, accesibilidad)",
+            "SDD",
+            "Trabajo cotidiano con el equipo de desarrollo",
+            "CI / CD",
+            "Técnicas de desarrollo"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Adaptar / Impactar",
+      "description": "",
+      "kind": "work_cycle",
+      "capabilities": [
+        {
+          "statement": "Conecta los resultados del producto con los objetivos estratégicos",
+          "tools": [
+            "Conexión con los objetivos estratégicos"
+          ]
+        },
+        {
+          "statement": "Muestra a sus sponsors el valor entregado con resultados medibles, más allá del cumplimiento de fechas y presupuesto",
+          "tools": [
+            "Beneficio real frente al esperado",
+            "Sostenibilidad del valor en el tiempo",
+            "Alcance del impacto (equipo, área, institución)",
+            "Medición de resultados contra los OKR*",
+            "Rendición de cuentas del valor a los líderes*"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Decide si continuar, cambiar de rumbo o retirar según la evidencia",
+          "tools": [
+            "Lectura de métricas para decidir",
+            "Pruebas A/B y lanzamientos graduales",
+            "Gestión del ciclo de vida y retiro de productos"
+          ]
+        },
+        {
+          "statement": "Evalúa el retorno económico del producto",
+          "tools": [
+            "ROI / EBIT / EBITDA"
+          ]
+        },
+        {
+          "statement": "Vigila el producto en operación y responde a lo que ocurre",
+          "tools": [
+            "Monitoreo / Observabilidad",
+            "Logs",
+            "analítica",
+            "Taggeo digital"
+          ]
+        },
+        {
+          "statement": "Mide el desempeño de la entrega y promueve mejoras",
+          "tools": [
+            "Retrospectivas y mejora continua",
+            "Lead Time / Cycle Time / Throughput",
+            "DORA metrics*"
+          ]
+        },
+        {
+          "statement": "Mide el uso y la satisfacción, y actúa sobre lo que encuentra",
+          "tools": [
+            "Retroalimentación continua de usuarios (NPS, PQR, soporte)",
+            "DAU / MAU / Stickiness",
+            "CSAT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Autonomía",
+      "description": "",
+      "kind": "transversal",
+      "capabilities": [
+        {
+          "statement": "Ejerce el rol como dueño del producto y no como gestor administrativo del proyecto",
+          "tools": [
+            "Mentalidad de producto frente a la de proyecto"
+          ]
+        },
+        {
+          "statement": "Dirige su propio desarrollo profesional",
+          "tools": [
+            "Autogestión del aprendizaje"
+          ]
+        },
+        {
+          "statement": "Asume la responsabilidad por los resultados de su producto",
+          "tools": [
+            "Conocimiento del Alcance del rol"
+          ]
+        },
+        {
+          "statement": "Toma la iniciativa: propone soluciones y llena los vacíos sin esperar requerimientos",
+          "tools": [
+            "Manejo de ambigüedad",
+            "Complejidad"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Reconoce cuándo escalar una decisión y lo hace a tiempo",
+          "tools": [
+            "Criterio para saber cuándo escalar",
+            "Gestión de riesgos"
+          ]
+        },
+        {
+          "statement": "Conoce y/o decide sobre el presupuesto y los recursos de su producto dentro de un alcance acordado",
+          "tools": [
+            "Gestión de presupuesto"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Liderazgo",
+      "description": "",
+      "kind": "transversal",
+      "capabilities": [
+        {
+          "statement": "Desarrolla a otros POs y a Analistas de negocio",
+          "tools": [
+            "Mentoría"
+          ]
+        },
+        {
+          "statement": "Gestiona y mantiene el equipo cohesionado y motivado",
+          "tools": [
+            "Team building",
+            "feedback efectivo",
+            "ventana de Yohari",
+            "1 a 1"
+          ]
+        },
+        {
+          "statement": "Moviliza a personas y áreas sin tener autoridad formal",
+          "tools": [
+            "Técnicas de liderazgo (desde el ejemplo, desde el servicio)",
+            "Facilitación de conversaciones y decisiones",
+            "Influencia"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Complejidad de problemas",
+      "description": "",
+      "kind": "transversal",
+      "capabilities": [
+        {
+          "statement": "Encuentra patrones y necesidades compartidas",
+          "tools": [
+            "Reutilización"
+          ]
+        },
+        {
+          "statement": "Maneja un alcance creciente: funcionalidad, producto, varios productos",
+          "tools": [
+            "Alcance del problema (funcionalidad, producto, portafolio)",
+            "Gestión de portafolio",
+            "Gestión de dependencias"
+          ]
+        },
+        {
+          "statement": "Decide con información incompleta e intereses en conflicto",
+          "tools": [
+            "Fundamentos de agilidad",
+            "Supuestos",
+            "Sesgos",
+            "Gestión de riesgos e incertidumbre"
+          ]
+        },
+        {
+          "statement": "Descompone problemas grandes en partes abordables",
+          "tools": [
+            "Pensamiento sistémico",
+            "Descomposición de problemas",
+            "Mapeo sistémico"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Comunicación",
+      "description": "",
+      "kind": "transversal",
+      "capabilities": [
+        {
+          "statement": "Comunica por escrito de forma clara y breve",
+          "tools": [
+            "Redacción ejecutiva",
+            "registro de decisiones",
+            "documentación del producto",
+            "IA como apoyo de redacción y síntesis"
+          ]
+        },
+        {
+          "statement": "Conduce reuniones que terminan en decisiones y acuerdos claros",
+          "tools": [
+            "Facilitación",
+            "agenda con propósito",
+            "registro y seguimiento de acuerdos",
+            "técnicas de decisión en grupo"
+          ]
+        },
+        {
+          "statement": "Mantiene informados a sponsors y stakeholders sobre avances, riesgos y decisiones, sin esperar a que le pregunten",
+          "tools": [
+            "Reportes de estado por resultados",
+            "cadencias de comunicación",
+            "tableros visibles",
+            "reviews y demos",
+            "comunicación temprana de malas noticias"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Escucha y verifica que entendió antes de responder o comprometerse",
+          "tools": [
+            "Escucha activa",
+            "parafraseo",
+            "preguntas abiertas",
+            "confirmación de acuerdos"
+          ]
+        },
+        {
+          "statement": "Expresa posiciones y desacuerdos de forma clara y respetuosa",
+          "tools": [
+            "Asertividad",
+            "CNV",
+            "comunicación colaborativa",
+            "manejo de conflictos",
+            "retroalimentación al equipo y a pares"
+          ],
+          "prioritized": true
+        },
+        {
+          "statement": "Adapta el mensaje a cada audiencia: directivos, unidades usuarias y equipo técnico",
+          "tools": [
+            "Comunicación estratégica",
+            "mapa de audiencias",
+            "conclusión primero (pirámide de Minto)",
+            "narrativa con datos"
+          ],
+          "prioritized": true
+        }
+      ]
+    }
+  ]
+}
