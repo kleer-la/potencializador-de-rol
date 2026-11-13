@@ -130,3 +130,5 @@ L15 (2026-11-13, review of the settings commit): the whole branch could not be r
 - Added route tests for changing a program: `401` without a session, the same `404` for a program of another organization and for an unknown id, `400` for an end before the start (passed at once).
 - Recorded, not changed: lowering the maximum of focuses or moving dates is not checked against existing boards; focuses and cycles do not exist yet (increment 5 must decide what a lower maximum means for a cycle in progress).
 Checks: `npm test` 225 passed, `npm run typecheck` clean.
+
+L16 (2026-11-13, correction of L15): commit 44af15e was made with its new interface test still failing. The failure was not the reset (that fix works) but the number field: emptying it stored 0 and typing "5" showed "05". The field now shows empty instead of 0. `npm test` 225 passed, `npm run typecheck` clean.

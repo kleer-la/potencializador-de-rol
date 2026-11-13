@@ -132,7 +132,8 @@ function SettingsFields(props: { value: ProgramSettings; onChange: (value: Progr
           type="number"
           min={1}
           max={20}
-          value={value.maxFocuses}
+          // 0 means the field was emptied while typing: show it empty, not "0".
+          value={value.maxFocuses === 0 ? '' : value.maxFocuses}
           onChange={(event) => onChange({ ...value, maxFocuses: Number(event.target.value) })}
           required
         />
