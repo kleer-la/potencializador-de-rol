@@ -56,7 +56,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: map life cycle, publish requirements, what a published map accepts, permissions. Specs: S3, S4, S5, S9. Route: inline. Risk: none (new pure code in `packages/domain`; existing policy functions unchanged). Commit: `feat: domain rules of the capability map` (see L4).
 - [x] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: `feat: store capability maps and guard invariant 10` (see L5).
-- [ ] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
+- [x] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions); item 3 (shared code: the access checks of the organizations routes moved to `access/organization-access.ts`). Commit: `feat: roles and catalogs of an organization` (see L7).
 - [ ] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none expected. Commit: —
 - [ ] T6 — Web interface: roles and map editor. Specs: S8. Route: inline. Risk: none expected. Commit: —
@@ -88,3 +88,8 @@ L6 (2026-11-13, review of T1 and T2): native review of commits fa9887a to 9e901d
 Migration 0003 was edited instead of adding 0004: it exists only on this unmerged branch and was applied only to throwaway test databases.
 Not changed: inserting a link whose capability and tool both belong to another organization and are already linked fails with a duplicate key error; it needs two random identifiers of the other organization.
 Checks: `npm test` 109 passed, `npm run typecheck` clean.
+
+L7 (2026-11-13, T3 evidence and decisions): RED observed (14 failing, routes missing), then GREEN: `npm test` 123 passed in 13 files, `npm run typecheck` clean.
+- Endpoints under `/api/organizations/:organizationId`: `roles` (GET members, POST administrators), `tools` and `strategic-objectives` (GET members; POST and PATCH map designers). A repeated name, ignoring case, answers `409 name_taken`. A tool link must be http or https.
+- The access checks of the organizations routes moved to `apps/api/src/access/organization-access.ts` and are shared by every route that works inside an organization. The existing 16 organizations tests pass unchanged; behavior is the same, including 404 for a super administrator on an organization that does not exist.
+- A change through PATCH touches only the fields it names. The first version reused the creation schema, whose defaults erased the tool link; the test caught it.

@@ -2,13 +2,12 @@ import {
   MEMBERSHIP_ROLES,
   canAdministerOrganization,
   canCreateOrganization,
-  type Actor,
   type MembershipRole,
 } from '@potencializador/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { createIdentityStore } from '../identity/identity-store.ts';
+import { createOrganizationAccess } from '../access/organization-access.ts';
 import { organizationMemberships, organizations, persons } from '../infrastructure/schema.ts';
 import { withScope, type Database } from '../infrastructure/scoped-transaction.ts';
 
@@ -18,8 +17,6 @@ const invitationInput = z.object({
   name: z.string().trim().min(1).max(120),
   role: z.enum(MEMBERSHIP_ROLES),
 });
-// Lower case, as PostgreSQL returns identifiers; memberships are compared as text.
-const organizationParams = z.object({ organizationId: z.uuid().toLowerCase() });
 
 type Member = { personId: string; name: string; email: string; roles: MembershipRole[] };
 
@@ -35,49 +32,9 @@ export async function registerOrganizations(
   options: { database: Database },
 ): Promise<void> {
   const db = options.database;
-  const identityStore = createIdentityStore(db);
-
-  /** The signed-in person as an actor, or `null` after answering 401. */
-  const requireActor = async (
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ): Promise<{ personId: string; actor: Actor } | null> => {
-    const current = request.personId === null ? null : await identityStore.describePerson(request.personId);
-    if (current === null) {
-      await reply.code(401).send({ error: 'not_signed_in' });
-      return null;
-    }
-    return {
-      personId: current.person.id,
-      actor: {
-        isSuperAdmin: current.isSuperAdmin,
-        memberships: current.memberships.map((membership) => ({
-          organizationId: membership.organizationId,
-          role: membership.role as MembershipRole,
-        })),
-      },
-    };
-  };
-
-  /**
-   * The person and the organization they may administer, or `null` after answering.
-   * A member gets the same 403 for an organization that is not theirs and for one that
-   * does not exist, so the answer reveals nothing about other organizations.
-   */
-  const requireAdministrator = async (request: FastifyRequest, reply: FastifyReply) => {
-    const signedIn = await requireActor(request, reply);
-    if (signedIn === null) return null;
-    const params = organizationParams.safeParse(request.params);
-    if (!params.success) {
-      await reply.code(400).send({ error: 'invalid_request' });
-      return null;
-    }
-    if (!canAdministerOrganization(signedIn.actor, params.data.organizationId)) {
-      await reply.code(403).send({ error: 'forbidden' });
-      return null;
-    }
-    return { personId: signedIn.personId, organizationId: params.data.organizationId };
-  };
+  const { requireActor, requireOrganization } = createOrganizationAccess(db);
+  const requireAdministrator = (request: FastifyRequest, reply: FastifyReply) =>
+    requireOrganization(request, reply, canAdministerOrganization);
 
   api.get('/organizations', async (request, reply) => {
     const signedIn = await requireActor(request, reply);
@@ -111,15 +68,9 @@ export async function registerOrganizations(
   api.get('/organizations/:organizationId/members', async (request, reply) => {
     const administrator = await requireAdministrator(request, reply);
     if (administrator === null) return reply;
-    const { personId, organizationId } = administrator;
+    const { organizationId, scope } = administrator;
 
-    const members = await withScope(db, { personId, organizationId }, async (tx) => {
-      const [organization] = await tx
-        .select({ id: organizations.id })
-        .from(organizations)
-        .where(eq(organizations.id, organizationId));
-      if (organization === undefined) return null;
-
+    const members = await withScope(db, scope, async (tx) => {
       const rows = await tx
         .select({
           personId: persons.id,
@@ -152,25 +103,18 @@ export async function registerOrganizations(
       return [...byPerson.values()];
     });
 
-    if (members === null) return reply.code(404).send({ error: 'organization_not_found' });
     return { members };
   });
 
   api.post('/organizations/:organizationId/members', async (request, reply) => {
     const administrator = await requireAdministrator(request, reply);
     if (administrator === null) return reply;
-    const { personId, organizationId } = administrator;
+    const { organizationId, scope } = administrator;
     const input = invitationInput.safeParse(request.body);
     if (!input.success) return reply.code(400).send({ error: 'invalid_request' });
     const { email, name, role } = input.data;
 
-    const outcome = await withScope(db, { personId, organizationId }, async (tx) => {
-        const [organization] = await tx
-          .select({ id: organizations.id })
-          .from(organizations)
-          .where(eq(organizations.id, organizationId));
-        if (organization === undefined) return null;
-
+    const outcome = await withScope(db, scope, async (tx) => {
         const findInOrganization = () =>
           tx
             .select({ id: persons.id, name: persons.name, email: persons.email })
@@ -217,7 +161,6 @@ export async function registerOrganizations(
         return { created, member };
       });
 
-    if (outcome === null) return reply.code(404).send({ error: 'organization_not_found' });
     // The answer says only that the invitation cannot be made, never where the email belongs.
     if (outcome === 'email_taken') return reply.code(409).send({ error: 'invitation_not_possible' });
     return reply.code(outcome.created ? 201 : 200).send(outcome.member);
