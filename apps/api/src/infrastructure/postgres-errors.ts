@@ -11,3 +11,12 @@ export function postgresCode(error: unknown): string | undefined {
   }
   return undefined;
 }
+
+/** Name of the violated constraint, when the error carries one. */
+export function postgresConstraint(error: unknown): string | undefined {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    const constraint = (current as { constraint?: unknown }).constraint;
+    if (typeof constraint === 'string') return constraint;
+  }
+  return undefined;
+}

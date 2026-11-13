@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerCatalog } from './catalog/catalog.routes.ts';
 import { registerIdentity, type IdentityOptions } from './identity/identity.routes.ts';
+import { registerMaps } from './maps/maps.routes.ts';
 import { registerOrganizations } from './organizations/organizations.routes.ts';
 
 export type AppDependencies = {
@@ -34,6 +35,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           await registerIdentity(secured, identity);
           await registerOrganizations(secured, { database: identity.database });
           await registerCatalog(secured, { database: identity.database });
+          await registerMaps(secured, { database: identity.database });
         });
       }
     },

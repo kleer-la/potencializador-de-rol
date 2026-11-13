@@ -57,7 +57,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Domain rules: map life cycle, publish requirements, what a published map accepts, permissions. Specs: S3, S4, S5, S9. Route: inline. Risk: none (new pure code in `packages/domain`; existing policy functions unchanged). Commit: `feat: domain rules of the capability map` (see L4).
 - [x] T2 — Persistence: migration for roles, maps and content, Row Level Security, database guard of invariant 10, tests. Specs: S2, S4, S6, S9. Route: inline. Risk: item 2 (security guard) and item 1 (schema). Commit: `feat: store capability maps and guard invariant 10` (see L5).
 - [x] T3 — API for roles, tools and strategic objectives. Specs: S1, S2, S5, S6. Route: inline. Risk: item 2 (permissions); item 3 (shared code: the access checks of the organizations routes moved to `access/organization-access.ts`). Commit: `feat: roles and catalogs of an organization` (see L7).
-- [ ] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: —
+- [x] T4 — API for maps: draft editing, publish, grow, new version, archive, import. Specs: S2, S3, S4, S5, S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: design, publish and grow capability maps` (see L9).
 - [ ] T5 — Product Owner map as data, loaded through the import. Specs: S7. Route: inline. Risk: none expected. Commit: —
 - [ ] T6 — Web interface: roles and map editor. Specs: S8. Route: inline. Risk: none expected. Commit: —
 
@@ -99,3 +99,14 @@ L8 (2026-11-13, review of the guard fix and T3): native review of commits 8733ed
 - Added tests for a malformed entry id and for a rename to a taken name (`409`).
 - Recorded, not changed: since the access checks moved to the shared helper, a super administrator who sends an invalid body for an organization that does not exist gets `404` before `400`. Organizations cannot be deleted, so the separate existence check cannot race.
 Checks: `npm test` 125 passed, `npm run typecheck` clean.
+
+L9 (2026-11-13, T4 evidence and decisions): RED observed (15 failing, routes missing), then GREEN: `npm test` 140 passed in 14 files, `npm run typecheck` clean. Two defects found by the tests on the way: copying a version reused the source dimension ids (fixed by picking fields explicitly), and a `204` answer broke the test helper.
+Defense in depth checked: with the domain check removed from the routes, the four `INV-10` API tests still pass, because the database guard refuses the same changes and the API maps `PM010` to `409 map_frozen`.
+Endpoints under `/api/organizations/:organizationId` (read: members; write: map designers):
+- `GET|POST roles/:roleId/maps` (versions; new draft, empty or `{ "copyFrom": <map id> }` of a published or archived version), `POST roles/:roleId/maps/import`.
+- `GET|DELETE maps/:mapId`, `POST maps/:mapId/publish`, `POST maps/:mapId/archive`.
+- `PUT maps/:mapId/scale`, `PUT maps/:mapId/bonus-rules` (whole lists).
+- `POST maps/:mapId/dimensions`, `PATCH|DELETE maps/:mapId/dimensions/:dimensionId`, `POST maps/:mapId/dimensions/:dimensionId/capabilities`, `PATCH|DELETE maps/:mapId/capabilities/:capabilityId` (a change may move the capability to another dimension or position).
+Answers: `409 map_frozen` (state refuses the change), `409 invalid_transition`, `422 cannot_publish` with the obstacles, `409 draft_exists`, `409 name_taken`, `400 unknown_reference` (tool or objective not in the organization's catalog), `404` for a map, role or element not in the organization, including for a super administrator addressing it through another organization.
+Import format `potencializador.capability-map/v1`: scale, bonus rules, dimensions with capabilities; tools and objectives by name, matched ignoring case and created in the catalog when missing; `prioritized` accepted and not stored.
+The map row is locked (`FOR UPDATE`) at the start of every operation, so publishing and editing the same map serialize.
