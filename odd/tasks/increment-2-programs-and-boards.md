@@ -49,7 +49,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Domain rules: enrollment roles, who sees and who adjusts a board, selection rules. Specs: S3, S4, S5, S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of programs and boards` (see L4).
-- [ ] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: —
+- [x] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store programs and boards with invariants 1 and 9` (see L5).
 - [ ] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T4 — API: boards (mine, accompanied, one board, add and remove capabilities). Specs: S5, S6, S7. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none expected. Commit: —
@@ -66,3 +66,9 @@ L2 (2026-11-13, context): increment 2 is row 2 of the approved build plan: "Prog
 L3 (2026-11-13, decisions before code): the assumptions marked in S1–S4 were taken without asking; each can change later without redoing the rest. A baseline does not exist yet (increment 4), so in this increment every board is "sin línea base" and removals are always allowed to its panel.
 
 L4 (2026-11-13, T1 evidence): RED observed (`program.ts` missing), then GREEN: unit project passes (domain tests titled `INV-1` and `INV-9` included), `npm run typecheck` clean. Rules: `canEnrollAs` (a firm person is never a participant), `canSeeBoardContent` (owner or panel), `canAdjustSelection` (panel only; removal only before a baseline), `missingPanelRoles`.
+
+L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "programs" does not exist`), then GREEN: 17 storage tests (titled `INV-1`, `INV-9`, `INV-11`) and the whole suite, 184 passed in 19 files; `npm run typecheck` clean. Mutation check on migration 0004: a super administrator clause on reading placements failed the `INV-9` reading test; removing the baseline guard failed the `INV-1` removal test; letting the owner write placements failed the `INV-9` writing test. All three restored.
+- Migration `0004_programs_and_boards.sql`: six tables with `organization_id`, composite foreign keys and Row Level Security. `levels` gains `UNIQUE (id, organization_id)` so placements can reference a level of the same organization; migration 0003 is not edited.
+- Placements have their own policies with no super administrator clause: read by owner or panel, written by the panel only, always inside the organization in scope.
+- A firm person enrolled in a program of the organization is visible by name there (`persons_select_enrolled`), so panels can show a Kleer mentor.
+- Guards: a program uses a published map and never changes it; the base selection and placements take only capabilities (and levels) of that map; a firm person is never a participant; a person of another organization is never enrolled; a panel member is enrolled in the same program with that role and is not the participant; a board belongs to a participant enrollment and takes program and owner from it; who added a placement and when never change; no placement leaves a board with a baseline (SQL state `PM001`).
