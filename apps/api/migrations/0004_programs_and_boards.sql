@@ -401,6 +401,22 @@ CREATE FUNCTION app_create_board(p_enrollment_id uuid) RETURNS uuid
   END
   $$;
 REVOKE ALL ON FUNCTION app_create_board(uuid) FROM PUBLIC;
+
+-- The person an administrator may enroll, by email: a person of the organization in scope
+-- or of the mentoring firm. NULL for anyone else, so another organization's people stay
+-- indistinguishable from unknown emails.
+CREATE FUNCTION app_find_enrollable_person(p_email text)
+  RETURNS TABLE (id uuid, name text, email text, is_firm_person boolean)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT p.id, p.name, p.email, p.organization_id IS NULL
+      FROM persons p
+     WHERE app_administers_current_organization()
+       AND lower(p.email) = lower(p_email)
+       AND (p.organization_id IS NULL OR p.organization_id = app_current_organization_id())
+  $$;
+REVOKE ALL ON FUNCTION app_find_enrollable_person(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_find_enrollable_person(text) TO potencializador_app;
 GRANT EXECUTE ON FUNCTION app_create_board(uuid) TO potencializador_app;
 
 -- Invariant 9: no super administrator clause. The organization must be the one in scope,

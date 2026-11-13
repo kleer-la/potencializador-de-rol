@@ -50,7 +50,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: enrollment roles, who sees and who adjusts a board, selection rules. Specs: S3, S4, S5, S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of programs and boards` (see L4).
 - [x] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store programs and boards with invariants 1 and 9` (see L5).
-- [ ] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: —
+- [x] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer programs, enrollments and panels` (see L7).
 - [ ] T4 — API: boards (mine, accompanied, one board, add and remove capabilities). Specs: S5, S6, S7. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none expected. Commit: —
 
@@ -81,3 +81,8 @@ L6 (2026-11-13, review of T1 and T2): native review of commits 09f6fc4 and 05278
 - The visibility of persons enrolled in a program is limited to people of the mentoring firm (people of the organization were already visible); a firm person not enrolled stays invisible. Email remains visible with the name (recorded, not changed).
 - Tests: the level test now asserts stored values; the immutability of who added and when is tested; cleanup of a baseline in tests skips the triggers, which only the superuser can.
 Checks: `npm test` 189 passed, `npm run typecheck` clean. Migration 0004 was edited instead of adding 0005: it is only on this unmerged branch and was applied only to throwaway test databases.
+
+L7 (2026-11-13, T3 evidence and decisions): RED observed (12 failing, routes missing), then GREEN: `npm test` 201 passed in 20 files, `npm run typecheck` clean.
+- Endpoints under `/api/organizations/:organizationId/programs`: `GET` (members), `POST` (administrators), `GET :programId` (administrators and map designers: program, selection, enrollments with names and emails, panels, each board's id and state, mandatory panel roles still missing per participant; no board content), `PUT :programId/selection` (map designers), `POST :programId/enrollments` (by email, one or several roles; a participant gets their board with the base selection), `DELETE :programId/enrollments/:enrollmentId`, `POST :programId/panel`, `DELETE :programId/panel/:participant/:member/:role` (administrators).
+- Enrolling by email: the database function `app_find_enrollable_person` (added to migration 0004) finds a person of the organization or of the mentoring firm; an unknown email and a person of another organization both answer `404 person_not_found`.
+- Answers: `409 map_not_published`, `400 unknown_reference`, `400 firm_person_cannot_participate`, `400 invalid_panel`, `409 baseline_set`.
