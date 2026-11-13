@@ -465,3 +465,117 @@ fieldset {
 .panel > * + h3 {
   margin-top: var(--space-5);
 }
+
+/* Main navigation ------------------------------------------------------------------------ */
+
+.main-nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.main-nav button {
+  border-color: transparent;
+  color: var(--ink-muted);
+}
+
+.main-nav button[aria-current='page'] {
+  color: var(--action);
+  background: var(--brand-soft);
+}
+
+/* Boards and programs -------------------------------------------------------------------- */
+
+.board-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.board-header h2 {
+  margin: 0;
+}
+
+.board-scroll {
+  padding: 0;
+}
+
+.kanban {
+  min-width: 44rem;
+}
+
+.kanban th[scope='col'] {
+  text-align: center;
+  font: 700 13px/18px var(--font-sans);
+  color: var(--ink);
+}
+
+.kanban th[scope='col']:first-child {
+  text-align: left;
+  width: 40%;
+}
+
+.kanban-dimension th {
+  background: var(--surface-muted);
+  font: 700 16px/22px var(--font-display);
+  color: var(--ink);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+}
+
+.kanban-statement {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-cell {
+  text-align: center;
+  border-left: 1px dashed var(--line);
+}
+
+.kanban-dot {
+  color: var(--action);
+  font-size: 18px;
+}
+
+.selection {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.selection-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.checkbox-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  font: 500 15px/22px var(--font-sans);
+  color: var(--ink);
+}
+
+.checkbox-row input {
+  margin-top: 1px;
+  flex: none;
+}
+
+.panel-group {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}

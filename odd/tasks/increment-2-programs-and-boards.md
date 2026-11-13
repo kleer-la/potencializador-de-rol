@@ -52,7 +52,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store programs and boards with invariants 1 and 9` (see L5).
 - [x] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer programs, enrollments and panels` (see L7).
 - [x] T4 — API: boards (mine, accompanied, one board, add and remove capabilities). Specs: S5, S6, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: boards for their owner and panel` (see L8).
-- [ ] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none expected. Commit: —
+- [x] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none (interface over the existing API). Commit: `feat: programs and boards in the web interface` (see L10).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 3,500 authored changed lines.
@@ -97,3 +97,9 @@ L9 (2026-11-13, review of the database fix, T3 and T4): native review of commits
 - Repeated mandatory panel roles were accepted; now `400` (RED observed, then GREEN).
 - Added the route test for removing a participant: `204` with their board before the baseline, `409 baseline_set` after it (passed at once: it pins the cascade through the guard).
 Checks: `npm test` 208 passed, `npm run typecheck` clean.
+
+L10 (2026-11-13, T5 evidence and decisions): RED observed (the two new containers missing), then GREEN: `npm test` 218 passed in 23 files, `npm run typecheck` clean, `npm run build` clean.
+- The top bar gains "Tableros" and "Organizaciones". A person with no organization role and no super administrator rights (a participant, typically) lands on "Tableros".
+- An organization gains the tab "Programas" for administrators and map designers: create a program on a published version, choose the base selection (map designers), enroll by email with roles, see each board's state, assign and remove panel members with the mandatory roles still missing.
+- The board is a table: capabilities in rows grouped by dimension, a column "Sin ubicar" and one per level, colored with the design system's level ramp. Only capabilities on the board appear; the panel adds the others and removes with confirmation; the owner reads that the panel decides.
+- Compose probe with the Product Owner map: program with the 15 prioritized capabilities as base selection; participant, leader and a Kleer mentor enrolled; panel missing "specialist" as expected; the mentor saw the board with 15 placements and add and remove rights; a super administrator off the panel got `404`. Real browser check as the mentor on `127.0.0.1` (the browser holds the user's real session cookie for `localhost`, which the probe must not touch): 7 dimensions, 15 capabilities under "Sin ubicar", level columns colored.

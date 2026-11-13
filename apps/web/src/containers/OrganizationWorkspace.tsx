@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react';
 import { organizationApi, type CurrentPerson, type Organization } from '../api/client.ts';
 import { CatalogSection } from './CatalogSection.tsx';
 import { MembersSection } from './MembersSection.tsx';
+import { ProgramsSection } from './ProgramsSection.tsx';
 import { RolesSection } from './RolesSection.tsx';
 
-type Tab = 'people' | 'roles' | 'catalogs';
+type Tab = 'people' | 'roles' | 'programs' | 'catalogs';
 type Props = { me: CurrentPerson; organization: Organization };
 
 /** Everything inside one organization, in tabs that follow what the person may do. */
@@ -18,6 +19,7 @@ export function OrganizationWorkspace({ me, organization }: Props) {
   const tabs: { id: Tab; label: string }[] = [
     ...(canAdminister ? [{ id: 'people' as const, label: 'Personas' }] : []),
     { id: 'roles', label: 'Roles y mapas' },
+    ...(canAdminister || canDesign ? [{ id: 'programs' as const, label: 'Programas' }] : []),
     { id: 'catalogs', label: 'Catálogos' },
   ];
 
@@ -43,6 +45,9 @@ export function OrganizationWorkspace({ me, organization }: Props) {
         </section>
       )}
       {tab === 'roles' && <RolesSection api={api} canAdminister={canAdminister} canDesign={canDesign} />}
+      {tab === 'programs' && (canAdminister || canDesign) && (
+        <ProgramsSection organizationId={organization.id} canAdminister={canAdminister} canDesign={canDesign} />
+      )}
       {tab === 'catalogs' && (
         <div className="columns">
           <CatalogSection api={api} kind="tools" title="Herramientas" canDesign={canDesign} />

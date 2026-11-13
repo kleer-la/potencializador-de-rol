@@ -8,17 +8,24 @@ type Props = {
   onConfirm: () => Promise<void> | void;
   /** `primary`: the main action of the screen. `danger`: it destroys something. */
   variant?: 'primary' | 'danger' | 'quiet-danger';
+  /** Names the action for assistive technology when the visible label is short ("Quitar"). */
+  accessibleLabel?: string;
 };
 
 const triggerClass = { primary: 'primary', danger: 'danger', 'quiet-danger': 'secondary danger' } as const;
 
 /** A button that asks inside the page before acting; browser dialogs are not used. */
-export function ConfirmAction({ label, prompt, confirmLabel, onConfirm, variant }: Props) {
+export function ConfirmAction({ label, prompt, confirmLabel, onConfirm, variant, accessibleLabel }: Props) {
   const [asking, setAsking] = useState(false);
 
   if (!asking) {
     return (
-      <button type="button" className={variant && triggerClass[variant]} onClick={() => setAsking(true)}>
+      <button
+        type="button"
+        className={variant && triggerClass[variant]}
+        aria-label={accessibleLabel}
+        onClick={() => setAsking(true)}
+      >
         {label}
       </button>
     );

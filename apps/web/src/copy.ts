@@ -1,4 +1,12 @@
-import type { Difficulty, DimensionKind, MapStatus, MembershipRole, PublishObstacle } from '@potencializador/domain';
+import type {
+  Difficulty,
+  DimensionKind,
+  EnrollmentRole,
+  MapStatus,
+  MembershipRole,
+  PublishObstacle,
+} from '@potencializador/domain';
+import type { BoardStatus } from './api/client.ts';
 import type { ProviderId } from './api/client.ts';
 
 // Interface text. Domain terms follow the glossary of the conceptual base (section 3).
@@ -78,3 +86,31 @@ export const frozenNotices = {
   published: 'Versión publicada: solo admite agregar dimensiones y capacidades. Para cambiar lo existente, crea una versión nueva.',
   archived: 'Versión archivada: no admite cambios.',
 } as const;
+
+export const enrollmentRoleLabels: Record<EnrollmentRole, string> = {
+  participant: 'Participante',
+  leader: 'Líder',
+  specialist: 'Especialista',
+  mentor: 'Mentor',
+};
+
+export const boardStatusLabels: Record<BoardStatus, string> = {
+  not_started: 'Sin iniciar',
+  self_assessed: 'Autoevaluado',
+  calibrated: 'Calibrado',
+  in_cycle: 'En ciclo',
+  between_cycles: 'Entre ciclos',
+  closed: 'Cerrado',
+};
+
+/** Messages for the `error` code of a refused program or board change. */
+export const programErrors: Record<string, string> = {
+  map_not_published: 'Solo se puede usar una versión publicada del mapa.',
+  person_not_found: 'Ese correo no corresponde a una persona de la organización ni de Kleer. Invítala primero.',
+  firm_person_cannot_participate: 'Una persona de Kleer puede acompañar, pero no participar.',
+  invalid_panel: 'Esa persona no está inscrita en el programa con ese rol.',
+  baseline_set: 'El tablero ya tiene línea base: no se le pueden quitar capacidades.',
+  already_on_board: 'Esa capacidad ya está en el tablero.',
+  unknown_reference: 'Esa capacidad no es del mapa del programa.',
+  invalid_request: 'Revisa los datos: hay un valor que no es válido.',
+};

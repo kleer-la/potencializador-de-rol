@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CurrentPerson, type ProviderId } from './api/client.ts';
 import { SignInPanel } from './components/SignInPanel.tsx';
+import { BoardsPage } from './containers/BoardsPage.tsx';
 import { OrganizationsPage } from './containers/OrganizationsPage.tsx';
 import { messages, signInErrors } from './copy.ts';
 
@@ -16,8 +17,11 @@ function signInErrorFromAddress(): string | null {
   return code === null ? null : (signInErrors[code] ?? signInErrors.sign_in_failed ?? null);
 }
 
+type View = 'boards' | 'organizations';
+
 export function App() {
   const [session, setSession] = useState<Session>({ status: 'loading' });
+  const [view, setView] = useState<View | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,10 +59,24 @@ export function App() {
   }
 
   const { me } = session;
+  // A participant may hold no organization role: their place is their boards.
+  const shown: View = view ?? (me.isSuperAdmin || me.memberships.length > 0 ? 'organizations' : 'boards');
   return (
     <>
       <header className="top-bar">
         <span className="ds-marker">Potencializador de rol</span>
+        <nav aria-label="Secciones" className="main-nav">
+          <button type="button" aria-current={shown === 'boards' ? 'page' : undefined} onClick={() => setView('boards')}>
+            Tableros
+          </button>
+          <button
+            type="button"
+            aria-current={shown === 'organizations' ? 'page' : undefined}
+            onClick={() => setView('organizations')}
+          >
+            Organizaciones
+          </button>
+        </nav>
         <span>
           <span>{me.person.name}</span>
           {me.isSuperAdmin && <span className="tag">Superadministrador</span>}
@@ -67,9 +85,7 @@ export function App() {
           </button>
         </span>
       </header>
-      <main>
-        <OrganizationsPage me={me} />
-      </main>
+      <main>{shown === 'boards' ? <BoardsPage /> : <OrganizationsPage me={me} />}</main>
     </>
   );
 }

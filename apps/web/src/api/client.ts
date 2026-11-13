@@ -1,4 +1,12 @@
-import type { Difficulty, DimensionKind, MapStatus, MembershipRole, PublishObstacle } from '@potencializador/domain';
+import type {
+  Difficulty,
+  DimensionKind,
+  EnrollmentRole,
+  MapStatus,
+  MembershipRole,
+  PanelRole,
+  PublishObstacle,
+} from '@potencializador/domain';
 
 export type ProviderId = 'google' | 'microsoft';
 
@@ -144,3 +152,94 @@ export function organizationApi(organizationId: string) {
 }
 
 export type OrganizationApi = ReturnType<typeof organizationApi>;
+
+export type Program = {
+  id: string;
+  mapId: string;
+  roleId: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  maxFocuses: number;
+  mandatoryPanelRoles: PanelRole[];
+};
+export type ProgramInput = { mapId: string; name: string; startsOn: string; endsOn: string };
+export type Enrollment = {
+  id: string;
+  personId: string;
+  name: string;
+  email: string;
+  role: EnrollmentRole;
+  isFirmPerson: boolean;
+};
+export type PanelAssignment = { participantEnrollmentId: string; memberEnrollmentId: string; role: PanelRole };
+export type BoardStatus = 'not_started' | 'self_assessed' | 'calibrated' | 'in_cycle' | 'between_cycles' | 'closed';
+export type ProgramDetail = {
+  program: Program;
+  selection: string[];
+  enrollments: Enrollment[];
+  panels: PanelAssignment[];
+  boards: { id: string; enrollmentId: string; status: BoardStatus }[];
+  missingPanelRoles: Record<string, PanelRole[]>;
+};
+
+export function programApi(organizationId: string) {
+  const at = (path: string) => `/organizations/${organizationId}/programs${path}`;
+  return {
+    list: async () => (await request<{ programs: Program[] }>(at(''))).programs,
+    create: (input: ProgramInput) => request<Program>(at(''), 'POST', input),
+    detail: (programId: string) => request<ProgramDetail>(at(`/${programId}`)),
+    setSelection: (programId: string, capabilityIds: string[]) =>
+      request<unknown>(at(`/${programId}/selection`), 'PUT', { capabilityIds }),
+    enroll: (programId: string, email: string, roles: EnrollmentRole[]) =>
+      request<{ enrollments: { id: string; role: EnrollmentRole }[]; boardId: string | null }>(
+        at(`/${programId}/enrollments`),
+        'POST',
+        { email, roles },
+      ),
+    unenroll: (programId: string, enrollmentId: string) =>
+      request<void>(at(`/${programId}/enrollments/${enrollmentId}`), 'DELETE'),
+    assign: (programId: string, assignment: PanelAssignment) =>
+      request<unknown>(at(`/${programId}/panel`), 'POST', assignment),
+    unassign: (programId: string, assignment: PanelAssignment) =>
+      request<void>(
+        at(`/${programId}/panel/${assignment.participantEnrollmentId}/${assignment.memberEnrollmentId}/${assignment.role}`),
+        'DELETE',
+      ),
+  };
+}
+
+export type ProgramApi = ReturnType<typeof programApi>;
+
+export type BoardSummary = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  programId: string;
+  programName: string;
+  ownerName: string;
+  status: BoardStatus;
+  panelRoles: PanelRole[];
+};
+export type Board = {
+  id: string;
+  organizationId: string;
+  program: { id: string; name: string };
+  ownerName: string;
+  status: BoardStatus;
+  hasBaseline: boolean;
+  viewer: { isOwner: boolean; panelRoles: PanelRole[]; canAdd: boolean; canRemove: boolean };
+  levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
+  dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
+  capabilities: { id: string; dimensionId: string; statement: string; difficulty: Difficulty | null; position: number }[];
+  placements: { capabilityId: string; levelId: string | null; addedAt: string }[];
+};
+
+export const boardApi = {
+  list: () => request<{ mine: BoardSummary[]; accompanied: BoardSummary[] }>('/boards'),
+  board: (boardId: string) => request<Board>(`/boards/${boardId}`),
+  add: (boardId: string, capabilityId: string) =>
+    request<unknown>(`/boards/${boardId}/capabilities`, 'POST', { capabilityId }),
+  remove: (boardId: string, capabilityId: string) =>
+    request<void>(`/boards/${boardId}/capabilities/${capabilityId}`, 'DELETE'),
+};

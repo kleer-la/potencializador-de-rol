@@ -242,6 +242,24 @@ describe('diseñador del mapa', () => {
   });
 });
 
+describe('participante sin rol en la organización', () => {
+  it('llega a sus tableros y puede ir a organizaciones', async () => {
+    fakeBackend({
+      ...signedInAs({ isSuperAdmin: false, memberships: [] }),
+      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [] } }),
+      'GET /api/organizations': () => ({ status: 200, body: { organizations: [] } }),
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(await screen.findByText('Todavía no tienes tableros. Aparecen cuando te inscriben en un programa.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tableros' }).getAttribute('aria-current')).toBe('page');
+    await user.click(screen.getByRole('button', { name: 'Organizaciones' }));
+    expect(await screen.findByText('Todavía no hay organizaciones.')).toBeTruthy();
+  });
+});
+
 describe('cerrar sesión', () => {
   it('termina la sesión y vuelve al inicio de sesión', async () => {
     let signedIn = true;
@@ -259,6 +277,7 @@ describe('cerrar sesión', () => {
           : { status: 401, body: { error: 'not_signed_in' } },
       'GET /api/auth/providers': () => ({ status: 200, body: { providers: ['google'] } }),
       'GET /api/organizations': () => ({ status: 200, body: { organizations: [] } }),
+      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [] } }),
       'POST /api/auth/logout': () => {
         signedIn = false;
         return { status: 204 };

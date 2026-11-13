@@ -99,6 +99,7 @@ describe('roles', () => {
     await user.click(screen.getByRole('button', { name: 'Crear rol' }));
 
     expect(await screen.findByRole('button', { name: 'Scrum Master' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Programas' })).toBeTruthy();
     expect(calls.find((call) => call.route === `POST ${base}/roles`)?.body).toEqual({ name: 'Scrum Master' });
   });
 
