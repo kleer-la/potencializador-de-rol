@@ -115,5 +115,6 @@ export const programErrors: Record<string, string> = {
   unknown_reference: 'Esa capacidad no es del mapa del programa.',
   already_submitted: 'La autoevaluación ya fue enviada y no se puede cambiar.',
   board_not_open: 'Este tablero ya no admite autoevaluación.',
+  empty_board: 'Este tablero no tiene capacidades para autoevaluar.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };

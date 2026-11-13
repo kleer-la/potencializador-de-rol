@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
+import { seedMap } from '../../test-support/seed-map.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
@@ -84,6 +85,40 @@ describe('self-assessment', () => {
     expect([byLeader.statusCode, offBoard.statusCode, byStranger.statusCode]).toEqual([403, 400, 404]);
     expect(offBoard.json()).toEqual({ error: 'unknown_reference' });
     expect((await view(sessions.owner)).selfAssessment.levels).toHaveLength(2);
+  });
+
+  it('refuses a level of another map', async () => {
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+
+    const response = await save(sessions.owner, [{ capabilityId: program.capabilityIds[0]!, levelId: other.levelId }]);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'unknown_reference' });
+  });
+
+  it('refuses to submit a board without capabilities, before and after an empty save', async () => {
+    const seed = createSeeder(ownerPool);
+    const empty = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    await ownerPool.query('delete from placements where board_id = $1', [empty.boardId]);
+    const email = (await ownerPool.query('select email from persons where id = $1', [empty.owner])).rows[0].email;
+    const session = await createSignedInApp(appPool).signInAs(email);
+    const request = (method: 'PUT' | 'POST', url: string, payload?: object) =>
+      app.inject({
+        method,
+        url: `/api/boards/${empty.boardId}${url}`,
+        cookies: { session },
+        headers: { origin: TEST_PUBLIC_URL.origin },
+        ...(payload === undefined ? {} : { payload }),
+      });
+
+    const beforeSave = await request('POST', '/self-assessment/submit');
+    await request('PUT', '/self-assessment', { levels: [] });
+    const afterSave = await request('POST', '/self-assessment/submit');
+
+    expect([beforeSave.statusCode, afterSave.statusCode]).toEqual([422, 422]);
+    expect(afterSave.json()).toEqual({ error: 'empty_board' });
+    const board_ = await ownerPool.query('select status from boards where id = $1', [empty.boardId]);
+    expect(board_.rows).toEqual([{ status: 'not_started' }]);
   });
 
   it('refuses repeated capabilities, a malformed body and a submission by the panel', async () => {

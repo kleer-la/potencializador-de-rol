@@ -343,7 +343,10 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         await lockSelfAssessment(tx, row.id);
         const assessment = await readSelfAssessment(tx, row.id);
         requireOpenDraft(personId, access, row.status, assessment?.row.submittedAt != null);
-        const missing = missingFromSelfAssessment(await capabilitiesOnBoard(tx, row.id), assessment?.levels ?? []);
+        const onBoard = await capabilitiesOnBoard(tx, row.id);
+        // A board without capabilities has nothing to self-assess; submitting it would only move its state.
+        if (onBoard.length === 0) throw new Refusal(422, { error: 'empty_board' });
+        const missing = missingFromSelfAssessment(onBoard, assessment?.levels ?? []);
         if (missing.length > 0) throw new Refusal(422, { error: 'incomplete', missing });
         const submitted = await tx.execute<{ submitted_at: string }>(
           sql`select app_submit_self_assessment(${row.id}::uuid) as submitted_at`,
