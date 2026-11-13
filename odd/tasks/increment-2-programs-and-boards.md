@@ -91,3 +91,9 @@ L8 (2026-11-13, T4 evidence and decisions): RED observed (6 failing, routes miss
 - Endpoints under `/api/boards`, not under an organization: a participant may hold no organization role and a Kleer mentor belongs to none. `GET /api/boards` lists `mine` and `accompanied` (organization, program, owner's name, state, the viewer's panel roles; no content). `GET /api/boards/:boardId` returns the scale, dimensions and capabilities of the program's map, the placements, and what the viewer may do. `POST /api/boards/:boardId/capabilities` and `DELETE .../capabilities/:capabilityId` for the panel.
 - Two database functions added to migration 0004: `app_my_boards()` and `app_board_organization(board)`, which answers only to the board's owner or panel. Anyone else, administrators and super administrators off the panel included, gets the same `404` as for a board that does not exist.
 - Answers: `403 forbidden` (not on the panel), `409 already_on_board`, `400 unknown_reference`, `409 baseline_set`.
+
+L9 (2026-11-13, review of the database fix, T3 and T4): native review of commits 8628ef4 to a454406 (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Handled in a follow-up commit:
+- Creating a program mapped every check violation to `map_not_published`. The route now checks the map's state itself; other failures are no longer mislabeled. RED not observed separately: the behavior was correct for the tested case.
+- Repeated mandatory panel roles were accepted; now `400` (RED observed, then GREEN).
+- Added the route test for removing a participant: `204` with their board before the baseline, `409 baseline_set` after it (passed at once: it pins the cascade through the guard).
+Checks: `npm test` 208 passed, `npm run typecheck` clean.

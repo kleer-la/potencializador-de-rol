@@ -38,7 +38,11 @@ const programInput = z
     startsOn: day,
     endsOn: day,
     maxFocuses: z.number().int().min(1).max(20).default(3),
-    mandatoryPanelRoles: z.array(z.enum(PANEL_ROLES)).max(3).default([...PANEL_ROLES]),
+    mandatoryPanelRoles: z
+      .array(z.enum(PANEL_ROLES))
+      .max(3)
+      .refine((roles) => new Set(roles).size === roles.length)
+      .default([...PANEL_ROLES]),
   })
   .refine((value) => value.endsOn >= value.startsOn);
 const selectionInput = z.object({ capabilityIds: z.array(id).max(500) });
@@ -151,19 +155,17 @@ export async function registerPrograms(api: FastifyInstance, options: { database
     base,
     handle(canAdministerOrganization, { body: programInput }, async (tx, { organizationId, body }) => {
       const [map] = await tx
-        .select({ id: capabilityMaps.id })
+        .select({ id: capabilityMaps.id, status: capabilityMaps.status })
         .from(capabilityMaps)
         .where(and(eq(capabilityMaps.id, body.mapId), eq(capabilityMaps.organizationId, organizationId)));
       if (map === undefined) throw new Refusal(404, { error: 'not_found' });
-      const [created] = await guarded(
-        () =>
-          tx
-            .insert(programs)
-            .values({ organizationId, ...body })
-            .returning({ id: programs.id }),
-        [CHECK_VIOLATION],
-        new Refusal(409, { error: 'map_not_published' }),
-      );
+      // The database refuses it too; deciding here keeps other check failures from being
+      // reported as this one.
+      if (map.status !== 'published') throw new Refusal(409, { error: 'map_not_published' });
+      const [created] = await tx
+        .insert(programs)
+        .values({ organizationId, ...body })
+        .returning({ id: programs.id });
       return { status: 201, body: await requireProgram(tx, organizationId, created!.id) };
     }),
   );

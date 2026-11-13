@@ -109,7 +109,15 @@ describe('programs, enrollments and panels', () => {
       const inverted = await asAdmin('POST', 'programs', { ...body, mapId: program.mapId, endsOn: '2026-12-01' });
       const byDesigner = await call(sessions.designer, 'POST', `${organizationA}/programs`, { ...body, mapId: program.mapId });
 
-      expect([onDraft.statusCode, inverted.statusCode, byDesigner.statusCode]).toEqual([409, 400, 403]);
+      const repeatedRoles = await asAdmin('POST', 'programs', {
+        ...body,
+        mapId: program.mapId,
+        mandatoryPanelRoles: ['leader', 'leader'],
+      });
+
+      expect([onDraft.statusCode, inverted.statusCode, byDesigner.statusCode, repeatedRoles.statusCode]).toEqual([
+        409, 400, 403, 400,
+      ]);
       expect(onDraft.json()).toEqual({ error: 'map_not_published' });
     });
 
@@ -229,6 +237,22 @@ describe('programs, enrollments and panels', () => {
 
       expect([panel.statusCode, enrollment.statusCode]).toEqual([204, 204]);
       expect((await detail()).enrollments.map((item: { id: string }) => item.id)).not.toContain(mentorEnrollment);
+    });
+
+    it('removes a participant with their board before the baseline, and refuses after it', async () => {
+      const newcomer = await seed.person(organizationA);
+      const enrolled = await enroll(await emailOf(newcomer), ['participant']);
+      const keeper = await seed.person(organizationA);
+      const kept = await enroll(await emailOf(keeper), ['participant']);
+      await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [kept.json().boardId]);
+
+      const removed = await asAdmin('DELETE', `programs/${program.programId}/enrollments/${enrolled.json().enrollments[0].id}`);
+      const refused = await asAdmin('DELETE', `programs/${program.programId}/enrollments/${kept.json().enrollments[0].id}`);
+
+      expect([removed.statusCode, refused.statusCode]).toEqual([204, 409]);
+      expect(refused.json()).toEqual({ error: 'baseline_set' });
+      const boards = await ownerPool.query('select id from boards where id = any($1)', [[enrolled.json().boardId, kept.json().boardId]]);
+      expect(boards.rows).toEqual([{ id: kept.json().boardId }]);
     });
 
     it('keeps program administration away from a participant', async () => {
