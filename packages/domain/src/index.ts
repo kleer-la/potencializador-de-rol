@@ -34,3 +34,4 @@ export {
   type EnrollmentRole,
   type PanelRole,
 } from './program.ts';
+export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';

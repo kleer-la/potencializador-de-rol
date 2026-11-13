@@ -37,7 +37,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 ## Tasks
 
-- [ ] T1 — Domain rules: who self-assesses, what is missing to submit. Specs: S1, S4, S7. Route: inline. Risk: none expected (new pure code). Commit: —
+- [x] T1 — Domain rules: who self-assesses, what is missing to submit. Specs: S1, S4, S7. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the self-assessment` (see L4).
 - [ ] T2 — Persistence: self-assessments and their levels, submission function, Row Level Security, database guards. Specs: S1–S5, S7. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: —
 - [ ] T3 — API: read with the board, save draft, submit. Specs: S1–S5. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T4 — Web: self-assessment on the board, panel view. Specs: S6. Route: inline. Risk: none expected. Commit: —
@@ -52,3 +52,5 @@ L1 (2026-11-13, user, original request): "adelante" — answer to: "Lo siguiente
 L2 (2026-11-13, context): row 3 of the approved build plan: "Autoevaluación", covering invariant 2. Migration 0004 is on `main` and may already be applied on the user's machine, so this increment adds migration 0005 and edits none.
 
 L3 (2026-11-13, decisions before code): the assumptions marked in S1 and S4 were taken without asking; each can change later without redoing the rest.
+
+L4 (2026-11-13, T1 evidence): RED observed (`self-assessment.ts` missing), then GREEN: unit project 76 passed, `npm run typecheck` clean. Rules: `canWriteSelfAssessment` (owner, until submitted), `canSeeSelfAssessment` (owner; panel once submitted), `missingFromSelfAssessment`.
