@@ -134,6 +134,30 @@ CREATE FUNCTION app_sees_board(p_board_id uuid) RETURNS boolean
         OR app_on_board_panel(p_board_id)
   $$;
 
+-- Who shapes programs: an administrator of the organization in scope, or a super
+-- administrator. Who chooses the base selection: a map designer, or a super administrator.
+CREATE FUNCTION app_administers_current_organization() RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT app_is_super_admin() OR EXISTS (
+      SELECT 1 FROM organization_memberships
+       WHERE person_id = app_current_person_id()
+         AND organization_id = app_current_organization_id()
+         AND role = 'administrator'
+    )
+  $$;
+
+CREATE FUNCTION app_designs_current_organization() RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT app_is_super_admin() OR EXISTS (
+      SELECT 1 FROM organization_memberships
+       WHERE person_id = app_current_person_id()
+         AND organization_id = app_current_organization_id()
+         AND role = 'map_designer'
+    )
+  $$;
+
 -- A person enrolled in a program of the organization in scope (a firm mentor, typically).
 CREATE FUNCTION app_enrolled_in_current_organization(p_person_id uuid) RETURNS boolean
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
@@ -196,8 +220,10 @@ CREATE FUNCTION guard_enrollment() RETURNS trigger
     ELSIF v_person_organization IS DISTINCT FROM NEW.organization_id THEN
       RAISE EXCEPTION 'the person does not belong to the organization' USING ERRCODE = '23514';
     END IF;
-    IF TG_OP = 'UPDATE' AND (NEW.person_id <> OLD.person_id OR NEW.program_id <> OLD.program_id) THEN
-      RAISE EXCEPTION 'an enrollment never changes person or program' USING ERRCODE = '23514';
+    -- Boards and panels are checked against the role when they are written; a role that
+    -- changed afterwards would silently break them.
+    IF TG_OP = 'UPDATE' AND (NEW.person_id <> OLD.person_id OR NEW.program_id <> OLD.program_id OR NEW.role <> OLD.role) THEN
+      RAISE EXCEPTION 'an enrollment never changes person, program or role' USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
   END
@@ -238,6 +264,18 @@ CREATE FUNCTION guard_board() RETURNS trigger
   DECLARE
     v_enrollment enrollments%ROWTYPE;
   BEGIN
+    -- Invariant 1 and 3: once set, a baseline stays, and so does its board. Deleting the
+    -- enrollment cascades here too.
+    IF TG_OP = 'DELETE' THEN
+      IF OLD.baseline_set_at IS NOT NULL THEN
+        RAISE EXCEPTION 'invariant 1: a board with a baseline cannot be deleted' USING ERRCODE = 'PM001';
+      END IF;
+      RETURN OLD;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.baseline_set_at IS NOT NULL
+       AND NEW.baseline_set_at IS DISTINCT FROM OLD.baseline_set_at THEN
+      RAISE EXCEPTION 'invariant 1: the baseline of a board never changes' USING ERRCODE = 'PM001';
+    END IF;
     SELECT * INTO v_enrollment FROM enrollments WHERE id = NEW.enrollment_id;
     IF v_enrollment.role IS DISTINCT FROM 'participant' THEN
       RAISE EXCEPTION 'a board belongs to a participant enrollment' USING ERRCODE = '23514';
@@ -250,7 +288,7 @@ CREATE FUNCTION guard_board() RETURNS trigger
     RETURN NEW;
   END
   $$;
-CREATE TRIGGER boards_guard BEFORE INSERT OR UPDATE ON boards
+CREATE TRIGGER boards_guard BEFORE INSERT OR UPDATE OR DELETE ON boards
   FOR EACH ROW EXECUTE FUNCTION guard_board();
 
 CREATE FUNCTION guard_placement() RETURNS trigger
@@ -283,6 +321,10 @@ CREATE FUNCTION guard_placement() RETURNS trigger
     IF TG_OP = 'UPDATE' THEN
       NEW.added_by := OLD.added_by;
       NEW.added_at := OLD.added_at;
+    ELSE
+      -- Who added it is the person acting, not what the caller says.
+      NEW.added_by := coalesce(app_current_person_id(), NEW.added_by);
+      NEW.added_at := now();
     END IF;
     RETURN NEW;
   END
@@ -292,22 +334,74 @@ CREATE TRIGGER placements_guard BEFORE INSERT OR UPDATE OR DELETE ON placements
 
 -- Row Level Security -------------------------------------------------------------------
 
+-- Reading follows the organization in scope. Writing needs the organization's role for it:
+-- otherwise a participant could enroll themself in someone's panel and read their board.
 DO $$
 DECLARE
   v_table text;
+  v_writer text;
 BEGIN
   FOREACH v_table IN ARRAY ARRAY['programs', 'program_capabilities', 'enrollments', 'panel_assignments', 'boards'] LOOP
+    v_writer := CASE WHEN v_table = 'program_capabilities'
+                     THEN 'app_designs_current_organization()'
+                     ELSE 'app_administers_current_organization()' END;
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', v_table);
     EXECUTE format(
-      'CREATE POLICY %I ON %I
-         USING (organization_id = app_current_organization_id() OR app_is_super_admin())
-         WITH CHECK (organization_id = app_current_organization_id() OR app_is_super_admin())',
-      v_table || '_organization', v_table
+      'CREATE POLICY %I ON %I FOR SELECT
+         USING (organization_id = app_current_organization_id() OR app_is_super_admin())',
+      v_table || '_read', v_table
+    );
+    -- Boards are created only by app_create_board, with their placements.
+    IF v_table <> 'boards' THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON %I FOR INSERT
+           WITH CHECK (organization_id = app_current_organization_id() AND %s)',
+        v_table || '_insert', v_table, v_writer
+      );
+    END IF;
+    EXECUTE format(
+      'CREATE POLICY %I ON %I FOR UPDATE
+         USING (organization_id = app_current_organization_id() AND %s)
+         WITH CHECK (organization_id = app_current_organization_id() AND %s)',
+      v_table || '_update', v_table, v_writer, v_writer
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON %I FOR DELETE
+         USING (organization_id = app_current_organization_id() AND %s)',
+      v_table || '_delete', v_table, v_writer
     );
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO potencializador_app', v_table);
   END LOOP;
 END
 $$;
+
+-- Creates the board of a participant enrollment with one unplaced placement per capability
+-- of the program's base selection. The only way a board is created, so a board never
+-- exists without its starting capabilities.
+CREATE FUNCTION app_create_board(p_enrollment_id uuid) RETURNS uuid
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+  DECLARE
+    v_organization uuid;
+    v_board uuid;
+  BEGIN
+    SELECT organization_id INTO v_organization FROM enrollments WHERE id = p_enrollment_id;
+    IF v_organization IS NULL OR v_organization IS DISTINCT FROM app_current_organization_id()
+       OR NOT app_administers_current_organization() THEN
+      RAISE EXCEPTION 'only an administrator of the organization creates boards' USING ERRCODE = '42501';
+    END IF;
+    INSERT INTO boards (organization_id, enrollment_id) VALUES (v_organization, p_enrollment_id)
+      RETURNING id INTO v_board;
+    INSERT INTO placements (organization_id, board_id, capability_id, added_by)
+      SELECT v_organization, v_board, pc.capability_id, app_current_person_id()
+        FROM boards b
+        JOIN program_capabilities pc ON pc.program_id = b.program_id
+       WHERE b.id = v_board;
+    RETURN v_board;
+  END
+  $$;
+REVOKE ALL ON FUNCTION app_create_board(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_create_board(uuid) TO potencializador_app;
 
 -- Invariant 9: no super administrator clause. The organization must be the one in scope,
 -- and the person must be the owner (read) or on the panel (read and write).
@@ -323,7 +417,7 @@ CREATE POLICY placements_delete ON placements FOR DELETE
   USING (organization_id = app_current_organization_id() AND app_on_board_panel(board_id));
 GRANT SELECT, INSERT, UPDATE, DELETE ON placements TO potencializador_app;
 
--- People enrolled in a program of the organization in scope are visible there by name,
--- so a panel can show a mentor of the mentoring firm.
+-- A person of the mentoring firm enrolled in a program of the organization in scope is
+-- visible there, so a panel can show its Kleer mentor. People of the organization already are.
 CREATE POLICY persons_select_enrolled ON persons FOR SELECT
-  USING (app_enrolled_in_current_organization(id));
+  USING (organization_id IS NULL AND app_enrolled_in_current_organization(id));

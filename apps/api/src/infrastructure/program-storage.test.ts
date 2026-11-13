@@ -52,6 +52,20 @@ describe('program storage', () => {
     }
   };
   const one = async (personId: string, text: string, values?: unknown[]) => (await as(personId, [[text, values]]))[0]!;
+  /**
+   * Test cleanup only: a baseline never changes, so clearing one has to skip the triggers
+   * (allowed to the superuser the tests connect as owner with).
+   */
+  const clearBaseline = async () => {
+    const client = await ownerPool.connect();
+    try {
+      await client.query('set session_replication_role = replica');
+      await client.query('update boards set baseline_set_at = null where id = $1', [boardId]);
+    } finally {
+      await client.query('set session_replication_role = origin');
+      client.release();
+    }
+  };
   const placementsSeenBy = async (personId: string) =>
     (await one(personId, 'select capability_id from placements where board_id = $1', [boardId])).rows.length;
 
@@ -234,15 +248,21 @@ describe('program storage', () => {
     });
 
     it('INV-1 starts unplaced and accepts a level of the scale', async () => {
-      const [unplaced] = await as(people.leader, [
-        ['select level_id from placements where board_id = $1 order by added_at', [boardId]],
-      ]);
+      const unplaced = await one(people.leader, 'select level_id from placements where board_id = $1', [boardId]);
+      const placed = await one(
+        people.leader,
+        'update placements set level_id = $2 where board_id = $1 and capability_id = $3 returning level_id',
+        [boardId, program.levelIds[1], program.capabilityIds[0]],
+      );
+      const back = await one(
+        people.leader,
+        'update placements set level_id = null where board_id = $1 and capability_id = $2 returning level_id',
+        [boardId, program.capabilityIds[0]],
+      );
 
-      expect(unplaced!.rows.every((row) => row.level_id === null)).toBe(true);
-      await as(people.leader, [
-        ['update placements set level_id = $2 where board_id = $1 and capability_id = $3', [boardId, program.levelIds[1], program.capabilityIds[0]]],
-        ['update placements set level_id = null where board_id = $1 and capability_id = $2', [boardId, program.capabilityIds[0]]],
-      ]);
+      expect(unplaced.rows).toEqual([{ level_id: null }, { level_id: null }]);
+      expect(placed.rows).toEqual([{ level_id: program.levelIds[1] }]);
+      expect(back.rows).toEqual([{ level_id: null }]);
     });
 
     it('INV-1 the panel adds at any time and removes only before the baseline', async () => {
@@ -260,16 +280,35 @@ describe('program storage', () => {
           one(people.leader, 'delete from placements where id = $1', [added!.rows[0].id]),
         ).rejects.toThrow(/after the baseline/);
       } finally {
-        await ownerPool.query('update boards set baseline_set_at = null where id = $1', [boardId]);
+        await clearBaseline();
       }
       const removed = await one(people.leader, 'delete from placements where id = $1 returning id', [added!.rows[0].id]);
       expect(removed.rowCount).toBe(1);
     });
 
-    it('records who added each capability and when', async () => {
-      const stored = await ownerPool.query('select added_by, added_at from placements where board_id = $1', [boardId]);
+    it('records who added each capability and when, as the person acting, for good', async () => {
+      const [added] = await as(people.firmMentor, [
+        ['insert into placements (organization_id, board_id, capability_id, added_by) values ($1, $2, $3, $4) returning id, added_by', [
+          organizationA,
+          boardId,
+          program.capabilityIds[2],
+          people.leader,
+        ]],
+      ]);
+      const placementId = added!.rows[0].id;
+      try {
+        const rewritten = await one(
+          people.leader,
+          "update placements set added_by = $2, added_at = now() - interval '1 year' where id = $1 returning added_by, added_at",
+          [placementId, people.leader],
+        );
 
-      expect(stored.rows.every((row) => row.added_by === people.leader && row.added_at instanceof Date)).toBe(true);
+        expect(added!.rows[0].added_by).toBe(people.firmMentor);
+        expect(rewritten.rows[0].added_by).toBe(people.firmMentor);
+        expect(Date.now() - (rewritten.rows[0].added_at as Date).getTime()).toBeLessThan(60_000);
+      } finally {
+        await ownerPool.query('delete from placements where id = $1', [placementId]);
+      }
     });
   });
 
@@ -309,12 +348,108 @@ describe('program storage', () => {
       expect(deleted.rows).toEqual([]);
     });
 
-    it('INV-9 a firm person on the panel sees the names of the people they accompany, others do not', async () => {
+    it('INV-9 firm people are visible in the organization only while enrolled in one of its programs', async () => {
       const ofAdministrator = await one(people.administrator, 'select id from persons where id = $1', [people.firmMentor]);
       const ofParticipant = await one(people.firmMentor, 'select id from persons where id = $1', [people.participant]);
 
+      const notEnrolled = await seed.person(null);
+      const ofOutsider = await one(people.administrator, 'select id from persons where id = $1', [notEnrolled]);
+
       expect(ofAdministrator.rows).toEqual([{ id: people.firmMentor }]);
       expect(ofParticipant.rows).toEqual([{ id: people.participant }]);
+      expect(ofOutsider.rows).toEqual([]);
+    });
+  });
+
+  describe('INV-9 only administrators shape programs, enrollments and panels', () => {
+    it('INV-9 a participant cannot enroll themself, join a panel or create a board', async () => {
+      const selfEnrollment = (
+        await ownerPool.query<{ id: string }>(
+          "insert into enrollments (organization_id, program_id, person_id, role) values ($1, $2, $3, 'leader') returning id",
+          [organizationA, program.programId, people.otherParticipant],
+        )
+      ).rows[0]!.id;
+      try {
+        await expectAllRefused(
+          [
+            one(people.otherParticipant, "insert into enrollments (organization_id, program_id, person_id, role) values ($1, $2, $3, 'specialist')", [
+              organizationA,
+              program.programId,
+              people.otherParticipant,
+            ]),
+            one(people.otherParticipant, "insert into panel_assignments (organization_id, participant_enrollment_id, member_enrollment_id, role) values ($1, $2, $3, 'leader')", [
+              organizationA,
+              enrollments.participant,
+              selfEnrollment,
+            ]),
+            one(people.otherParticipant, 'select app_create_board($1)', [enrollments.otherParticipant]),
+          ],
+          /row-level security|only an administrator/,
+        );
+        expect(await placementsSeenBy(people.otherParticipant)).toBe(0);
+      } finally {
+        await ownerPool.query('delete from enrollments where id = $1', [selfEnrollment]);
+      }
+    });
+
+    it('INV-9 a participant cannot delete or rewrite boards, enrollments or programs', async () => {
+      const changed = await as(people.otherParticipant, [
+        ['delete from boards where id = $1 returning id', [boardId]],
+        ['delete from enrollments where id = $1 returning id', [enrollments.participant]],
+        ["update programs set name = 'x' where id = $1 returning id", [program.programId]],
+        ['delete from panel_assignments where participant_enrollment_id = $1 returning role', [enrollments.participant]],
+      ]);
+
+      expect(changed.map((result) => result.rowCount)).toEqual([0, 0, 0, 0]);
+      expect(await placementsSeenBy(people.participant)).toBe(2);
+    });
+
+    it('an administrator creates a board that starts with the base selection, unplaced', async () => {
+      const newcomer = await seed.person(organizationA);
+      const [enrollment] = await as(people.administrator, [
+        ["insert into enrollments (organization_id, program_id, person_id, role) values ($1, $2, $3, 'participant') returning id", [
+          organizationA,
+          program.programId,
+          newcomer,
+        ]],
+      ]);
+      const [created] = await as(people.administrator, [['select app_create_board($1) as id', [enrollment!.rows[0].id]]]);
+
+      const stored = await ownerPool.query(
+        'select capability_id, level_id, added_by from placements where board_id = $1 order by capability_id',
+        [created!.rows[0].id],
+      );
+      expect(stored.rows).toEqual(
+        program.capabilityIds
+          .slice(0, 2)
+          .sort()
+          .map((capabilityId) => ({ capability_id: capabilityId, level_id: null, added_by: people.administrator })),
+      );
+    });
+
+    it('an enrollment never changes its role', async () => {
+      await expect(
+        one(people.administrator, "update enrollments set role = 'leader' where id = $1", [enrollments.participant]),
+      ).rejects.toThrow(/never changes/);
+    });
+  });
+
+  describe('INV-1 a board with a baseline keeps its capabilities', () => {
+    it('INV-1 refuses to delete it, its enrollment, or to clear its baseline', async () => {
+      await ownerPool.query('update boards set baseline_set_at = now() where id = $1', [boardId]);
+      try {
+        await expectAllRefused(
+          [
+            one(people.administrator, 'delete from boards where id = $1', [boardId]),
+            one(people.administrator, 'delete from enrollments where id = $1', [enrollments.participant]),
+            one(people.administrator, 'update boards set baseline_set_at = null where id = $1', [boardId]),
+          ],
+          /baseline/,
+        );
+      } finally {
+        await clearBaseline();
+      }
+      expect(await placementsSeenBy(people.participant)).toBe(2);
     });
   });
 
