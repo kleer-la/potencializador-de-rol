@@ -89,10 +89,12 @@ describe('calibration and baseline', () => {
   it('INV-3 refuses the baseline without the participant or a mandatory role, naming what is missing', async () => {
     const withoutLeader = await calibrate(sessions.leader, { attendees: [board.owner] });
     const withoutOwner = await calibrate(sessions.leader, { attendees: [board.leader] });
+    const nobody = await calibrate(sessions.leader, { attendees: [] });
 
     expect(withoutLeader.statusCode).toBe(422);
     expect(withoutLeader.json()).toEqual({ error: 'attendance', participantMissing: false, missingRoles: ['leader'] });
     expect(withoutOwner.json()).toEqual({ error: 'attendance', participantMissing: true, missingRoles: [] });
+    expect(nobody.json()).toEqual({ error: 'attendance', participantMissing: true, missingRoles: ['leader'] });
     expect((await view(sessions.leader)).status).toBe('self_assessed');
   });
 
@@ -115,9 +117,12 @@ describe('calibration and baseline', () => {
     }
   });
 
-  it('INV-3 records the calibration and fixes the baseline, keeping the difference', async () => {
-    const response = await calibrate(sessions.leader, {});
-    expect(response.statusCode).toBe(201);
+  it('INV-3 records the calibration and fixes the baseline once, even when two arrive together', async () => {
+    const responses = await Promise.all([calibrate(sessions.leader, {}), calibrate(sessions.leader, {})]);
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([201, 409]);
+    expect(responses.find((response) => response.statusCode === 409)!.json()).toEqual({ error: 'baseline_set' });
+    const sessionsRecorded = await ownerPool.query('select count(*)::int as n from calibration_sessions where board_id = $1', [board.boardId]);
+    expect(sessionsRecorded.rows[0].n).toBe(1);
 
     const owned = await view(sessions.owner);
     expect(owned.status).toBe('calibrated');
@@ -166,6 +171,22 @@ describe('calibration and baseline', () => {
       origin: 'initial_leveling',
       setAt: expect.any(String),
     });
+  });
+
+  it('refuses an initial level of another map', async () => {
+    // A published map only grows: a fourth capability joins it and then the board.
+    const added = (
+      await ownerPool.query<{ id: string }>(
+        "insert into capabilities (organization_id, dimension_id, position, statement) select organization_id, dimension_id, 9, 'Negocia el alcance' from capabilities where id = $1 returning id",
+        [program.capabilityIds[0]],
+      )
+    ).rows[0]!.id;
+    expect((await call(sessions.leader, 'POST', '/capabilities', { capabilityId: added })).statusCode).toBe(201);
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+
+    const response = await call(sessions.leader, 'POST', '/initial-levels', { capabilityId: added, levelId: other.levelId });
+
+    expect([response.statusCode, response.json()]).toEqual([400, { error: 'unknown_reference' }]);
   });
 
   it('answers 404 for an initial level of a capability not on the board', async () => {

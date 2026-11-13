@@ -87,3 +87,8 @@ L9 (2026-11-13, T4 evidence): RED observed (6 interface tests failing), then GRE
 - After the baseline, owner and panel see "Línea base": its date, the calibration (date, attendees, notes) and a table with the self-assessed level, the agreed level and the difference in steps; capabilities added later are listed with their initial leveling. The Kanban shows the agreed level (●) and the self-assessment (○), as in increment 3.
 - A panel member sees "Capacidades por nivelar" for capabilities added after the baseline: a level choice and "Fijar nivel inicial". The owner sees neither the form nor this section.
 - `BoardsPage.test.tsx` fixtures gained the new board fields; their assertions did not change.
+
+L10 (2026-11-13, review of T3 and T4): native review of commits `b4fc1cc` to `216e235` (escalated for item 2, permissions; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit, RED observed for the empty attendance, then GREEN (`npm test` 297 passed, `npm run typecheck` clean):
+- A calibration with nobody checked answered `400 invalid_request`, so the form showed a generic message. Attendees may now be empty and the answer is `422 attendance`, naming the participant and the mandatory roles.
+- Every SQL state `PM003` from the calibration function answered `409 baseline_set`, also for attendance. Migration 0006 now uses `PM031` for attendance and `PM032` for a board not yet self-assessed; the API maps each to its own answer.
+- Added route tests: two calibrations at once give one `201` and one `409 baseline_set` with one session recorded; an initial level of another map answers `400 unknown_reference`.

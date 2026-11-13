@@ -53,7 +53,7 @@ const levelsInput = z
 const calibrationInput = z.object({
   heldOn: z.iso.date(),
   notes: z.string().max(5000).default(''),
-  attendees: z.array(id).min(1).max(50),
+  attendees: z.array(id).max(50),
   levels: levelsInput,
 });
 const initialLevelInput = z.object({ capabilityId: id, levelId: id });
@@ -476,7 +476,13 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           return { status: 201, body: { calibrationId: recorded.rows[0]!.id } };
         } catch (error) {
           if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          // The database repeats the checks above under a lock; a refusal here means the board
+          // or its panel changed in between.
           if (postgresCode(error) === 'PM003') throw new Refusal(409, { error: 'baseline_set' });
+          if (postgresCode(error) === 'PM032') throw new Refusal(409, { error: 'not_self_assessed' });
+          if (postgresCode(error) === 'PM031') {
+            throw new Refusal(422, { error: 'attendance', participantMissing: absent.participant, missingRoles: absent.roles });
+          }
           throw error;
         }
       }),

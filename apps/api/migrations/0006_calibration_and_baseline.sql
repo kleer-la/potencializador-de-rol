@@ -10,6 +10,9 @@
 -- Invariant 9: the owner and their panel read all of it; nobody else.
 -- Invariant 11: organization_id, composite foreign keys, Row Level Security.
 --
+-- SQL states: PM003 the baseline (already set, never edited, born only from a calibration),
+-- PM031 the attendance a baseline needs, PM032 a board not yet self-assessed, PM004 level changes.
+--
 -- The API role reads these tables and writes none of them: only app_calibrate_board and
 -- app_record_initial_level write, after their checks.
 
@@ -202,7 +205,7 @@ CREATE FUNCTION app_calibrate_board(
       RAISE EXCEPTION 'invariant 3: the board already has its baseline' USING ERRCODE = 'PM003';
     END IF;
     IF v_board.status <> 'self_assessed' THEN
-      RAISE EXCEPTION 'a board is calibrated once it is self-assessed' USING ERRCODE = 'PM003';
+      RAISE EXCEPTION 'a board is calibrated once it is self-assessed' USING ERRCODE = 'PM032';
     END IF;
 
     -- Attendance: the owner and panel members of this board only.
@@ -215,7 +218,7 @@ CREATE FUNCTION app_calibrate_board(
       END IF;
     END LOOP;
     IF NOT v_board.owner_person_id = ANY (coalesce(p_attendee_ids, '{}')) THEN
-      RAISE EXCEPTION 'invariant 3: the participant did not attend the calibration' USING ERRCODE = 'PM003';
+      RAISE EXCEPTION 'invariant 3: the participant did not attend the calibration' USING ERRCODE = 'PM031';
     END IF;
     FOREACH v_role IN ARRAY coalesce((SELECT mandatory_panel_roles FROM programs WHERE id = v_board.program_id), '{}') LOOP
       IF NOT EXISTS (
@@ -223,7 +226,7 @@ CREATE FUNCTION app_calibrate_board(
          WHERE pa.participant_enrollment_id = v_board.enrollment_id AND pa.role = v_role
            AND m.person_id = ANY (p_attendee_ids)
       ) THEN
-        RAISE EXCEPTION 'invariant 3: nobody attended for the mandatory role %', v_role USING ERRCODE = 'PM003';
+        RAISE EXCEPTION 'invariant 3: nobody attended for the mandatory role %', v_role USING ERRCODE = 'PM031';
       END IF;
     END LOOP;
 
