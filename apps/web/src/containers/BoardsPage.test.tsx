@@ -69,6 +69,23 @@ describe('Mis tableros', () => {
     expect(within(accompanied).getByText('Mentor')).toBeTruthy();
   });
 
+  it('recovers after a failed load when the person comes back', async () => {
+    let fail = true;
+    fakeBackend({
+      'GET /api/boards': () => (fail ? json({ error: 'unavailable' }, 503) : json({ mine: [summary], accompanied: [] })),
+      'GET /api/boards/board-1': () => json(board(owner)),
+    });
+    const user = userEvent.setup();
+
+    render(<BoardsPage />);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    fail = false;
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    expect(await screen.findByRole('region', { name: 'Mis tableros' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('says so when the person has no board yet', async () => {
     fakeBackend({ 'GET /api/boards': () => json({ mine: [], accompanied: [] }) });
 

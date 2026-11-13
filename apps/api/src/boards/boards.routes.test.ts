@@ -148,6 +148,18 @@ describe('boards', () => {
     expect((await call(sessions.participant, 'GET', `/${boardId}`)).json().placements).toHaveLength(3);
   });
 
+  it('refuses removal to someone off the panel, answers 404 for a capability not on the board, and 401 without a session', async () => {
+    const byOwner = await call(sessions.participant, 'DELETE', `/${boardId}/capabilities/${program.capabilityIds[0]}`);
+    const notOnBoard = await call(sessions.leader, 'DELETE', `/${boardId}/capabilities/00000000-0000-4000-8000-000000000000`);
+    const anonymous = await app.inject({
+      method: 'DELETE',
+      url: `/api/boards/${boardId}/capabilities/${program.capabilityIds[0]}`,
+      headers: { origin: TEST_PUBLIC_URL.origin },
+    });
+
+    expect([byOwner.statusCode, notOnBoard.statusCode, anonymous.statusCode]).toEqual([403, 404, 401]);
+  });
+
   it('INV-1 lets the panel remove a capability before the baseline, and not after', async () => {
     const third = program.capabilityIds[2];
     const removed = await call(sessions.leader, 'DELETE', `/${boardId}/capabilities/${third}`);

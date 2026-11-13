@@ -8,9 +8,11 @@ export function BoardsPage() {
   const [lists, setLists] = useState<{ mine: BoardSummary[]; accompanied: BoardSummary[] } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let current = true;
+    setFailed(false);
     boardApi
       .list()
       .then((loaded) => current && setLists(loaded))
@@ -18,10 +20,21 @@ export function BoardsPage() {
     return () => {
       current = false;
     };
-  }, [openId]);
+  }, [openId, attempt]);
 
   if (openId !== null) return <BoardView boardId={openId} onBack={() => setOpenId(null)} />;
-  if (failed) return <p role="alert">{messages.requestFailed}</p>;
+  if (failed) {
+    return (
+      <div className="stack">
+        <p role="alert">{messages.requestFailed}</p>
+        <div className="actions">
+          <button type="button" onClick={() => setAttempt(attempt + 1)}>
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (lists === null) return <p>{messages.loading}</p>;
   if (lists.mine.length === 0 && lists.accompanied.length === 0) {
     return <p className="panel">Todavía no tienes tableros. Aparecen cuando te inscriben en un programa.</p>;
