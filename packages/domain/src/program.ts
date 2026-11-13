@@ -22,7 +22,7 @@ export type BoardAccess = {
   hasBaseline: boolean;
 };
 
-const onPanel = (personId: string, board: BoardAccess) =>
+export const isOnPanel = (personId: string, board: BoardAccess) =>
   board.panel.some((member) => member.personId === personId);
 
 /**
@@ -30,7 +30,7 @@ const onPanel = (personId: string, board: BoardAccess) =>
  * administrators included, see that it exists and its state, never its content.
  */
 export function canSeeBoardContent(personId: string, board: BoardAccess): boolean {
-  return personId === board.ownerPersonId || onPanel(personId, board);
+  return personId === board.ownerPersonId || isOnPanel(personId, board);
 }
 
 /**
@@ -38,7 +38,7 @@ export function canSeeBoardContent(personId: string, board: BoardAccess): boolea
  * before the baseline is set. The owner proposes; the panel decides.
  */
 export function canAdjustSelection(personId: string, board: BoardAccess, change: 'add' | 'remove'): boolean {
-  if (!onPanel(personId, board)) return false;
+  if (!isOnPanel(personId, board)) return false;
   return change === 'add' || !board.hasBaseline;
 }
 

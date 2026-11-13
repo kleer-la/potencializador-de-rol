@@ -29,9 +29,17 @@ export {
   canAdjustSelection,
   canEnrollAs,
   canSeeBoardContent,
+  isOnPanel,
   missingPanelRoles,
   type BoardAccess,
   type EnrollmentRole,
   type PanelRole,
 } from './program.ts';
+export {
+  calibrationDifference,
+  canCalibrate,
+  canRecordInitialLevel,
+  missingAttendance,
+  missingFromCalibration,
+} from './calibration.ts';
 export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';
