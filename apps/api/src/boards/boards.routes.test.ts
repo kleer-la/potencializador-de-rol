@@ -115,7 +115,13 @@ describe('boards', () => {
     const mentor = await call(sessions.firmMentor, 'GET', `/${boardId}`);
 
     expect([leader.statusCode, mentor.statusCode]).toEqual([200, 200]);
-    expect(leader.json().viewer).toEqual({ isOwner: false, panelRoles: ['leader'], canAdd: true, canRemove: true });
+    expect(leader.json().viewer).toEqual({
+      isOwner: false,
+      panelRoles: ['leader'],
+      canAdd: true,
+      canRemove: true,
+      canSelfAssess: false,
+    });
     expect(mentor.json().placements).toHaveLength(2);
   });
 

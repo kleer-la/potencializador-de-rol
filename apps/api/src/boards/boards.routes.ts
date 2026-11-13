@@ -1,4 +1,11 @@
-import { canAdjustSelection, type BoardAccess, type PanelRole } from '@potencializador/domain';
+import {
+  canAdjustSelection,
+  canSeeSelfAssessment,
+  canWriteSelfAssessment,
+  missingFromSelfAssessment,
+  type BoardAccess,
+  type PanelRole,
+} from '@potencializador/domain';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -14,6 +21,8 @@ import {
   persons,
   placements,
   programs,
+  selfAssessmentLevels,
+  selfAssessments,
 } from '../infrastructure/schema.ts';
 import { withScope, type Database, type ScopedTransaction } from '../infrastructure/scoped-transaction.ts';
 
@@ -21,6 +30,12 @@ const id = z.uuid().toLowerCase();
 const boardParams = z.object({ boardId: id });
 const capabilityParams = z.object({ boardId: id, capabilityId: id });
 const addInput = z.object({ capabilityId: id });
+const selfAssessmentInput = z.object({
+  levels: z
+    .array(z.object({ capabilityId: id, levelId: id }))
+    .max(500)
+    .refine((levels) => new Set(levels.map((level) => level.capabilityId)).size === levels.length),
+});
 
 const NOT_FOUND = { error: 'not_found' } as const;
 
@@ -77,6 +92,29 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       return work(tx, { access, personId, row });
     });
   };
+
+  /** The board's self-assessment as the viewer may see it (Row Level Security agrees). */
+  const readSelfAssessment = async (tx: ScopedTransaction, boardId: string) => {
+    const [row] = await tx.select().from(selfAssessments).where(eq(selfAssessments.boardId, boardId));
+    if (row === undefined) return null;
+    const levelRows = await tx
+      .select({ capabilityId: selfAssessmentLevels.capabilityId, levelId: selfAssessmentLevels.levelId })
+      .from(selfAssessmentLevels)
+      .where(eq(selfAssessmentLevels.selfAssessmentId, row.id));
+    return { row, levels: levelRows };
+  };
+
+  /** Capability ids on the board, in the map's order. */
+  const capabilitiesOnBoard = async (tx: ScopedTransaction, boardId: string) =>
+    (
+      await tx
+        .select({ id: placements.capabilityId })
+        .from(placements)
+        .innerJoin(capabilities, eq(capabilities.id, placements.capabilityId))
+        .innerJoin(dimensions, eq(dimensions.id, capabilities.dimensionId))
+        .where(eq(placements.boardId, boardId))
+        .orderBy(asc(dimensions.position), asc(capabilities.position))
+    ).map((row) => row.id);
 
   const answer = async (reply: FastifyReply, run: () => Promise<{ status?: number; body?: unknown } | null>) => {
     try {
@@ -154,6 +192,17 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .select({ capabilityId: placements.capabilityId, levelId: placements.levelId, addedAt: placements.addedAt })
           .from(placements)
           .where(eq(placements.boardId, row.id));
+        const assessment = await readSelfAssessment(tx, row.id);
+        const submitted = assessment?.row.submittedAt != null;
+        const order = new Map(capabilityRows.map((capability, index) => [capability.id, index]));
+        const selfAssessment = !canSeeSelfAssessment(personId, access, submitted)
+          ? null
+          : {
+              submittedAt: assessment?.row.submittedAt ?? null,
+              levels: (assessment?.levels ?? []).sort(
+                (a, b) => (order.get(a.capabilityId) ?? 0) - (order.get(b.capabilityId) ?? 0),
+              ),
+            };
 
         return {
           body: {
@@ -168,11 +217,14 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               panelRoles: access.panel.filter((member) => member.personId === personId).map((member) => member.role).sort(),
               canAdd: canAdjustSelection(personId, access, 'add'),
               canRemove: canAdjustSelection(personId, access, 'remove'),
+              canSelfAssess: canWriteSelfAssessment(personId, access, submitted),
             },
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
             capabilities: capabilityRows,
             placements: placed,
+            // A proposal of the owner, never the baseline and never a score (invariant 2).
+            selfAssessment,
           },
         };
       }),
@@ -223,6 +275,59 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         }
         if (removed.length === 0) throw new Refusal(404, NOT_FOUND);
         return { status: 204 };
+      }),
+    );
+  });
+
+  api.put('/boards/:boardId/self-assessment', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = selfAssessmentInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (personId !== access.ownerPersonId) throw new Refusal(403, { error: 'forbidden' });
+        let assessment = (await readSelfAssessment(tx, row.id))?.row;
+        if (assessment?.submittedAt != null) throw new Refusal(409, { error: 'already_submitted' });
+        if (!canWriteSelfAssessment(personId, access, false)) throw new Refusal(403, { error: 'forbidden' });
+        if (assessment === undefined) {
+          [assessment] = await tx
+            .insert(selfAssessments)
+            .values({ organizationId: row.organizationId, boardId: row.id })
+            .returning();
+        }
+        const selfAssessmentId = assessment!.id;
+        await tx.delete(selfAssessmentLevels).where(eq(selfAssessmentLevels.selfAssessmentId, selfAssessmentId));
+        if (body.data.levels.length > 0) {
+          try {
+            await tx.insert(selfAssessmentLevels).values(
+              body.data.levels.map((level) => ({ organizationId: row.organizationId, selfAssessmentId, ...level })),
+            );
+          } catch (error) {
+            if (['PM002', '23503'].includes(postgresCode(error) ?? '')) {
+              throw new Refusal(400, { error: 'unknown_reference' });
+            }
+            throw error;
+          }
+        }
+        return { body: { levels: body.data.levels } };
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/self-assessment/submit', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (personId !== access.ownerPersonId) throw new Refusal(403, { error: 'forbidden' });
+        const assessment = await readSelfAssessment(tx, row.id);
+        if (assessment?.row.submittedAt != null) throw new Refusal(409, { error: 'already_submitted' });
+        const missing = missingFromSelfAssessment(await capabilitiesOnBoard(tx, row.id), assessment?.levels ?? []);
+        if (missing.length > 0) throw new Refusal(422, { error: 'incomplete', missing });
+        const submitted = await tx.execute<{ submitted_at: string }>(
+          sql`select app_submit_self_assessment(${row.id}::uuid) as submitted_at`,
+        );
+        return { body: { submittedAt: submitted.rows[0]!.submitted_at } };
       }),
     );
   });

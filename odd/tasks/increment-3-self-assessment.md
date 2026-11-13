@@ -39,7 +39,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: who self-assesses, what is missing to submit. Specs: S1, S4, S7. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the self-assessment` (see L4).
 - [x] T2 — Persistence: self-assessments and their levels, submission function, Row Level Security, database guards. Specs: S1–S5, S7. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store self-assessments under invariants 2 and 9` (see L5).
-- [ ] T3 — API: read with the board, save draft, submit. Specs: S1–S5. Route: inline. Risk: item 2 (permissions). Commit: —
+- [x] T3 — API: read with the board, save draft, submit. Specs: S1–S5. Route: inline. Risk: item 2 (permissions). Commit: `feat: self-assessment through the board API` (see L6).
 - [ ] T4 — Web: self-assessment on the board, panel view. Specs: S6. Route: inline. Risk: none expected. Commit: —
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
@@ -60,3 +60,8 @@ L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "self_assess
 - The owner starts and writes their draft; the panel reads it only once submitted; nobody else reads it. The API role has no `UPDATE` or `DELETE` on self-assessments: only `app_submit_self_assessment(board)` submits, for the owner, when every capability on the board has a level; it moves the board from `not_started` to `self_assessed` and touches no placement.
 - A proposed level must be for a capability on the board and of the program's scale. A submitted self-assessment never changes, for every role (SQL state `PM002`); it goes only with its board.
 - Two test expectations were adjusted to the stronger behavior found: the API role is denied `UPDATE` outright, and deleting the levels of a submitted self-assessment as its owner deletes nothing.
+
+L6 (2026-11-13, T3 evidence): RED observed (6 failing), then GREEN: `npm test` 255 passed in 27 files, `npm run typecheck` clean.
+- `GET /api/boards/:boardId` adds `selfAssessment` (`null` for the panel while it is a draft; for the owner, `{ submittedAt, levels }` in map order) and `viewer.canSelfAssess`. One existing test compared `viewer` whole and now includes the new field; nothing else changed.
+- `PUT /api/boards/:boardId/self-assessment` (owner, draft only) replaces the proposed levels; `POST /api/boards/:boardId/self-assessment/submit` (owner) submits.
+- Answers: `403 forbidden` (the panel or anyone but the owner on the board), `404` for someone off the board, `400 unknown_reference` (capability off the board or level off the scale), `422 incomplete` with the missing capability ids, `409 already_submitted`.

@@ -177,3 +177,18 @@ export const placements = pgTable('placements', {
   addedBy: uuid('added_by').notNull(),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const selfAssessments = pgTable('self_assessments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const selfAssessmentLevels = pgTable('self_assessment_levels', {
+  organizationId: uuid('organization_id').notNull(),
+  selfAssessmentId: uuid('self_assessment_id').notNull(),
+  capabilityId: uuid('capability_id').notNull(),
+  levelId: uuid('level_id').notNull(),
+});
