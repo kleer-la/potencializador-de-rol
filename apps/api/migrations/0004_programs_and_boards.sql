@@ -19,8 +19,9 @@ CREATE TABLE programs (
   starts_on date NOT NULL,
   ends_on date NOT NULL,
   max_focuses integer NOT NULL DEFAULT 3 CHECK (max_focuses BETWEEN 1 AND 20),
+  -- At least one of the three panel roles is mandatory (user decision of 2026-11-13).
   mandatory_panel_roles text[] NOT NULL DEFAULT '{leader,specialist,mentor}'
-    CHECK (mandatory_panel_roles <@ ARRAY['leader', 'specialist', 'mentor']),
+    CHECK (mandatory_panel_roles <@ ARRAY['leader', 'specialist', 'mentor'] AND cardinality(mandatory_panel_roles) >= 1),
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (ends_on >= starts_on),
   UNIQUE (id, organization_id),

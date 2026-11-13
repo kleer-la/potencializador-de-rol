@@ -86,6 +86,7 @@ describe('programs', () => {
     await user.selectOptions(await screen.findByLabelText('Mapa'), 'Product Owner · versión 1');
     await user.type(screen.getByLabelText('Inicio'), '2027-01-15');
     await user.type(screen.getByLabelText('Fin'), '2027-06-30');
+    expect((screen.getByLabelText('Máximo de focos por ciclo') as HTMLInputElement).value).toBe('3');
     await user.click(screen.getByRole('button', { name: 'Crear programa' }));
 
     expect(calls.find((call) => call.route === `POST ${base}/programs`)?.body).toEqual({
@@ -93,7 +94,33 @@ describe('programs', () => {
       mapId: 'map-1',
       startsOn: '2027-01-15',
       endsOn: '2027-06-30',
+      maxFocuses: 3,
+      mandatoryPanelRoles: ['leader', 'specialist', 'mentor'],
     });
+  });
+
+  it('lets an administrator change the maximum of focuses and the mandatory roles, keeping at least one', async () => {
+    const { calls, user } = await openProgram(true, false, {
+      [`PATCH ${base}/programs/program-1`]: (body) => json({ ...program, ...(body as object) }),
+    });
+
+    const settings = screen.getByRole('group', { name: 'Configuración del programa' });
+    const focuses = within(settings).getByLabelText('Máximo de focos por ciclo');
+    await user.clear(focuses);
+    await user.type(focuses, '4');
+    await user.click(within(settings).getByRole('checkbox', { name: 'Especialista' }));
+    await user.click(within(settings).getByRole('checkbox', { name: 'Líder' }));
+    expect((within(settings).getByRole('checkbox', { name: 'Mentor' }) as HTMLInputElement).disabled).toBe(true);
+    await user.click(within(settings).getByRole('button', { name: 'Guardar configuración' }));
+
+    expect(calls.find((call) => call.route === `PATCH ${base}/programs/program-1`)?.body).toEqual({
+      name: 'Product Owners 2027',
+      startsOn: '2027-01-15',
+      endsOn: '2027-06-30',
+      maxFocuses: 4,
+      mandatoryPanelRoles: ['mentor'],
+    });
+    expect(within(settings).getByText('Al menos un rol del panel es obligatorio.')).toBeTruthy();
   });
 
   it('shows enrollments, the Kleer mentor and the panel roles still missing', async () => {

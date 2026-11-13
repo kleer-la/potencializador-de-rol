@@ -163,7 +163,14 @@ export type Program = {
   maxFocuses: number;
   mandatoryPanelRoles: PanelRole[];
 };
-export type ProgramInput = { mapId: string; name: string; startsOn: string; endsOn: string };
+export type ProgramSettings = {
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  maxFocuses: number;
+  mandatoryPanelRoles: PanelRole[];
+};
+export type ProgramInput = ProgramSettings & { mapId: string };
 export type Enrollment = {
   id: string;
   personId: string;
@@ -189,6 +196,7 @@ export function programApi(organizationId: string) {
     list: async () => (await request<{ programs: Program[] }>(at(''))).programs,
     create: (input: ProgramInput) => request<Program>(at(''), 'POST', input),
     detail: (programId: string) => request<ProgramDetail>(at(`/${programId}`)),
+    update: (programId: string, settings: ProgramSettings) => request<Program>(at(`/${programId}`), 'PATCH', settings),
     setSelection: (programId: string, capabilityIds: string[]) =>
       request<unknown>(at(`/${programId}/selection`), 'PUT', { capabilityIds }),
     enroll: (programId: string, email: string, roles: EnrollmentRole[]) =>

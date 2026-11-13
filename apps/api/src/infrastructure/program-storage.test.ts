@@ -150,6 +150,10 @@ describe('program storage', () => {
             organizationA,
             program.mapId,
           ]),
+          one(people.administrator, "insert into programs (organization_id, map_id, name, starts_on, ends_on, mandatory_panel_roles) values ($1, $2, 'P', '2026-01-01', '2026-06-30', '{}')", [
+            organizationA,
+            program.mapId,
+          ]),
         ],
         /violates check constraint/,
       );

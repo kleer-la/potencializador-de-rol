@@ -8,6 +8,8 @@ import {
   type Enrollment,
   type Program,
   type ProgramDetail,
+  type ProgramInput,
+  type ProgramSettings,
 } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
@@ -84,13 +86,83 @@ export function ProgramsSection({ organizationId, canAdminister, canDesign }: Pr
   );
 }
 
-function CreateProgramForm(props: {
-  organizationId: string;
-  onCreate: (input: { name: string; mapId: string; startsOn: string; endsOn: string }) => Promise<void>;
-}) {
+const NEW_PROGRAM: ProgramInput = {
+  name: '',
+  mapId: '',
+  startsOn: '',
+  endsOn: '',
+  maxFocuses: 3,
+  mandatoryPanelRoles: [...PANEL_ROLES],
+};
+
+/** Name, dates, maximum of focuses and mandatory panel roles: at least one role stays mandatory. */
+function SettingsFields(props: { value: ProgramSettings; onChange: (value: ProgramSettings) => void }) {
+  const { value, onChange } = props;
+  const toggle = (role: PanelRole, checked: boolean) =>
+    onChange({
+      ...value,
+      // Kept in the panel's order.
+      mandatoryPanelRoles: PANEL_ROLES.filter((candidate) =>
+        candidate === role ? checked : value.mandatoryPanelRoles.includes(candidate),
+      ),
+    });
+  return (
+    <>
+      <label>
+        Nombre del programa
+        <input value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} maxLength={160} required />
+      </label>
+      <label>
+        Inicio
+        <input type="date" value={value.startsOn} onChange={(event) => onChange({ ...value, startsOn: event.target.value })} required />
+      </label>
+      <label>
+        Fin
+        <input
+          type="date"
+          value={value.endsOn}
+          min={value.startsOn || undefined}
+          onChange={(event) => onChange({ ...value, endsOn: event.target.value })}
+          required
+        />
+      </label>
+      <label>
+        Máximo de focos por ciclo
+        <input
+          type="number"
+          min={1}
+          max={20}
+          value={value.maxFocuses}
+          onChange={(event) => onChange({ ...value, maxFocuses: Number(event.target.value) })}
+          required
+        />
+      </label>
+      <fieldset>
+        <legend>Roles obligatorios del panel</legend>
+        {PANEL_ROLES.map((role) => {
+          const checked = value.mandatoryPanelRoles.includes(role);
+          return (
+            <label key={role} className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={checked && value.mandatoryPanelRoles.length === 1}
+                onChange={(event) => toggle(role, event.target.checked)}
+              />
+              {enrollmentRoleLabels[role]}
+            </label>
+          );
+        })}
+        <p className="muted">Al menos un rol del panel es obligatorio.</p>
+      </fieldset>
+    </>
+  );
+}
+
+function CreateProgramForm(props: { organizationId: string; onCreate: (input: ProgramInput) => Promise<void> }) {
   const organization = useMemo(() => organizationApi(props.organizationId), [props.organizationId]);
   const [maps, setMaps] = useState<{ id: string; label: string }[]>([]);
-  const [form, setForm] = useState({ name: '', mapId: '', startsOn: '', endsOn: '' });
+  const [form, setForm] = useState<ProgramInput>(NEW_PROGRAM);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,7 +187,7 @@ function CreateProgramForm(props: {
     setError(null);
     try {
       await props.onCreate(form);
-      setForm({ name: '', mapId: '', startsOn: '', endsOn: '' });
+      setForm(NEW_PROGRAM);
     } catch (failure) {
       setError(errorText(failure));
     }
@@ -124,10 +196,6 @@ function CreateProgramForm(props: {
   return (
     <form className="inline-form" onSubmit={submit}>
       <h4>Nuevo programa</h4>
-      <label>
-        Nombre del programa
-        <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} maxLength={160} required />
-      </label>
       <label>
         Mapa
         <select value={form.mapId} onChange={(event) => setForm({ ...form, mapId: event.target.value })} required>
@@ -139,14 +207,7 @@ function CreateProgramForm(props: {
           ))}
         </select>
       </label>
-      <label>
-        Inicio
-        <input type="date" value={form.startsOn} onChange={(event) => setForm({ ...form, startsOn: event.target.value })} required />
-      </label>
-      <label>
-        Fin
-        <input type="date" value={form.endsOn} onChange={(event) => setForm({ ...form, endsOn: event.target.value })} required />
-      </label>
+      <SettingsFields value={form} onChange={(settings) => setForm({ ...form, ...settings })} />
       <button type="submit" className="primary">
         Crear programa
       </button>
@@ -208,6 +269,13 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
         <p role="alert" className="alert">
           {error}
         </p>
+      )}
+
+      {props.canAdminister && (
+        <SettingsForm
+          program={program}
+          onSave={(settings) => run(() => programs.update(program.id, settings))}
+        />
       )}
 
       {map !== null && (
@@ -281,6 +349,33 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
         />
       ))}
     </div>
+  );
+}
+
+function SettingsForm(props: { program: Program; onSave: (settings: ProgramSettings) => Promise<void> }) {
+  const initial = (program: Program): ProgramSettings => ({
+    name: program.name,
+    startsOn: program.startsOn,
+    endsOn: program.endsOn,
+    maxFocuses: program.maxFocuses,
+    mandatoryPanelRoles: program.mandatoryPanelRoles,
+  });
+  const [value, setValue] = useState(() => initial(props.program));
+  useEffect(() => setValue(initial(props.program)), [props.program]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    props.onSave(value).catch(() => undefined);
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <fieldset className="inline-form settings">
+        <legend>Configuración del programa</legend>
+        <SettingsFields value={value} onChange={setValue} />
+        <button type="submit">Guardar configuración</button>
+      </fieldset>
+    </form>
   );
 }
 

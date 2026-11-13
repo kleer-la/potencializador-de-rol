@@ -31,20 +31,31 @@ const day = z.iso.date();
 const CHECK_VIOLATION = '23514';
 const FOREIGN_KEY_VIOLATION = '23503';
 
+const name = z.string().trim().min(1).max(160);
+const maxFocuses = z.number().int().min(1).max(20);
+/** At least one of the three panel roles is mandatory, each once. */
+const mandatoryPanelRoles = z
+  .array(z.enum(PANEL_ROLES))
+  .min(1)
+  .max(3)
+  .refine((roles) => new Set(roles).size === roles.length);
+
 const programInput = z
   .object({
     mapId: id,
-    name: z.string().trim().min(1).max(160),
+    name,
     startsOn: day,
     endsOn: day,
-    maxFocuses: z.number().int().min(1).max(20).default(3),
-    mandatoryPanelRoles: z
-      .array(z.enum(PANEL_ROLES))
-      .max(3)
-      .refine((roles) => new Set(roles).size === roles.length)
-      .default([...PANEL_ROLES]),
+    maxFocuses: maxFocuses.default(3),
+    mandatoryPanelRoles: mandatoryPanelRoles.default([...PANEL_ROLES]),
   })
   .refine((value) => value.endsOn >= value.startsOn);
+/** What an administrator may change; the map never changes. */
+const programChange = z
+  .object({ name, startsOn: day, endsOn: day, maxFocuses, mandatoryPanelRoles })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0);
 const selectionInput = z.object({ capabilityIds: z.array(id).max(500) });
 const enrollmentInput = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
@@ -168,6 +179,22 @@ export async function registerPrograms(api: FastifyInstance, options: { database
         .returning({ id: programs.id });
       return { status: 201, body: await requireProgram(tx, organizationId, created!.id) };
     }),
+  );
+
+  api.patch(
+    `${base}/:programId`,
+    handle(
+      canAdministerOrganization,
+      { params: programParams, body: programChange },
+      async (tx, { organizationId, params, body }) => {
+        const program = await requireProgram(tx, organizationId, params.programId);
+        const startsOn = body.startsOn ?? program.startsOn;
+        const endsOn = body.endsOn ?? program.endsOn;
+        if (endsOn < startsOn) throw new Refusal(400, { error: 'invalid_request' });
+        await tx.update(programs).set(body).where(eq(programs.id, program.id));
+        return { body: await requireProgram(tx, organizationId, program.id) };
+      },
+    ),
   );
 
   api.get(

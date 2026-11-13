@@ -7,7 +7,7 @@ import { seedProgram, type SeededProgram } from '../../test-support/seed-program
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
-type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 describe('programs, enrollments and panels', () => {
   let ownerPool: pg.Pool;
@@ -131,6 +131,48 @@ describe('programs, enrollments and panels', () => {
       ]);
 
       expect(responses.map((response) => response.statusCode)).toEqual([404, 403, 404]);
+    });
+  });
+
+  describe('settings', () => {
+    it('lets an administrator set the maximum of focuses and the mandatory panel roles, and change them later', async () => {
+      const created = await asAdmin('POST', 'programs', {
+        mapId: program.mapId,
+        name: 'Configurable',
+        startsOn: '2027-01-01',
+        endsOn: '2027-06-30',
+        maxFocuses: 5,
+        mandatoryPanelRoles: ['mentor'],
+      });
+      const changed = await asAdmin('PATCH', `programs/${created.json().id}`, {
+        maxFocuses: 2,
+        mandatoryPanelRoles: ['leader', 'mentor'],
+        endsOn: '2027-07-31',
+      });
+
+      expect(created.json()).toMatchObject({ maxFocuses: 5, mandatoryPanelRoles: ['mentor'] });
+      expect(changed.statusCode, changed.body).toBe(200);
+      expect(changed.json()).toMatchObject({
+        name: 'Configurable',
+        maxFocuses: 2,
+        mandatoryPanelRoles: ['leader', 'mentor'],
+        endsOn: '2027-07-31',
+      });
+    });
+
+    it('requires at least one mandatory panel role, and dates in order, when creating or changing', async () => {
+      const base = { mapId: program.mapId, name: 'P', startsOn: '2027-01-01', endsOn: '2027-06-30' };
+
+      const responses = await Promise.all([
+        asAdmin('POST', 'programs', { ...base, mandatoryPanelRoles: [] }),
+        asAdmin('PATCH', `programs/${program.programId}`, { mandatoryPanelRoles: [] }),
+        asAdmin('PATCH', `programs/${program.programId}`, { maxFocuses: 0 }),
+        asAdmin('PATCH', `programs/${program.programId}`, { startsOn: '2030-01-01' }),
+        asAdmin('PATCH', `programs/${program.programId}`, { mapId: program.mapId }),
+        call(sessions.designer, 'PATCH', `${organizationA}/programs/${program.programId}`, { maxFocuses: 4 }),
+      ]);
+
+      expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400, 400, 403]);
     });
   });
 

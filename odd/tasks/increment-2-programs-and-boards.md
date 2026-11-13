@@ -10,7 +10,10 @@ Conceptual base: `docs/Potencializador de rol — Base conceptual del sistema.md
 S1. Program. Document §4.2: "`Program` | nombre, fechas, máximo de focos por ciclo, roles obligatorios del panel | usa una versión publicada del mapa de un rol; tiene la selección base de capacidades para todos sus participantes". Document §7: "Administrador de la organización | Crea roles, programas e inscripciones".
 - An administrator of the organization or a super administrator creates a program on a published map version of one of its roles, with name, start and end dates, maximum focuses per cycle, and the mandatory panel roles.
 - Only a published version can be used. An archived version keeps serving the programs that already use it.
-- Assumption: by default the three panel roles (leader, specialist, mentor) are mandatory and the maximum of focuses is 3.
+- User (2026-11-13): "de los 3 roles del panel se requiere como obligatorio al menos 1. El máximo de focos por ciclo puede ser 3 pero debe ser configurable."
+  - A program marks at least one of the three panel roles as mandatory; refusing none is enforced in the API and the database. Assumption: by default the three are marked.
+  - The maximum of focuses per cycle defaults to 3 and is set when creating the program and changed later by an administrator.
+  - An administrator changes the program's name, dates, maximum of focuses and mandatory roles; its map never changes.
 
 S2. Base selection. Document §6.1 step 3: "El diseñador del mapa selecciona, de la versión elegida, las capacidades que cubrirán a todos los participantes del programa." User: "Las verdes son las priorizadas para la organización y programa de ejemplo."
 - A map designer of the organization or a super administrator sets the base selection from the capabilities of the program's map version.
@@ -50,9 +53,9 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: enrollment roles, who sees and who adjusts a board, selection rules. Specs: S3, S4, S5, S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of programs and boards` (see L4).
 - [x] T2 — Persistence: programs, base selection, enrollments, panel assignments, boards, placements; Row Level Security with the board visibility rule; database guards of invariants 1 and 9. Specs: S1–S7, S9. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store programs and boards with invariants 1 and 9` (see L5).
-- [x] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer programs, enrollments and panels` (see L7).
+- [x] T3 — API: programs, base selection, enrollments, panel. Specs: S1–S4, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: administer programs, enrollments and panels` (see L7). Reopened by L12 and closed by L13.
 - [x] T4 — API: boards (mine, accompanied, one board, add and remove capabilities). Specs: S5, S6, S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: boards for their owner and panel` (see L8).
-- [x] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none (interface over the existing API). Commit: `feat: programs and boards in the web interface` (see L10).
+- [x] T5 — Web: programs, selection, enrollments and panels; my boards; the board. Specs: S8. Route: inline. Risk: none (interface over the existing API). Commit: `feat: programs and boards in the web interface` (see L10). Reopened by L12 and closed by L13.
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 3,500 authored changed lines.
@@ -108,3 +111,16 @@ L11 (2026-11-13, review of the whole branch): at the stop hook's request, a nati
 - "Mis tableros" kept showing the failure after a failed load; it now offers "Reintentar" and clears the failure on the next load (RED observed, then GREEN).
 - Added route tests for removing a capability: `403` off the panel, `404` for a capability not on the board, `401` without a session (passed at once; they pin the refusal order).
 Checks: `npm test` 220 passed, `npm run typecheck` clean.
+
+L12 (2026-11-13, user correction, verbatim): "de los 3 roles del panel se requiere como obligatorio al menos 1. El máximo de focos por ciclo puede ser 3 pero debe ser configurable." S1 rewritten; T3 and T5 reopened for: at least one mandatory role, and editing the program's settings.
+
+L13 (2026-11-13, L12 implemented): RED observed (3 API and storage tests, 2 interface tests), then GREEN: `npm test` 223 passed in 23 files, `npm run typecheck` clean.
+- Database: `mandatory_panel_roles` must hold at least one role (check constraint in migration 0004, still unmerged).
+- API: creating a program requires at least one mandatory role; `PATCH /api/organizations/:organizationId/programs/:programId` (administrators) changes name, dates, maximum of focuses and mandatory roles; the map cannot be changed; dates must stay in order.
+- Interface: creating a program shows "Máximo de focos por ciclo" (3 by default) and "Roles obligatorios del panel" (the three by default); the program view has "Configuración del programa" to change them. The last mandatory role cannot be unchecked, and the form says so.
+
+L14 (2026-11-13, independent verification at feature end): a separate verifier worked on a scratch copy of head 0966ae6 against baseline 37523b1. `npm test` (218) and `npm run typecheck` passed. Verdicts: S1 to S9 pass (S8 at source level). Blockers: none. Off-panel people (administrator, designer, other participant, super administrator, a specialist of another panel, people of another organization) got the same `404` as a random id on read and write, and read 0 placements in SQL as the API role. Advisories recorded, not changed:
+- The placements of the base selection record the enrolling administrator as who added them.
+- An administrator can delete a board in SQL before its baseline, leaving the enrollment without a board; no endpoint does it.
+- An administrator can set `baseline_set_at` from empty to a date in SQL; increment 4 (calibration and baseline) must take over who sets it.
+- Map designers also see each board's state in the program view.
