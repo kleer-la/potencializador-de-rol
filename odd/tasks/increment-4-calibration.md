@@ -69,3 +69,10 @@ L6 (2026-11-13, T2 evidence and decisions): RED observed (`function app_calibrat
 - Database guards: a baseline is set only with a calibration session; a board without a baseline cannot be "calibrado" or later, and one with a baseline cannot go back (this closes the advisory of increment 3 L10 about administrators moving the state); a capability added after the baseline enters unplaced; after the baseline a placement's level changes only with the level change recorded in the same transaction.
 - `app_is_super_admin()` and `map_state_of` (advisory of increment 3 L10) are now executable only by the API role.
 - Five existing tests gave a board a baseline or a later state by updating `boards` directly, which the new guards refuse. They now use the test helper `giveBaseline`, which records a calibration session first. Their assertions did not change.
+
+L7 (2026-11-13, review of T1 and T2): native review of commits `5b12b7f` and `f6e0f03` (escalated for item 2, access rules; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit, RED observed for the new cases, then GREEN (`npm test` 283 passed, `npm run typecheck` clean):
+- `canCalibrate` allowed a board not yet self-assessed while the database refuses it; it now takes the board's state.
+- A calibration item without a capability got the message about repeated capabilities; the "not on the board" check now runs first.
+- Added storage cases: repeated capability, missing level, missing capability, no attendees; moving an existing baseline date is refused (already guarded by migration 0004, now pinned by a test).
+- The mandatory-roles loop tolerates an empty value, as the attendee loop does (the column is `NOT NULL`, so this is defensive only).
+- Recorded, not changed: the storage tests of this increment share one board and run in order, as in increment 3.

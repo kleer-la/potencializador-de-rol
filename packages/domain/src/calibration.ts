@@ -5,9 +5,12 @@ import { missingFromSelfAssessment } from './self-assessment.ts';
 
 type LevelEntry = { capabilityId: string; levelId: string | null };
 
-/** The panel records the calibration with the participant, once: it fixes the baseline. */
-export function canCalibrate(personId: string, board: BoardAccess): boolean {
-  return isOnPanel(personId, board) && !board.hasBaseline;
+/**
+ * The panel records the calibration with the participant, once the self-assessment was
+ * submitted ("autoevaluado"), and only once: it fixes the baseline.
+ */
+export function canCalibrate(personId: string, board: BoardAccess, status: string): boolean {
+  return isOnPanel(personId, board) && !board.hasBaseline && status === 'self_assessed';
 }
 
 /**

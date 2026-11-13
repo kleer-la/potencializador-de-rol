@@ -129,6 +129,16 @@ describe('calibration storage', () => {
       calibrate(board.leader, [...everyone, board.otherParticipant], levels([[0, 0], [1, 0]])),
       /attendee .* not on the board/,
     );
+    await expectRefused(calibrate(board.leader, everyone, levels([[0, 0], [0, 1], [1, 0]])), /more than one agreed level/);
+    await expectRefused(
+      calibrate(board.leader, everyone, JSON.stringify([{ capabilityId: program.capabilityIds[0] }, { capabilityId: program.capabilityIds[1], levelId: program.levelIds[0] }])),
+      /not of the program map/,
+    );
+    await expectRefused(
+      calibrate(board.leader, everyone, JSON.stringify([{ levelId: program.levelIds[0] }, { capabilityId: program.capabilityIds[1], levelId: program.levelIds[0] }])),
+      /not on the board/,
+    );
+    await expectRefused(calibrate(board.leader, [], levels([[0, 0], [1, 0]])), /invariant 3: .*participant/);
 
     expect(await count('calibration_sessions')).toBe(0);
   });
@@ -199,6 +209,10 @@ describe('calibration storage', () => {
     await expectRefused(one(administrator, 'update boards set baseline_set_at = now() where id = $1', [second.boardId]), /invariant 3/);
     await expectRefused(one(administrator, "update boards set status = 'calibrated' where id = $1", [second.boardId]), /invariant 3/);
     await expectRefused(ownerPool.query('update boards set baseline_set_at = now() where id = $1', [second.boardId]), /invariant 3/);
+    await expectRefused(
+      ownerPool.query("update boards set baseline_set_at = baseline_set_at - interval '1 day' where id = $1", [board.boardId]),
+      /baseline of a board never changes/,
+    );
     await expectRefused(one(administrator, "update boards set status = 'self_assessed' where id = $1", [board.boardId]), /invariant 3/);
     expect(await boardState(second.boardId)).toEqual({ status: 'not_started', has_baseline: false });
   });

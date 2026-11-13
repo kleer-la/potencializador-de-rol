@@ -19,12 +19,16 @@ const board: BoardAccess = {
 const calibrated: BoardAccess = { ...board, hasBaseline: true };
 
 describe('who records a calibration', () => {
-  it('a panel member, while the board has no baseline; never the owner', () => {
-    expect(canCalibrate('luis', board)).toBe(true);
-    expect(canCalibrate('eva', board)).toBe(true);
-    expect(canCalibrate('ana', board)).toBe(false);
-    expect(canCalibrate('someone', board)).toBe(false);
-    expect(canCalibrate('luis', calibrated)).toBe(false);
+  it('a panel member, on a self-assessed board without a baseline; never the owner', () => {
+    expect(canCalibrate('luis', board, 'self_assessed')).toBe(true);
+    expect(canCalibrate('eva', board, 'self_assessed')).toBe(true);
+    expect(canCalibrate('ana', board, 'self_assessed')).toBe(false);
+    expect(canCalibrate('someone', board, 'self_assessed')).toBe(false);
+    expect(canCalibrate('luis', calibrated, 'calibrated')).toBe(false);
+  });
+
+  it('not before the self-assessment is submitted', () => {
+    expect(canCalibrate('luis', board, 'not_started')).toBe(false);
   });
 });
 

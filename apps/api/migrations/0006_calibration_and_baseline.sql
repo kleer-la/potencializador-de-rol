@@ -217,7 +217,7 @@ CREATE FUNCTION app_calibrate_board(
     IF NOT v_board.owner_person_id = ANY (coalesce(p_attendee_ids, '{}')) THEN
       RAISE EXCEPTION 'invariant 3: the participant did not attend the calibration' USING ERRCODE = 'PM003';
     END IF;
-    FOREACH v_role IN ARRAY (SELECT mandatory_panel_roles FROM programs WHERE id = v_board.program_id) LOOP
+    FOREACH v_role IN ARRAY coalesce((SELECT mandatory_panel_roles FROM programs WHERE id = v_board.program_id), '{}') LOOP
       IF NOT EXISTS (
         SELECT 1 FROM panel_assignments pa JOIN enrollments m ON m.id = pa.member_enrollment_id
          WHERE pa.participant_enrollment_id = v_board.enrollment_id AND pa.role = v_role
@@ -228,14 +228,14 @@ CREATE FUNCTION app_calibrate_board(
     END LOOP;
 
     -- Agreed levels: one per capability on the board, of the program's map.
-    IF (SELECT count(*) <> count(DISTINCT capability_id) FROM app_agreed_levels(p_levels)) THEN
-      RAISE EXCEPTION 'a capability has more than one agreed level' USING ERRCODE = '23514';
-    END IF;
     IF EXISTS (
       SELECT 1 FROM app_agreed_levels(p_levels) a
        WHERE NOT EXISTS (SELECT 1 FROM placements p WHERE p.board_id = p_board_id AND p.capability_id = a.capability_id)
     ) THEN
       RAISE EXCEPTION 'the capability is not on the board' USING ERRCODE = '23514';
+    END IF;
+    IF (SELECT count(*) <> count(DISTINCT capability_id) FROM app_agreed_levels(p_levels)) THEN
+      RAISE EXCEPTION 'a capability has more than one agreed level' USING ERRCODE = '23514';
     END IF;
     v_map := app_map_of_program(v_board.program_id);
     IF EXISTS (SELECT 1 FROM app_agreed_levels(p_levels) WHERE level_id IS NULL OR app_map_of_level(level_id) IS DISTINCT FROM v_map) THEN
