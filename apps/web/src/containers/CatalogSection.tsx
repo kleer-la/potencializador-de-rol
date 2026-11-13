@@ -37,14 +37,20 @@ export function CatalogSection({ api, kind, title, canDesign }: Props) {
     setError(null);
     try {
       await api.removeFromCatalog(kind, id);
-      setItems(await api.catalog(kind));
-      if (editingId === id) {
-        setEditingId(null);
-        setDraft(emptyDraft);
-      }
     } catch (failure) {
       setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
+      return;
     }
+    // Deleted: take it out at once, so a failed reload cannot show it again.
+    setItems((current) => current?.filter((item) => item.id !== id) ?? current);
+    if (editingId === id) {
+      setEditingId(null);
+      setDraft(emptyDraft);
+    }
+    api
+      .catalog(kind)
+      .then(setItems)
+      .catch(() => undefined);
   };
 
   const save = async (event: FormEvent) => {

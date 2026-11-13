@@ -35,6 +35,10 @@ export function SearchPicker({ legend, options, selected, onChange }: Props) {
           .filter((option) => !selected.includes(option.id) && fold(option.name).includes(wanted))
           .slice(0, MAX_MATCHES);
   const noun = legend.toLowerCase();
+  const add = (option: Option) => {
+    onChange([...selected, option.id]);
+    setQuery('');
+  };
 
   return (
     <fieldset className="search-picker">
@@ -65,6 +69,13 @@ export function SearchPicker({ legend, options, selected, onChange }: Props) {
         aria-label={`Buscar ${noun}`}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
+        // Enter picks the first match; it must never submit the form around the picker.
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          const first = matches[0];
+          if (first !== undefined) add(first);
+        }}
         autoComplete="off"
       />
       {wanted === '' ? (
@@ -79,10 +90,7 @@ export function SearchPicker({ legend, options, selected, onChange }: Props) {
                 type="button"
                 className="link-button"
                 aria-label={`Agregar «${option.name}»`}
-                onClick={() => {
-                  onChange([...selected, option.id]);
-                  setQuery('');
-                }}
+                onClick={() => add(option)}
               >
                 {option.name}
               </button>

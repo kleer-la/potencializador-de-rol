@@ -31,3 +31,9 @@ L2 (2026-11-13, T1 evidence): RED observed (4 API tests, 1 interface test), then
 L3 (2026-11-13, T2 evidence): RED observed (picker missing; the existing capability test could not find "Buscar herramientas"), then GREEN: `npm test` 233 passed in 24 files, `npm run typecheck` and `npm run build` clean.
 - `SearchPicker` replaces the two multiple selects of the capability form: typing part of a name lists up to 8 matches that are not chosen yet, ignoring case and accents ("gestion" finds "Gestión de riesgos"); chosen entries show as tags with "×" to remove; before typing it says how many entries there are.
 - The existing interface test of adding a capability now searches "ok" and adds "OKR" instead of picking from a list; it is the requested change in behavior.
+
+L4 (2026-11-13, review of the branch): native review of `feat/backlog-tools` against `main` (lens reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit, RED then GREEN for the first two:
+- Pressing Enter in the search field submitted the whole capability form, saving it without the tool being searched. Enter now adds the first match and never submits.
+- After a successful delete, a failed reload of the list showed an error and the deleted entry again. The entry is removed from the list at once; a failed reload no longer shows anything.
+- Added the test that a super administrator deletes an entry (`204`).
+Checks: `npm test` 235 passed, `npm run typecheck` clean.

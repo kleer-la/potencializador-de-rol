@@ -67,6 +67,27 @@ describe('SearchPicker', () => {
     expect(screen.getByText('Sin resultados.')).toBeTruthy();
   });
 
+  it('adds the first match on Enter instead of submitting the surrounding form', async () => {
+    const user = userEvent.setup();
+    let submitted = 0;
+    render(
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitted += 1;
+        }}
+      >
+        <Harness />
+      </form>,
+    );
+
+    await user.type(screen.getByLabelText('Buscar herramientas'), 'stake{Enter}');
+    await user.type(screen.getByLabelText('Buscar herramientas'), 'zzz{Enter}');
+
+    expect(screen.getByRole('status').textContent).toBe('t2');
+    expect(submitted).toBe(0);
+  });
+
   it('lists nothing before typing, and tells how many options there are', () => {
     render(<Harness />);
 

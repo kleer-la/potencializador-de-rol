@@ -206,6 +206,9 @@ describe('roles, tools and strategic objectives', () => {
       const inUse = await call(sessions.designerA, 'DELETE', path(organizationA, used.json().id));
       const byAdministrator = await call(sessions.administratorA, 'DELETE', path(organizationA, used.json().id));
       const missing = await call(sessions.designerA, 'DELETE', path(organizationA, randomUUID()));
+      const another = await call(sessions.designerA, 'POST', path(organizationA), { name: unique('Otra sin uso') });
+      const bySuperAdministrator = await call(sessions.superAdministrator, 'DELETE', path(organizationA, another.json().id));
+      expect(bySuperAdministrator.statusCode).toBe(204);
 
       expect([deleted.statusCode, inUse.statusCode, byAdministrator.statusCode, missing.statusCode]).toEqual([
         204, 409, 403, 404,
