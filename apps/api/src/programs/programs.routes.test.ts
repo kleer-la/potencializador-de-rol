@@ -174,6 +174,25 @@ describe('programs, enrollments and panels', () => {
 
       expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400, 400, 403]);
     });
+
+    it('refuses a change without a session, to a program of another organization, and an end before the start', async () => {
+      const programOfB = await seedProgram(ownerPool, organizationB);
+
+      const anonymous = await app.inject({
+        method: 'PATCH',
+        url: `/api/organizations/${organizationA}/programs/${program.programId}`,
+        headers: { origin: TEST_PUBLIC_URL.origin },
+        payload: { maxFocuses: 4 },
+      });
+      const throughA = await asAdmin('PATCH', `programs/${programOfB.programId}`, { maxFocuses: 4 });
+      const unknown = await asAdmin('PATCH', `programs/${randomUUID()}`, { maxFocuses: 4 });
+      const endBeforeStart = await asAdmin('PATCH', `programs/${program.programId}`, { endsOn: '2020-01-01' });
+
+      expect([anonymous.statusCode, throughA.statusCode, unknown.statusCode, endBeforeStart.statusCode]).toEqual([
+        401, 404, 404, 400,
+      ]);
+      expect(throughA.json()).toEqual(unknown.json());
+    });
   });
 
   describe('base selection', () => {

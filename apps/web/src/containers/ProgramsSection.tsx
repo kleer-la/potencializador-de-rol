@@ -361,7 +361,11 @@ function SettingsForm(props: { program: Program; onSave: (settings: ProgramSetti
     mandatoryPanelRoles: program.mandatoryPanelRoles,
   });
   const [value, setValue] = useState(() => initial(props.program));
-  useEffect(() => setValue(initial(props.program)), [props.program]);
+  // Reset only when the stored settings change (a save), not on every reload of the
+  // program after an unrelated action, which would discard what is being typed.
+  const stored = JSON.stringify(initial(props.program));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `stored` captures the settings
+  useEffect(() => setValue(initial(props.program)), [stored]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

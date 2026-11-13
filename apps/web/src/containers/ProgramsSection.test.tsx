@@ -123,6 +123,23 @@ describe('programs', () => {
     expect(within(settings).getByText('Al menos un rol del panel es obligatorio.')).toBeTruthy();
   });
 
+  it('keeps unsaved settings while the administrator does something else on the program', async () => {
+    const { user } = await openProgram(true, false, {
+      [`POST ${base}/programs/program-1/enrollments`]: () => json({ enrollments: [], boardId: null }, 201),
+    });
+
+    const settings = screen.getByRole('group', { name: 'Configuración del programa' });
+    const focuses = within(settings).getByLabelText('Máximo de focos por ciclo') as HTMLInputElement;
+    await user.clear(focuses);
+    await user.type(focuses, '5');
+    await user.type(screen.getByLabelText('Correo de la persona'), 'nuevo@uni.test');
+    await user.click(screen.getByRole('checkbox', { name: 'Participante' }));
+    await user.click(screen.getByRole('button', { name: 'Inscribir' }));
+    await screen.findByRole('table', { name: 'Personas inscritas' });
+
+    expect(focuses.value).toBe('5');
+  });
+
   it('shows enrollments, the Kleer mentor and the panel roles still missing', async () => {
     await openProgram(true, false);
 

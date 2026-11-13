@@ -124,3 +124,9 @@ L14 (2026-11-13, independent verification at feature end): a separate verifier w
 - An administrator can delete a board in SQL before its baseline, leaving the enrollment without a board; no endpoint does it.
 - An administrator can set `baseline_set_at` from empty to a date in SQL; increment 4 (calibration and baseline) must take over who sets it.
 - Map designers also see each board's state in the program view.
+
+L15 (2026-11-13, review of the settings commit): the whole branch could not be reviewed at once (`lens_context_budget_exceeded`: its evidence exceeds the reviewer's context), so, as the tool directs, only the new commit 8852b20 was reviewed (lenses risk, reliability; consent granted by the user): `approved` and acknowledged. Handled in a follow-up commit:
+- The settings form discarded unsaved edits whenever the program reloaded after another action, such as an enrollment. It now resets only when the stored settings change (RED observed, then GREEN).
+- Added route tests for changing a program: `401` without a session, the same `404` for a program of another organization and for an unknown id, `400` for an end before the start (passed at once).
+- Recorded, not changed: lowering the maximum of focuses or moving dates is not checked against existing boards; focuses and cycles do not exist yet (increment 5 must decide what a lower maximum means for a cycle in progress).
+Checks: `npm test` 225 passed, `npm run typecheck` clean.
