@@ -104,6 +104,26 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return { row, levels: levelRows };
   };
 
+  /**
+   * Serializes the owner's own writes to one board's self-assessment (two first saves at
+   * once would both try to create it). A transaction-level advisory lock: boards are not
+   * row-locked because the owner may not update them.
+   */
+  const lockSelfAssessment = (tx: ScopedTransaction, boardId: string) =>
+    tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`self-assessment:${boardId}`}, 0))`);
+
+  /** The refusals shared by saving and submitting, in order. */
+  const requireOpenDraft = (
+    personId: string,
+    access: BoardAccess,
+    status: string,
+    submitted: boolean,
+  ) => {
+    if (personId !== access.ownerPersonId) throw new Refusal(403, { error: 'forbidden' });
+    if (submitted) throw new Refusal(409, { error: 'already_submitted' });
+    if (status !== 'not_started') throw new Refusal(409, { error: 'board_not_open' });
+  };
+
   /** Capability ids on the board, in the map's order. */
   const capabilitiesOnBoard = async (tx: ScopedTransaction, boardId: string) =>
     (
@@ -217,7 +237,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               panelRoles: access.panel.filter((member) => member.personId === personId).map((member) => member.role).sort(),
               canAdd: canAdjustSelection(personId, access, 'add'),
               canRemove: canAdjustSelection(personId, access, 'remove'),
-              canSelfAssess: canWriteSelfAssessment(personId, access, submitted),
+              canSelfAssess: canWriteSelfAssessment(personId, access, submitted) && row.status === 'not_started',
             },
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
@@ -286,9 +306,9 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return answer(reply, () =>
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         if (personId !== access.ownerPersonId) throw new Refusal(403, { error: 'forbidden' });
+        await lockSelfAssessment(tx, row.id);
         let assessment = (await readSelfAssessment(tx, row.id))?.row;
-        if (assessment?.submittedAt != null) throw new Refusal(409, { error: 'already_submitted' });
-        if (!canWriteSelfAssessment(personId, access, false)) throw new Refusal(403, { error: 'forbidden' });
+        requireOpenDraft(personId, access, row.status, assessment?.submittedAt != null);
         if (assessment === undefined) {
           [assessment] = await tx
             .insert(selfAssessments)
@@ -320,8 +340,9 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return answer(reply, () =>
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         if (personId !== access.ownerPersonId) throw new Refusal(403, { error: 'forbidden' });
+        await lockSelfAssessment(tx, row.id);
         const assessment = await readSelfAssessment(tx, row.id);
-        if (assessment?.row.submittedAt != null) throw new Refusal(409, { error: 'already_submitted' });
+        requireOpenDraft(personId, access, row.status, assessment?.row.submittedAt != null);
         const missing = missingFromSelfAssessment(await capabilitiesOnBoard(tx, row.id), assessment?.levels ?? []);
         if (missing.length > 0) throw new Refusal(422, { error: 'incomplete', missing });
         const submitted = await tx.execute<{ submitted_at: string }>(

@@ -86,6 +86,66 @@ describe('self-assessment', () => {
     expect((await view(sessions.owner)).selfAssessment.levels).toHaveLength(2);
   });
 
+  it('refuses repeated capabilities, a malformed body and a submission by the panel', async () => {
+    const capabilityId = program.capabilityIds[0]!;
+    const repeated = await save(sessions.owner, [
+      { capabilityId, levelId: program.levelIds[0]! },
+      { capabilityId, levelId: program.levelIds[1]! },
+    ]);
+    const malformed = await call(sessions.owner, 'PUT', '/self-assessment', { levels: 'all' });
+    const byLeader = await call(sessions.leader, 'POST', '/self-assessment/submit');
+
+    expect([repeated.statusCode, malformed.statusCode, byLeader.statusCode]).toEqual([400, 400, 403]);
+  });
+
+  it('gives one draft to concurrent first saves', async () => {
+    const seed = createSeeder(ownerPool);
+    const fresh = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    const email = (await ownerPool.query('select email from persons where id = $1', [fresh.owner])).rows[0].email;
+    const session = await createSignedInApp(appPool).signInAs(email);
+    const level = { capabilityId: program.capabilityIds[0]!, levelId: program.levelIds[0]! };
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        app.inject({
+          method: 'PUT',
+          url: `/api/boards/${fresh.boardId}/self-assessment`,
+          cookies: { session },
+          headers: { origin: TEST_PUBLIC_URL.origin },
+          payload: { levels: [level] },
+        }),
+      ),
+    );
+
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200, 200]);
+    const stored = await ownerPool.query('select count(*) from self_assessments where board_id = $1', [fresh.boardId]);
+    expect(Number(stored.rows[0].count)).toBe(1);
+  });
+
+  it('is open only while the board has not started: a board further on refuses it', async () => {
+    const seed = createSeeder(ownerPool);
+    const later = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    await ownerPool.query("update boards set status = 'calibrated' where id = $1", [later.boardId]);
+    const email = (await ownerPool.query('select email from persons where id = $1', [later.owner])).rows[0].email;
+    const session = await createSignedInApp(appPool).signInAs(email);
+    const request = (method: 'GET' | 'PUT' | 'POST', url: string, payload?: object) =>
+      app.inject({
+        method,
+        url: `/api/boards/${later.boardId}${url}`,
+        cookies: { session },
+        headers: method === 'GET' ? {} : { origin: TEST_PUBLIC_URL.origin },
+        ...(payload === undefined ? {} : { payload }),
+      });
+
+    const saved = await request('PUT', '/self-assessment', { levels: [] });
+    const submitted = await request('POST', '/self-assessment/submit');
+    const viewed = (await request('GET', '')).json();
+
+    expect([saved.statusCode, submitted.statusCode]).toEqual([409, 409]);
+    expect(saved.json()).toEqual({ error: 'board_not_open' });
+    expect(viewed.viewer.canSelfAssess).toBe(false);
+  });
+
   it('names the capabilities still missing a level before it can be submitted', async () => {
     await save(sessions.owner, [{ capabilityId: program.capabilityIds[0]!, levelId: program.levelIds[0]! }]);
 

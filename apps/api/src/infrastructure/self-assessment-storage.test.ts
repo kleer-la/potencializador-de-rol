@@ -184,6 +184,29 @@ describe('self-assessment storage', () => {
     expect(await seen(administrator)).toBe(0);
   });
 
+  it('refuses to start or write a self-assessment on a board that has moved on', async () => {
+    const seed_ = createSeeder(ownerPool);
+    const later = await seedBoard(ownerPool, program, (organizationId) => seed_.person(organizationId));
+    await ownerPool.query("update boards set status = 'in_cycle' where id = $1", [later.boardId]);
+
+    await expect(
+      one(later.owner, 'insert into self_assessments (organization_id, board_id) values ($1, $2)', [
+        program.organizationId,
+        later.boardId,
+      ]),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('keeps its lookup functions away from roles other than the API', async () => {
+    const granted = await ownerPool.query(
+      `select p.proname from pg_proc p
+        where p.proname in ('app_owns_board', 'app_self_assessment_state', 'app_sees_self_assessment', 'app_writes_self_assessment', 'app_on_board_panel', 'app_sees_board')
+          and has_function_privilege('public', p.oid, 'execute')`,
+    );
+
+    expect(granted.rows).toEqual([]);
+  });
+
   it('INV-11 another organization sees nothing of it', async () => {
     const otherOrganization = await seed.organization();
     const stranger = await seed.person(otherOrganization);

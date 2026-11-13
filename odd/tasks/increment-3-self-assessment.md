@@ -65,3 +65,11 @@ L6 (2026-11-13, T3 evidence): RED observed (6 failing), then GREEN: `npm test` 2
 - `GET /api/boards/:boardId` adds `selfAssessment` (`null` for the panel while it is a draft; for the owner, `{ submittedAt, levels }` in map order) and `viewer.canSelfAssess`. One existing test compared `viewer` whole and now includes the new field; nothing else changed.
 - `PUT /api/boards/:boardId/self-assessment` (owner, draft only) replaces the proposed levels; `POST /api/boards/:boardId/self-assessment/submit` (owner) submits.
 - Answers: `403 forbidden` (the panel or anyone but the owner on the board), `404` for someone off the board, `400 unknown_reference` (capability off the board or level off the scale), `422 incomplete` with the missing capability ids, `409 already_submitted`.
+
+L7 (2026-11-13, review of T1 to T3): native review of commits 1f9e2ca to 014ee21 (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit, RED observed for all four new tests, then GREEN:
+- A self-assessment could be started, written and submitted on a board already calibrated or in a cycle. It is now open only while the board is "sin iniciar", in the database (insert and write policies, submit function) and the API (`409 board_not_open`; `canSelfAssess` false).
+- Two first saves at once could both try to create the self-assessment and one answered `500`. Saving and submitting take a transaction advisory lock per board; four concurrent saves now give one self-assessment.
+- The lookup functions of migrations 0004 and 0005 were executable by `PUBLIC` (PostgreSQL's default). Migration 0005 revokes that and grants them to the API role only.
+- Added route tests: repeated capabilities and a malformed body (`400`), the panel submitting (`403`).
+- Recorded, not changed: the route and storage tests of this increment run in order and share state.
+Checks: `npm test` 260 passed, `npm run typecheck` clean.

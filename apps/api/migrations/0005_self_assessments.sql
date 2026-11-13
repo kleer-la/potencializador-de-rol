@@ -35,6 +35,11 @@ CREATE FUNCTION app_owns_board(p_board_id uuid) RETURNS boolean
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
   AS $$ SELECT EXISTS (SELECT 1 FROM boards WHERE id = p_board_id AND owner_person_id = app_current_person_id()) $$;
 
+-- A self-assessment is open only while the board has not started (S6 of increment 3).
+CREATE FUNCTION app_board_not_started(p_board_id uuid) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$ SELECT EXISTS (SELECT 1 FROM boards WHERE id = p_board_id AND status = 'not_started') $$;
+
 CREATE FUNCTION app_self_assessment_state(p_self_assessment_id uuid, OUT board_id uuid, OUT submitted boolean)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
   AS $$ SELECT board_id, submitted_at IS NOT NULL FROM self_assessments WHERE id = p_self_assessment_id $$;
@@ -50,7 +55,8 @@ CREATE FUNCTION app_sees_self_assessment(p_self_assessment_id uuid) RETURNS bool
 CREATE FUNCTION app_writes_self_assessment(p_self_assessment_id uuid) RETURNS boolean
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
   AS $$
-    SELECT app_owns_board(s.board_id) AND NOT s.submitted FROM app_self_assessment_state(p_self_assessment_id) s
+    SELECT app_owns_board(s.board_id) AND NOT s.submitted AND app_board_not_started(s.board_id)
+      FROM app_self_assessment_state(p_self_assessment_id) s
   $$;
 
 -- Guards -------------------------------------------------------------------------------
@@ -141,6 +147,9 @@ CREATE FUNCTION app_submit_self_assessment(p_board_id uuid) RETURNS timestamptz
     IF v_assessment.submitted_at IS NOT NULL THEN
       RAISE EXCEPTION 'invariant 2: the self-assessment was already submitted' USING ERRCODE = 'PM002';
     END IF;
+    IF v_board.status <> 'not_started' THEN
+      RAISE EXCEPTION 'the board is no longer open for a self-assessment' USING ERRCODE = 'PM002';
+    END IF;
     IF EXISTS (
       SELECT 1 FROM placements p
        WHERE p.board_id = p_board_id
@@ -167,7 +176,8 @@ CREATE POLICY self_assessments_read ON self_assessments FOR SELECT
   USING (organization_id = app_current_organization_id()
          AND (app_owns_board(board_id) OR (submitted_at IS NOT NULL AND app_on_board_panel(board_id))));
 CREATE POLICY self_assessments_insert ON self_assessments FOR INSERT
-  WITH CHECK (organization_id = app_current_organization_id() AND app_owns_board(board_id));
+  WITH CHECK (organization_id = app_current_organization_id() AND app_owns_board(board_id)
+              AND app_board_not_started(board_id));
 GRANT SELECT, INSERT ON self_assessments TO potencializador_app;
 
 ALTER TABLE self_assessment_levels ENABLE ROW LEVEL SECURITY;
@@ -181,3 +191,23 @@ CREATE POLICY self_assessment_levels_update ON self_assessment_levels FOR UPDATE
 CREATE POLICY self_assessment_levels_delete ON self_assessment_levels FOR DELETE
   USING (organization_id = app_current_organization_id() AND app_writes_self_assessment(self_assessment_id));
 GRANT SELECT, INSERT, UPDATE, DELETE ON self_assessment_levels TO potencializador_app;
+
+-- Lookup functions answer facts across Row Level Security, so only the API role (whose
+-- policies and guards call them) may run them; PostgreSQL grants every function to PUBLIC
+-- by default. Covers the lookups of migration 0004 as well.
+DO $$
+DECLARE
+  v_function text;
+BEGIN
+  FOREACH v_function IN ARRAY ARRAY[
+    'app_owns_board(uuid)', 'app_board_not_started(uuid)', 'app_self_assessment_state(uuid)',
+    'app_sees_self_assessment(uuid)', 'app_writes_self_assessment(uuid)',
+    'app_map_of_capability(uuid)', 'app_map_of_level(uuid)', 'app_map_of_program(uuid)',
+    'app_on_board_panel(uuid)', 'app_sees_board(uuid)', 'app_administers_current_organization()',
+    'app_designs_current_organization()', 'app_enrolled_in_current_organization(uuid)'
+  ] LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', v_function);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO potencializador_app', v_function);
+  END LOOP;
+END
+$$;
