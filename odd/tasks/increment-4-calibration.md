@@ -45,7 +45,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: attendance against mandatory roles, what is missing to calibrate, difference from the self-assessment. Specs: S1–S3, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the calibration` (see L5).
 - [x] T2 — Persistence: calibration sessions, attendees, agreed levels, baseline entries, level changes; calibration and initial-leveling functions; guards (baseline immutable, placement level after baseline only with a level change); Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store calibrations and the baseline under invariants 3 and 4` (see L6).
-- [ ] T3 — API: read calibration and baseline with the board, record calibration, record initial leveling. Specs: S1–S6. Route: inline. Risk: item 2 (permissions).
+- [x] T3 — API: read calibration and baseline with the board, record calibration, record initial leveling. Specs: S1–S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: calibration and initial leveling through the board API` (see L8).
 - [ ] T4 — Web: calibration form, baseline and difference on the board, initial leveling. Specs: S7. Route: inline. Risk: none (interface over the API).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
@@ -76,3 +76,8 @@ L7 (2026-11-13, review of T1 and T2): native review of commits `5b12b7f` and `f6
 - Added storage cases: repeated capability, missing level, missing capability, no attendees; moving an existing baseline date is refused (already guarded by migration 0004, now pinned by a test).
 - The mandatory-roles loop tolerates an empty value, as the attendee loop does (the column is `NOT NULL`, so this is defensive only).
 - Recorded, not changed: the storage tests of this increment share one board and run in order, as in increment 3.
+
+L8 (2026-11-13, T3 evidence): RED observed (6 of 7 route tests failing), then GREEN: `npm test` 290 passed in 30 files, `npm run typecheck` clean.
+- `GET /api/boards/:boardId` adds `owner` and `panel` (person, name, role), `program.mandatoryPanelRoles`, `calibration` (`heldOn`, `notes`, attendees with names, and per capability the self-assessed and agreed level, in map order; `null` before it), `baseline` (`setAt` and entries with origin, oldest first; `null` before it), and `viewer.canCalibrate` / `viewer.canRecordInitialLevel`. One existing test compared `viewer` whole and now includes the two fields; nothing else changed.
+- `POST /api/boards/:boardId/calibration` {heldOn, notes, attendees, levels} (panel member): `201`; `403 forbidden` (owner, anyone not on the panel), `404` off the board, `409 baseline_set`, `409 not_self_assessed`, `400 unknown_reference` (attendee off the board, capability off the board, level of another map), `422 attendance` with `participantMissing` and `missingRoles`, `422 incomplete` with the missing capability ids, `400 invalid_request` (malformed date, repeated capability, no attendees).
+- `POST /api/boards/:boardId/initial-levels` {capabilityId, levelId} (panel member, after the baseline): `201`; `403 forbidden`, `409 no_baseline`, `404` capability not on the board, `409 already_leveled` (it already has its entry in the baseline).

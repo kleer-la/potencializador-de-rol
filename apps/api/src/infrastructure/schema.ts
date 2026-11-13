@@ -192,3 +192,36 @@ export const selfAssessmentLevels = pgTable('self_assessment_levels', {
   capabilityId: uuid('capability_id').notNull(),
   levelId: uuid('level_id').notNull(),
 });
+
+export const calibrationSessions = pgTable('calibration_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  heldOn: date('held_on', { mode: 'string' }).notNull(),
+  notes: text('notes').notNull(),
+  recordedBy: uuid('recorded_by').notNull(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+});
+
+export const calibrationAttendees = pgTable('calibration_attendees', {
+  organizationId: uuid('organization_id').notNull(),
+  calibrationSessionId: uuid('calibration_session_id').notNull(),
+  personId: uuid('person_id').notNull(),
+});
+
+export const calibrationLevels = pgTable('calibration_levels', {
+  organizationId: uuid('organization_id').notNull(),
+  calibrationSessionId: uuid('calibration_session_id').notNull(),
+  capabilityId: uuid('capability_id').notNull(),
+  selfAssessedLevelId: uuid('self_assessed_level_id'),
+  agreedLevelId: uuid('agreed_level_id').notNull(),
+});
+
+export const baselineEntries = pgTable('baseline_entries', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  capabilityId: uuid('capability_id').notNull(),
+  levelId: uuid('level_id').notNull(),
+  origin: text('origin', { enum: ['calibration', 'initial_leveling'] }).notNull(),
+  setAt: timestamp('set_at', { withTimezone: true }).notNull(),
+});

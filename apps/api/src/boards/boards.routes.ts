@@ -1,6 +1,11 @@
 import {
   canAdjustSelection,
+  canCalibrate,
+  canRecordInitialLevel,
   canSeeSelfAssessment,
+  isOnPanel,
+  missingAttendance,
+  missingFromCalibration,
   canWriteSelfAssessment,
   missingFromSelfAssessment,
   type BoardAccess,
@@ -12,7 +17,11 @@ import { z } from 'zod';
 import { Refusal } from '../maps/map-store.ts';
 import { postgresCode, postgresConstraint } from '../infrastructure/postgres-errors.ts';
 import {
+  baselineEntries,
   boards,
+  calibrationAttendees,
+  calibrationLevels,
+  calibrationSessions,
   capabilities,
   dimensions,
   enrollments,
@@ -36,6 +45,18 @@ const selfAssessmentInput = z.object({
     .max(500)
     .refine((levels) => new Set(levels.map((level) => level.capabilityId)).size === levels.length),
 });
+
+const levelsInput = z
+  .array(z.object({ capabilityId: id, levelId: id }))
+  .max(500)
+  .refine((levels) => new Set(levels.map((level) => level.capabilityId)).size === levels.length);
+const calibrationInput = z.object({
+  heldOn: z.iso.date(),
+  notes: z.string().max(5000).default(''),
+  attendees: z.array(id).min(1).max(50),
+  levels: levelsInput,
+});
+const initialLevelInput = z.object({ capabilityId: id, levelId: id });
 
 const NOT_FOUND = { error: 'not_found' } as const;
 
@@ -102,6 +123,31 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       .from(selfAssessmentLevels)
       .where(eq(selfAssessmentLevels.selfAssessmentId, row.id));
     return { row, levels: levelRows };
+  };
+
+  /** The board's calibration with its attendees and levels, or null before it. */
+  const readCalibration = async (
+    tx: ScopedTransaction,
+    boardId: string,
+    byMapOrder: <T extends { capabilityId: string }>(entries: T[]) => T[],
+  ) => {
+    const [session] = await tx.select().from(calibrationSessions).where(eq(calibrationSessions.boardId, boardId));
+    if (session === undefined) return null;
+    const attendees = await tx
+      .select({ personId: calibrationAttendees.personId, name: persons.name })
+      .from(calibrationAttendees)
+      .innerJoin(persons, eq(persons.id, calibrationAttendees.personId))
+      .where(eq(calibrationAttendees.calibrationSessionId, session.id))
+      .orderBy(asc(persons.name));
+    const levelRows = await tx
+      .select({
+        capabilityId: calibrationLevels.capabilityId,
+        selfAssessedLevelId: calibrationLevels.selfAssessedLevelId,
+        agreedLevelId: calibrationLevels.agreedLevelId,
+      })
+      .from(calibrationLevels)
+      .where(eq(calibrationLevels.calibrationSessionId, session.id));
+    return { heldOn: session.heldOn, notes: session.notes, attendees, levels: byMapOrder(levelRows) };
   };
 
   /**
@@ -176,7 +222,12 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return answer(reply, () =>
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         const [program] = await tx
-          .select({ id: programs.id, name: programs.name, mapId: programs.mapId })
+          .select({
+            id: programs.id,
+            name: programs.name,
+            mapId: programs.mapId,
+            mandatoryPanelRoles: programs.mandatoryPanelRoles,
+          })
           .from(programs)
           .where(eq(programs.id, row.programId));
         const [owner] = await tx.select({ name: persons.name }).from(persons).where(eq(persons.id, row.ownerPersonId));
@@ -215,6 +266,36 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         const assessment = await readSelfAssessment(tx, row.id);
         const submitted = assessment?.row.submittedAt != null;
         const order = new Map(capabilityRows.map((capability, index) => [capability.id, index]));
+        const byMapOrder = <T extends { capabilityId: string }>(entries: T[]) =>
+          entries.sort((a, b) => (order.get(a.capabilityId) ?? 0) - (order.get(b.capabilityId) ?? 0));
+        const panel = await tx
+          .select({ personId: enrollments.personId, name: persons.name, role: panelAssignments.role })
+          .from(panelAssignments)
+          .innerJoin(enrollments, eq(enrollments.id, panelAssignments.memberEnrollmentId))
+          .innerJoin(persons, eq(persons.id, enrollments.personId))
+          .where(eq(panelAssignments.participantEnrollmentId, row.enrollmentId))
+          .orderBy(asc(panelAssignments.role), asc(persons.name));
+        const calibration = await readCalibration(tx, row.id, byMapOrder);
+        const baseline =
+          row.baselineSetAt === null
+            ? null
+            : {
+                setAt: row.baselineSetAt,
+                entries: (
+                  await tx
+                    .select({
+                      capabilityId: baselineEntries.capabilityId,
+                      levelId: baselineEntries.levelId,
+                      origin: baselineEntries.origin,
+                      setAt: baselineEntries.setAt,
+                    })
+                    .from(baselineEntries)
+                    .where(eq(baselineEntries.boardId, row.id))
+                ).sort(
+                  (a, b) =>
+                    a.setAt.getTime() - b.setAt.getTime() || (order.get(a.capabilityId) ?? 0) - (order.get(b.capabilityId) ?? 0),
+                ),
+              };
         const selfAssessment = !canSeeSelfAssessment(personId, access, submitted)
           ? null
           : {
@@ -228,8 +309,10 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           body: {
             id: row.id,
             organizationId: row.organizationId,
-            program: { id: program!.id, name: program!.name },
+            program: { id: program!.id, name: program!.name, mandatoryPanelRoles: program!.mandatoryPanelRoles },
             ownerName: owner?.name ?? '',
+            owner: { personId: row.ownerPersonId, name: owner?.name ?? '' },
+            panel,
             status: row.status,
             hasBaseline: access.hasBaseline,
             viewer: {
@@ -238,6 +321,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               canAdd: canAdjustSelection(personId, access, 'add'),
               canRemove: canAdjustSelection(personId, access, 'remove'),
               canSelfAssess: canWriteSelfAssessment(personId, access, submitted) && row.status === 'not_started',
+              canCalibrate: canCalibrate(personId, access, row.status),
+              canRecordInitialLevel: canRecordInitialLevel(personId, access),
             },
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
@@ -245,6 +330,10 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             placements: placed,
             // A proposal of the owner, never the baseline and never a score (invariant 2).
             selfAssessment,
+            // What the panel and the participant agreed, beside what was self-assessed.
+            calibration,
+            // Invariant 3: the agreed snapshot; its entries never change, later ones are added.
+            baseline,
           },
         };
       }),
@@ -352,6 +441,67 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           sql`select app_submit_self_assessment(${row.id}::uuid) as submitted_at`,
         );
         return { body: { submittedAt: submitted.rows[0]!.submitted_at } };
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/calibration', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = calibrationInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!isOnPanel(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (access.hasBaseline) throw new Refusal(409, { error: 'baseline_set' });
+        if (row.status !== 'self_assessed') throw new Refusal(409, { error: 'not_self_assessed' });
+        const { attendees, levels: agreed } = body.data;
+        const onBoard = new Set([access.ownerPersonId, ...access.panel.map((member) => member.personId)]);
+        if (attendees.some((attendee) => !onBoard.has(attendee))) throw new Refusal(400, { error: 'unknown_reference' });
+        const [program] = await tx
+          .select({ mandatoryPanelRoles: programs.mandatoryPanelRoles })
+          .from(programs)
+          .where(eq(programs.id, row.programId));
+        const absent = missingAttendance(attendees, access, program!.mandatoryPanelRoles);
+        if (absent.participant || absent.roles.length > 0) {
+          throw new Refusal(422, { error: 'attendance', participantMissing: absent.participant, missingRoles: absent.roles });
+        }
+        const missing = missingFromCalibration(await capabilitiesOnBoard(tx, row.id), agreed);
+        if (missing.length > 0) throw new Refusal(422, { error: 'incomplete', missing });
+        try {
+          // Ids are validated UUIDs, so the array literal holds nothing but them.
+          const recorded = await tx.execute<{ id: string }>(
+            sql`select app_calibrate_board(${row.id}::uuid, ${body.data.heldOn}::date, ${body.data.notes},
+                  ${`{${attendees.join(',')}}`}::uuid[], ${JSON.stringify(agreed)}::jsonb) as id`,
+          );
+          return { status: 201, body: { calibrationId: recorded.rows[0]!.id } };
+        } catch (error) {
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          if (postgresCode(error) === 'PM003') throw new Refusal(409, { error: 'baseline_set' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/initial-levels', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = initialLevelInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!isOnPanel(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (!canRecordInitialLevel(personId, access)) throw new Refusal(409, { error: 'no_baseline' });
+        if (!(await capabilitiesOnBoard(tx, row.id)).includes(body.data.capabilityId)) throw new Refusal(404, NOT_FOUND);
+        try {
+          const recorded = await tx.execute<{ id: string }>(
+            sql`select app_record_initial_level(${row.id}::uuid, ${body.data.capabilityId}::uuid, ${body.data.levelId}::uuid) as id`,
+          );
+          return { status: 201, body: { levelChangeId: recorded.rows[0]!.id } };
+        } catch (error) {
+          if (postgresCode(error) === 'PM003') throw new Refusal(409, { error: 'already_leveled' });
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          throw error;
+        }
       }),
     );
   });

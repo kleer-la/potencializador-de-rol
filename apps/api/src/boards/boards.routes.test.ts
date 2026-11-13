@@ -121,6 +121,8 @@ describe('boards', () => {
       canAdd: true,
       canRemove: true,
       canSelfAssess: false,
+      canCalibrate: false,
+      canRecordInitialLevel: false,
     });
     expect(mentor.json().placements).toHaveLength(2);
   });
