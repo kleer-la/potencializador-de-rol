@@ -42,4 +42,19 @@ export {
   missingAttendance,
   missingFromCalibration,
 } from './calibration.ts';
+export {
+  CYCLE_STATES,
+  EXPERIMENT_RESULTS,
+  EXPERIMENT_STATES,
+  canMoveExperiment,
+  canPlanCycle,
+  canReviewExperiment,
+  canStartCycle,
+  isValidTarget,
+  remainingFocuses,
+  startBlockers,
+  type CycleState,
+  type ExperimentResult,
+  type ExperimentState,
+} from './cycle.ts';
 export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';
