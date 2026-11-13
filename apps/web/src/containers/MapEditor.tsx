@@ -12,7 +12,7 @@ import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { DimensionForm } from '../components/DimensionForm.tsx';
 import { DimensionSection } from '../components/DimensionSection.tsx';
 import { ScaleEditor } from '../components/ScaleEditor.tsx';
-import { confirmations, mapErrors, messages, obstacleText, statusLabels } from '../copy.ts';
+import { confirmations, frozenNotices, mapErrors, messages, obstacleText, statusLabels } from '../copy.ts';
 
 type Props = {
   api: OrganizationApi;
@@ -97,12 +97,14 @@ export function MapEditor({ api, mapId, canDesign, onBack }: Props) {
               label="Publicar"
               prompt={confirmations.publish}
               confirmLabel="Confirmar publicación"
+              variant="primary"
               onConfirm={() => quietly(() => api.publish(map.id))}
             />
             <ConfirmAction
               label="Descartar borrador"
               prompt={confirmations.discard}
               confirmLabel="Confirmar descarte"
+              variant="danger"
               onConfirm={async () => {
                 setError(null);
                 try {
@@ -124,6 +126,8 @@ export function MapEditor({ api, mapId, canDesign, onBack }: Props) {
           />
         )}
       </header>
+
+      {map.status !== 'draft' && <p className="ds-notice ds-notice--frozen">{frozenNotices[map.status]}</p>}
 
       {(error !== null || obstacles.length > 0) && (
         <div role="alert" className="alert">

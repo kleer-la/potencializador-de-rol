@@ -58,7 +58,7 @@ export function App() {
   return (
     <>
       <header className="top-bar">
-        <strong>Potencializador de rol</strong>
+        <span className="ds-marker">Potencializador de rol</span>
         <span>
           <span>{me.person.name}</span>
           {me.isSuperAdmin && <span className="tag">Superadministrador</span>}

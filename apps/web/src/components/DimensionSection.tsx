@@ -1,9 +1,25 @@
+import type { Difficulty } from '@potencializador/domain';
 import { useId, useState } from 'react';
 import type { CapabilityInput, Dimension, DimensionInput, Objective, Tool } from '../api/client.ts';
 import { difficultyLabels, kindLabels } from '../copy.ts';
 import { CapabilityForm } from './CapabilityForm.tsx';
 import { ConfirmAction } from './ConfirmAction.tsx';
 import { DimensionForm } from './DimensionForm.tsx';
+
+const FILLED: Record<Difficulty, number> = { low: 1, medium: 2, high: 3 };
+
+/** Three squares, filled by difficulty; the word beside them carries the meaning. */
+function DifficultySquares({ difficulty }: { difficulty: Difficulty | null }) {
+  const filled = difficulty === null ? 0 : FILLED[difficulty];
+  return (
+    <>
+      {[0, 1, 2].map((index) => (
+        <i key={index} aria-hidden="true" className={index < filled ? 'on' : undefined} />
+      ))}
+      {'\u00a0'}
+    </>
+  );
+}
 
 /** What the person may do here; each absent handler hides its action. */
 export type DimensionActions = {
@@ -54,6 +70,7 @@ export function DimensionSection({ dimension, isFirst, isLast, tools, objectives
         )}
         {actions.removeDimension && (
           <ConfirmAction
+            variant="quiet-danger"
             label="Quitar dimensión"
             prompt={`¿Quitar «${dimension.name}» y sus capacidades?`}
             confirmLabel="Confirmar"
@@ -92,7 +109,8 @@ export function DimensionSection({ dimension, isFirst, isLast, tools, objectives
             ) : (
               <>
                 <p className="statement">{capability.statement}</p>
-                <p className="muted">
+                <p className="ds-difficulty">
+                  <DifficultySquares difficulty={capability.difficulty} />
                   {capability.difficulty === null
                     ? 'Dificultad sin definir'
                     : `Dificultad ${difficultyLabels[capability.difficulty].toLowerCase()}`}
@@ -117,6 +135,7 @@ export function DimensionSection({ dimension, isFirst, isLast, tools, objectives
                   )}
                   {actions.removeCapability && (
                     <ConfirmAction
+                      variant="quiet-danger"
                       label="Quitar"
                       prompt="¿Quitar esta capacidad?"
                       confirmLabel="Confirmar"

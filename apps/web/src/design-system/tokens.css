@@ -1,0 +1,93 @@
+/* Potencializador de rol — generated from tokens.json */
+:root, [data-theme="light"] {
+  --surface: #ffffff;
+  --surface-muted: #f2f6f7;
+  --surface-raised: #ffffff;
+  --ink: #1d2327;
+  --ink-muted: #55616a;
+  --line: #d6dfe3;
+  --line-strong: #6f7e86;
+  --brand: #1a8a9e;
+  --on-brand: #ffffff;
+  --action: #1f6f80;
+  --on-action: #ffffff;
+  --accent: #ffa901;
+  --on-accent: #1d2327;
+  --marker: #000000;
+  --on-marker: #ffffff;
+  --brand-soft: #e3f3f6;
+  --status-draft-bg: #fff1d6;
+  --status-draft-fg: #7a4f00;
+  --status-published-bg: var(--brand-soft);
+  --status-published-fg: var(--action);
+  --status-archived-bg: #eceff1;
+  --status-archived-fg: #4a5560;
+  --danger: #a4262c;
+  --success: #2e6b30;
+  --level-0: #eceff1;
+  --level-1: #e3f3f6;
+  --level-2: #c4e7ee;
+  --level-3: #8fd2df;
+  --level-4: var(--brand);
+  --on-level-4: #ffffff;
+  --shadow-1: 0 1px 2px rgba(29, 35, 39, 0.08), 0 2px 8px rgba(29, 35, 39, 0.06);
+  --shadow-focus: 0 0 0 3px #1f6f80;
+}
+[data-theme="dark"] {
+  --surface: #0f1a1e;
+  --surface-muted: #16252b;
+  --surface-raised: #1b2c33;
+  --ink: #e8eef0;
+  --ink-muted: #a3b3ba;
+  --line: #2b3d44;
+  --line-strong: #7a8f98;
+  --brand: #4fc3d6;
+  --on-brand: #0f1a1e;
+  --action: #7fd3e2;
+  --on-action: #0f1a1e;
+  --accent: #ffb52e;
+  --on-accent: #1d2327;
+  --marker: #e8eef0;
+  --on-marker: #0f1a1e;
+  --brand-soft: #13353d;
+  --status-draft-bg: #3a2b10;
+  --status-draft-fg: #ffd38a;
+  --status-published-bg: var(--brand-soft);
+  --status-published-fg: var(--action);
+  --status-archived-bg: #263238;
+  --status-archived-fg: #c3ccd1;
+  --danger: #ff8a80;
+  --success: #81c784;
+  --level-0: #263238;
+  --level-1: #13353d;
+  --level-2: #164751;
+  --level-3: #1a6372;
+  --level-4: #2a8fa3;
+  --on-level-4: #ffffff;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px #7fd3e2;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 27px;
+  --radius-pill: 999px;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Raleway", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+.display-l { font-family: var(--font-display); font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -0.01em; }
+.heading-m { font-family: var(--font-display); font-size: 24px; line-height: 30px; font-weight: 700; }
+.heading-s { font-family: var(--font-display); font-size: 18px; line-height: 24px; font-weight: 700; }
+.marker { font-family: var(--font-display); font-size: 14px; line-height: 20px; font-weight: 900; letter-spacing: 0.06em; }
+.body-l { font-family: var(--font-sans); font-size: 17px; line-height: 26px; font-weight: 400; }
+.body { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 500; }
+.label { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }

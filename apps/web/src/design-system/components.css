@@ -1,0 +1,157 @@
+/* Potencializador de rol — component styles, from the design system artifact
+   https://claude.ai/artifact/HYaWUBfdgfJkPPyNUEpZvQ (version 1794581028-3407).
+   Copied unchanged except that the Google Fonts import is removed: the fonts ship with the app (fonts.ts). */
+
+/* Potencializador de rol — component styles. Every value comes from tokens.css. */
+
+.ds-root {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  /* Raleway draws old-style figures by default; levels and scores need lining, aligned digits. */
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.ds-root :focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Buttons: the Kleer pill. One `accent` button per screen. */
+.ds-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  font: 600 14px/20px var(--font-sans);
+  cursor: pointer;
+  text-decoration: none;
+}
+.ds-button--primary { background: var(--accent); color: var(--on-accent); }
+.ds-button--primary:hover { filter: brightness(0.95); }
+.ds-button--secondary { background: transparent; color: var(--action); border-color: var(--action); }
+.ds-button--secondary:hover { background: var(--brand-soft); }
+.ds-button--ghost { background: transparent; color: var(--action); padding: 0 var(--space-3); }
+.ds-button--ghost:hover { background: var(--brand-soft); }
+.ds-button--danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.ds-button--small { min-height: 32px; padding: 0 var(--space-3); font-size: 13px; }
+.ds-button[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+/* Marker: the black Kleer block behind a short uppercase label. */
+.ds-marker {
+  display: inline-block;
+  background: var(--marker);
+  color: var(--on-marker);
+  padding: 2px var(--space-2) 3px;
+  font: 900 14px/20px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Badges for map states. Always a word; color only reinforces it. */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  font: 600 13px/18px var(--font-sans);
+}
+.ds-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.ds-badge--draft { background: var(--status-draft-bg); color: var(--status-draft-fg); }
+.ds-badge--published { background: var(--status-published-bg); color: var(--status-published-fg); }
+.ds-badge--archived { background: var(--status-archived-bg); color: var(--status-archived-fg); }
+
+/* Tags: tools, objectives, difficulty. */
+.ds-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font: 500 13px/18px var(--font-sans);
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+.ds-tag--objective { border-color: var(--action); color: var(--action); }
+.ds-difficulty { display: inline-flex; gap: 2px; align-items: center; font: 500 13px/18px var(--font-sans); color: var(--ink-muted); }
+.ds-difficulty i { width: 8px; height: 8px; border-radius: 2px; border: 1.5px solid var(--line-strong); }
+.ds-difficulty i.on { background: var(--action); border-color: var(--action); }
+
+/* Tabs */
+.ds-tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.ds-tab {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: var(--space-3) var(--space-4);
+  font: 600 14px/20px var(--font-sans);
+  color: var(--ink-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ds-tab[aria-selected="true"] { color: var(--action); border-bottom-color: var(--action); }
+
+/* Fields */
+.ds-field { display: grid; gap: var(--space-1); font: 600 14px/20px var(--font-sans); color: var(--ink); }
+.ds-field small { font: 500 13px/18px var(--font-sans); color: var(--ink-muted); }
+.ds-input, .ds-select, .ds-textarea {
+  font: 500 15px/22px var(--font-sans);
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+}
+.ds-field--error .ds-input { border-color: var(--danger); }
+.ds-field--error small { color: var(--danger); }
+
+/* Panels and cards */
+.ds-panel { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-m); padding: var(--space-5); }
+.ds-hero { background: var(--brand); color: var(--on-brand); border-radius: var(--radius-l); padding: var(--space-6); }
+
+/* Notices */
+.ds-notice { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); border: 1.5px solid var(--line-strong); background: var(--surface-raised); }
+.ds-notice--danger { border-color: var(--danger); }
+.ds-notice--danger strong { color: var(--danger); }
+.ds-notice--frozen { background: var(--status-archived-bg); border-color: var(--line); color: var(--status-archived-fg); }
+
+/* Tables */
+.ds-table { width: 100%; border-collapse: collapse; font: 500 15px/22px var(--font-sans); }
+.ds-table th { text-align: left; font: 600 13px/18px var(--font-sans); color: var(--ink-muted); background: var(--surface-muted); padding: var(--space-2) var(--space-3); }
+.ds-table td { padding: var(--space-3); border-bottom: 1px solid var(--line); }
+
+/* Board: capabilities in rows grouped by dimension, levels as columns. */
+.ds-board { display: grid; gap: var(--space-2); }
+.ds-board-head, .ds-board-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
+.ds-board-head span { padding: var(--space-2); border-radius: var(--radius-s); font: 700 13px/18px var(--font-sans); color: var(--ink); }
+.ds-board-head .l0 { background: var(--level-0); } .ds-board-head .l1 { background: var(--level-1); }
+.ds-board-head .l2 { background: var(--level-2); } .ds-board-head .l3 { background: var(--level-3); }
+.ds-board-head .l4 { background: var(--level-4); color: var(--on-level-4); }
+.ds-board-dimension { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); font: 700 18px/24px var(--font-display); }
+.ds-board-cell { min-height: 72px; border: 1px dashed var(--line); border-radius: var(--radius-m); padding: var(--space-1); display: grid; gap: var(--space-1); align-content: start; }
+.ds-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-1);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  font: 500 14px/20px var(--font-sans);
+}
+.ds-card--focus { border: 2px solid var(--action); background: var(--brand-soft); }
+.ds-card-meta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ds-button, .ds-tab { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease; }
+}

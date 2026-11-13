@@ -49,7 +49,7 @@ export function InviteMemberForm({ onInvite, error }: Props) {
           ))}
         </select>
       </label>
-      <button type="submit" disabled={submitting}>
+      <button type="submit" className="primary" disabled={submitting}>
         Invitar
       </button>
       {error !== null && <p role="alert">{error}</p>}

@@ -66,7 +66,9 @@ export function RolesSection({ api, canAdminister, canDesign }: Props) {
               Nombre del rol
               <input value={name} onChange={(event) => setName(event.target.value)} maxLength={160} required />
             </label>
-            <button type="submit">Crear rol</button>
+            <button type="submit" className="primary">
+              Crear rol
+            </button>
           </form>
         )}
         {error !== null && <p role="alert">{error}</p>}

@@ -77,7 +77,7 @@ export function MapVersions({ api, role, canDesign }: Props) {
           {versions.map((version) => (
             <li key={version.id} className="version-row">
               <span>Versión {version.version}</span>
-              <span className="tag">{statusLabels[version.status]}</span>
+              <span className={`ds-badge ds-badge--${version.status}`}>{statusLabels[version.status]}</span>
               <button type="button" className="secondary" aria-label={`Abrir versión ${version.version}`} onClick={() => setOpenId(version.id)}>
                 Abrir
               </button>

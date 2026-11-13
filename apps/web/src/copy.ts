@@ -72,3 +72,9 @@ export const confirmations = {
   archive: '¿Archivar esta versión? Después no admitirá ningún cambio.',
   discard: '¿Descartar este borrador? Se pierde todo su contenido.',
 };
+
+/** Why a frozen version shows no edit controls (invariant 10). */
+export const frozenNotices = {
+  published: 'Versión publicada: solo admite agregar dimensiones y capacidades. Para cambiar lo existente, crea una versión nueva.',
+  archived: 'Versión archivada: no admite cambios.',
+} as const;

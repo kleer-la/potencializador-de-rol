@@ -271,6 +271,7 @@ describe('map editor', () => {
       expect(screen.queryByRole('button', { name }), name).toBeNull();
     }
     expect(screen.queryByRole('button', { name: /^Editar|^Quitar|^Subir|^Bajar/ })).toBeNull();
+    expect(screen.getByText(/Versión publicada: solo admite agregar dimensiones y capacidades/)).toBeTruthy();
     const dimension = screen.getByRole('region', { name: 'Entender' });
     expect(within(dimension).getByRole('button', { name: 'Agregar capacidad' })).toBeTruthy();
 
