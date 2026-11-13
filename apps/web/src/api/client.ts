@@ -237,12 +237,16 @@ export type Board = {
   ownerName: string;
   status: BoardStatus;
   hasBaseline: boolean;
-  viewer: { isOwner: boolean; panelRoles: PanelRole[]; canAdd: boolean; canRemove: boolean };
+  viewer: { isOwner: boolean; panelRoles: PanelRole[]; canAdd: boolean; canRemove: boolean; canSelfAssess: boolean };
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
   capabilities: { id: string; dimensionId: string; statement: string; difficulty: Difficulty | null; position: number }[];
   placements: { capabilityId: string; levelId: string | null; addedAt: string }[];
+  /** The owner's proposal; `null` when the viewer may not see it (the panel, before submission). */
+  selfAssessment: SelfAssessment | null;
 };
+export type ProposedLevel = { capabilityId: string; levelId: string };
+export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel[] };
 
 export const boardApi = {
   list: () => request<{ mine: BoardSummary[]; accompanied: BoardSummary[] }>('/boards'),
@@ -251,4 +255,8 @@ export const boardApi = {
     request<unknown>(`/boards/${boardId}/capabilities`, 'POST', { capabilityId }),
   remove: (boardId: string, capabilityId: string) =>
     request<void>(`/boards/${boardId}/capabilities/${capabilityId}`, 'DELETE'),
+  saveSelfAssessment: (boardId: string, levels: ProposedLevel[]) =>
+    request<unknown>(`/boards/${boardId}/self-assessment`, 'PUT', { levels }),
+  submitSelfAssessment: (boardId: string) =>
+    request<{ submittedAt: string }>(`/boards/${boardId}/self-assessment/submit`, 'POST'),
 };

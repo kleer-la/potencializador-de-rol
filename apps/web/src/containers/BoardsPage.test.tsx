@@ -3,7 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Board } from '../api/client.ts';
-import { fakeBackend, json } from '../test-support/fake-backend.ts';
+import { fakeBackend, json, type Routes } from '../test-support/fake-backend.ts';
 import { BoardsPage } from './BoardsPage.tsx';
 
 const summary = {
@@ -42,10 +42,12 @@ const board = (viewer: Board['viewer']): Board => ({
     { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z' },
     { capabilityId: 'capability-3', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
   ],
+  selfAssessment: null,
 });
 
-const owner = { isOwner: true, panelRoles: [], canAdd: false, canRemove: false };
-const leader = { isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true };
+const owner = { isOwner: true, panelRoles: [], canAdd: false, canRemove: false, canSelfAssess: false };
+const leader = { isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true, canSelfAssess: false };
+const selfAssessing = { ...owner, canSelfAssess: true };
 
 afterEach(() => {
   cleanup();
@@ -96,10 +98,10 @@ describe('Mis tableros', () => {
 });
 
 describe('the board', () => {
-  const open = async (viewer: Board['viewer'], extra = {}) => {
+  const open = async (viewer: Board['viewer'], extra: Routes = {}, selfAssessment: Board['selfAssessment'] = null) => {
     const calls = fakeBackend({
       'GET /api/boards': () => json({ mine: [summary], accompanied: [] }),
-      'GET /api/boards/board-1': () => json(board(viewer)),
+      'GET /api/boards/board-1': () => json({ ...board(viewer), selfAssessment }),
       ...extra,
     });
     const user = userEvent.setup();
@@ -144,5 +146,71 @@ describe('the board', () => {
       capabilityId: 'capability-2',
     });
     expect(calls.some((call) => call.route === 'DELETE /api/boards/board-1/capabilities/capability-3')).toBe(true);
+  });
+
+  it('lets the owner propose a level per capability, save a draft and submit after confirming', async () => {
+    const { calls, user } = await open(
+      selfAssessing,
+      {
+        'PUT /api/boards/board-1/self-assessment': (body) => json(body),
+        'POST /api/boards/board-1/self-assessment/submit': () => json({ submittedAt: '2026-11-14T10:00:00Z' }),
+      },
+      { submittedAt: null, levels: [{ capabilityId: 'capability-1', levelId: 'level-0' }] },
+    );
+
+    expect(screen.getByText(/es una propuesta: no es tu línea base y no da puntaje/)).toBeTruthy();
+    expect(screen.getByText('1 de 2 capacidades con nivel')).toBeTruthy();
+    const third = screen.getByRole('radiogroup', { name: 'Comunica por escrito de forma clara' });
+    await user.click(within(third).getByRole('radio', { name: '1 · Principiante' }));
+    expect(screen.getByText('2 de 2 capacidades con nivel')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+    await user.click(screen.getByRole('button', { name: 'Enviar autoevaluación' }));
+    expect(screen.getByText(/Después no podrás cambiarla/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirmar envío' }));
+
+    const levels = [
+      { capabilityId: 'capability-1', levelId: 'level-0' },
+      { capabilityId: 'capability-3', levelId: 'level-1' },
+    ];
+    expect(calls.find((call) => call.route === 'PUT /api/boards/board-1/self-assessment')?.body).toEqual({ levels });
+    const submit = calls.findIndex((call) => call.route.endsWith('/submit'));
+    expect(submit).toBeGreaterThan(-1);
+    // Submitting saves what is on screen first.
+    expect(calls[submit - 1]?.route).toBe('PUT /api/boards/board-1/self-assessment');
+  });
+
+  it('names the capabilities still without a level when the submission is incomplete', async () => {
+    const { user } = await open(
+      selfAssessing,
+      {
+        'PUT /api/boards/board-1/self-assessment': (body) => json(body),
+        'POST /api/boards/board-1/self-assessment/submit': () =>
+          json({ error: 'incomplete', missing: ['capability-3'] }, 422),
+      },
+      { submittedAt: null, levels: [] },
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Enviar autoevaluación' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar envío' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Comunica por escrito de forma clara')).toBeTruthy();
+  });
+
+  it('shows the panel the submitted self-assessment apart from the agreed level', async () => {
+    await open(leader, {}, {
+      submittedAt: '2026-11-14T10:00:00Z',
+      levels: [
+        { capabilityId: 'capability-1', levelId: 'level-1' },
+        { capabilityId: 'capability-3', levelId: 'level-0' },
+      ],
+    });
+
+    const kanban = screen.getByRole('table', { name: 'Tablero' });
+    const first = within(kanban).getByRole('row', { name: /Identifica a quién sirve el producto/ });
+    expect(within(within(first).getAllByRole('cell')[3]!).getByLabelText('Autoevaluación')).toBeTruthy();
+    expect(within(within(first).getAllByRole('cell')[1]!).getByLabelText('Nivel acordado')).toBeTruthy();
+    expect(screen.getByText(/○ autoevaluación/)).toBeTruthy();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 });

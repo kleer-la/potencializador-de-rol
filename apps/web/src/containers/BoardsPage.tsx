@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { ApiError, boardApi, type Board, type BoardSummary } from '../api/client.ts';
+import { ApiError, boardApi, type Board, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
@@ -123,7 +123,14 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
   if (failed) return <p role="alert">{messages.requestFailed}</p>;
   if (board === null) return <p>{messages.loading}</p>;
 
+  if (board.viewer.canSelfAssess) {
+    return <SelfAssessmentEditor board={board} onBack={onBack} onSubmitted={load} />;
+  }
+
   const levelOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
+  const proposed = board.selfAssessment?.submittedAt
+    ? new Map(board.selfAssessment.levels.map((level) => [level.capabilityId, level.levelId]))
+    : null;
   const columns = [null, ...board.levels.map((level) => level.id)];
   const offBoard = board.capabilities.filter((capability) => !levelOf.has(capability.id));
 
@@ -140,6 +147,10 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
         <span className="muted">{board.program.name}</span>
       </header>
       {board.viewer.isOwner && <p className="ds-notice">Tu panel decide qué capacidades trabajas en este programa.</p>}
+      {board.viewer.isOwner && board.selfAssessment?.submittedAt && (
+        <p className="ds-notice">Enviaste tu autoevaluación. Tu panel la usará en la calibración.</p>
+      )}
+      {proposed !== null && <p className="muted">● nivel acordado · ○ autoevaluación</p>}
       {error !== null && (
         <p role="alert" className="alert">
           {error}
@@ -202,8 +213,13 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
                     {columns.map((levelId) => (
                       <td key={levelId ?? 'unplaced'} className="kanban-cell">
                         {levelOf.get(capability.id) === levelId && (
-                          <span className="kanban-dot" aria-label="Aquí">
+                          <span className="kanban-dot" aria-label="Nivel acordado">
                             ●
+                          </span>
+                        )}
+                        {proposed !== null && levelId !== null && proposed.get(capability.id) === levelId && (
+                          <span className="kanban-dot proposed" aria-label="Autoevaluación">
+                            ○
                           </span>
                         )}
                       </td>
@@ -236,6 +252,144 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * The owner's self-assessment: one level per capability on the board, by their own
+ * perception. A proposal for the calibration, never the baseline and never a score
+ * (invariant 2).
+ */
+function SelfAssessmentEditor(props: { board: Board; onBack: () => void; onSubmitted: () => Promise<void> }) {
+  const { board } = props;
+  const onBoard = new Set(board.placements.map((placement) => placement.capabilityId));
+  const capabilities = board.capabilities.filter((capability) => onBoard.has(capability.id));
+  const [chosen, setChosen] = useState(
+    () => new Map((board.selfAssessment?.levels ?? []).map((level) => [level.capabilityId, level.levelId])),
+  );
+  const [error, setError] = useState<{ text: string; missing: string[] } | null>(null);
+  const [saved, setSaved] = useState(false);
+  const placed = capabilities.filter((capability) => chosen.has(capability.id)).length;
+
+  const levels = (): ProposedLevel[] =>
+    capabilities.flatMap((capability) => {
+      const levelId = chosen.get(capability.id);
+      return levelId === undefined ? [] : [{ capabilityId: capability.id, levelId }];
+    });
+
+  const failed = (failure: unknown) => {
+    const missing = failure instanceof ApiError && failure.code === 'incomplete' ? (failure.details.missing as string[]) : [];
+    setError({
+      text:
+        missing.length > 0
+          ? 'Falta un nivel para estas capacidades:'
+          : (failure instanceof ApiError && programErrors[failure.code]) || messages.requestFailed,
+      missing,
+    });
+  };
+
+  const save = async () => {
+    setError(null);
+    setSaved(false);
+    try {
+      await boardApi.saveSelfAssessment(board.id, levels());
+      setSaved(true);
+    } catch (failure) {
+      failed(failure);
+    }
+  };
+
+  const submit = async () => {
+    setError(null);
+    try {
+      await boardApi.saveSelfAssessment(board.id, levels());
+      await boardApi.submitSelfAssessment(board.id);
+      await props.onSubmitted();
+    } catch (failure) {
+      failed(failure);
+    }
+  };
+
+  const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
+
+  return (
+    <div className="stack">
+      <div className="actions">
+        <button type="button" className="secondary" onClick={props.onBack}>
+          Volver a mis tableros
+        </button>
+      </div>
+      <header className="board-header">
+        <h2>Tablero de {board.ownerName}</h2>
+        <span className="muted">{board.program.name}</span>
+      </header>
+      <p className="ds-notice">
+        Tu autoevaluación es una propuesta: no es tu línea base y no da puntaje. Ubica cada capacidad donde crees que
+        estás hoy; tu panel la contrastará con casos reales en la calibración.
+      </p>
+      {error !== null && (
+        <div role="alert" className="alert">
+          <p>{error.text}</p>
+          {error.missing.length > 0 && (
+            <ul>
+              {error.missing.map((capabilityId) => (
+                <li key={capabilityId}>{statement.get(capabilityId) ?? capabilityId}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="panel self-assessment">
+        {board.dimensions.map((dimension) => {
+          const rows = capabilities.filter((capability) => capability.dimensionId === dimension.id);
+          if (rows.length === 0) return null;
+          return (
+            <section key={dimension.id} className="self-assessment-group">
+              <h3>{dimension.name}</h3>
+              {rows.map((capability) => (
+                <div key={capability.id} role="radiogroup" aria-label={capability.statement} className="self-assessment-row">
+                  <span className="statement">{capability.statement}</span>
+                  <span className="level-options">
+                    {board.levels.map((level) => (
+                      <label key={level.id} className="level-option">
+                        <input
+                          type="radio"
+                          name={`level-${capability.id}`}
+                          checked={chosen.get(capability.id) === level.id}
+                          onChange={() => {
+                            setChosen(new Map(chosen).set(capability.id, level.id));
+                            setSaved(false);
+                          }}
+                        />
+                        {level.position} · {level.name}
+                      </label>
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="actions">
+        <span className="muted">
+          {placed} de {capabilities.length} capacidades con nivel
+        </span>
+        <button type="button" onClick={save}>
+          Guardar borrador
+        </button>
+        {saved && <span className="muted">Borrador guardado.</span>}
+        <ConfirmAction
+          label="Enviar autoevaluación"
+          prompt="¿Enviar tu autoevaluación? Después no podrás cambiarla; tu panel la verá en la calibración."
+          confirmLabel="Confirmar envío"
+          variant="primary"
+          onConfirm={submit}
+        />
+      </div>
     </div>
   );
 }

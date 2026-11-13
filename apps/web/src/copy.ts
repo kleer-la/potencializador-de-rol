@@ -113,5 +113,7 @@ export const programErrors: Record<string, string> = {
   baseline_set: 'El tablero ya tiene línea base: no se le pueden quitar capacidades.',
   already_on_board: 'Esa capacidad ya está en el tablero.',
   unknown_reference: 'Esa capacidad no es del mapa del programa.',
+  already_submitted: 'La autoevaluación ya fue enviada y no se puede cambiar.',
+  board_not_open: 'Este tablero ya no admite autoevaluación.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };

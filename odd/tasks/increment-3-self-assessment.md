@@ -40,7 +40,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Domain rules: who self-assesses, what is missing to submit. Specs: S1, S4, S7. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the self-assessment` (see L4).
 - [x] T2 — Persistence: self-assessments and their levels, submission function, Row Level Security, database guards. Specs: S1–S5, S7. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store self-assessments under invariants 2 and 9` (see L5).
 - [x] T3 — API: read with the board, save draft, submit. Specs: S1–S5. Route: inline. Risk: item 2 (permissions). Commit: `feat: self-assessment through the board API` (see L6).
-- [ ] T4 — Web: self-assessment on the board, panel view. Specs: S6. Route: inline. Risk: none expected. Commit: —
+- [x] T4 — Web: self-assessment on the board, panel view. Specs: S6. Route: inline. Risk: none (interface over the existing API). Commit: `feat: self-assessment in the web interface` (see L8).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 1,800 authored changed lines.
@@ -73,3 +73,8 @@ L7 (2026-11-13, review of T1 to T3): native review of commits 1f9e2ca to 014ee21
 - Added route tests: repeated capabilities and a malformed body (`400`), the panel submitting (`403`).
 - Recorded, not changed: the route and storage tests of this increment run in order and share state.
 Checks: `npm test` 260 passed, `npm run typecheck` clean.
+
+L8 (2026-11-13, T4 evidence): RED observed (3 interface tests failing), then GREEN: `npm test` 263 passed in 27 files, `npm run typecheck` and `npm run build` clean.
+- The owner of a board "sin iniciar" sees a self-assessment form: each capability on the board as a group of level choices (radio buttons), "N de M capacidades con nivel", "Guardar borrador", and "Enviar autoevaluación" with confirmation. Submitting saves what is on screen first. An incomplete submission lists the capabilities without a level. The page says the self-assessment is a proposal, not the baseline, and gives no score.
+- After submitting, and for the panel, the board shows the agreed level as ● ("Nivel acordado") and the self-assessment as ○ ("Autoevaluación"), with a legend.
+- Compose and real browser probe with the Product Owner map (participant with 15 capabilities): an incomplete submission listed the 10 missing; the complete one moved the board to "Autoevaluado"; the 15 agreed levels stayed "Sin ubicar" (invariant 2) and the 15 proposals showed as ○. The first browser attempt failed with `403 forbidden_origin` because the probe page used `127.0.0.1` while the API expected `localhost`; with the probe's own origin configured it passed. Not a defect of the application.
