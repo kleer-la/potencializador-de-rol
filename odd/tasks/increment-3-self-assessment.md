@@ -38,7 +38,7 @@ S7. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Domain rules: who self-assesses, what is missing to submit. Specs: S1, S4, S7. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the self-assessment` (see L4).
-- [ ] T2 — Persistence: self-assessments and their levels, submission function, Row Level Security, database guards. Specs: S1–S5, S7. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: —
+- [x] T2 — Persistence: self-assessments and their levels, submission function, Row Level Security, database guards. Specs: S1–S5, S7. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store self-assessments under invariants 2 and 9` (see L5).
 - [ ] T3 — API: read with the board, save draft, submit. Specs: S1–S5. Route: inline. Risk: item 2 (permissions). Commit: —
 - [ ] T4 — Web: self-assessment on the board, panel view. Specs: S6. Route: inline. Risk: none expected. Commit: —
 
@@ -54,3 +54,9 @@ L2 (2026-11-13, context): row 3 of the approved build plan: "Autoevaluación", c
 L3 (2026-11-13, decisions before code): the assumptions marked in S1 and S4 were taken without asking; each can change later without redoing the rest.
 
 L4 (2026-11-13, T1 evidence): RED observed (`self-assessment.ts` missing), then GREEN: unit project 76 passed, `npm run typecheck` clean. Rules: `canWriteSelfAssessment` (owner, until submitted), `canSeeSelfAssessment` (owner; panel once submitted), `missingFromSelfAssessment`.
+
+L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "self_assessments" does not exist`), then GREEN: 8 storage tests (titled `INV-2`, `INV-9`, `INV-11`) and the whole suite, 249 passed in 26 files. Mutation check on migration 0005: letting the panel read a draft failed the `INV-9` draft test; copying the proposed levels into the placements on submit failed the `INV-2` test. Both restored.
+- Migration `0005_self_assessments.sql`: `self_assessments` (one per board, `submitted_at` empty while a draft) and `self_assessment_levels` (one level per capability), with `organization_id`, composite foreign keys and Row Level Security with no super administrator clause.
+- The owner starts and writes their draft; the panel reads it only once submitted; nobody else reads it. The API role has no `UPDATE` or `DELETE` on self-assessments: only `app_submit_self_assessment(board)` submits, for the owner, when every capability on the board has a level; it moves the board from `not_started` to `self_assessed` and touches no placement.
+- A proposed level must be for a capability on the board and of the program's scale. A submitted self-assessment never changes, for every role (SQL state `PM002`); it goes only with its board.
+- Two test expectations were adjusted to the stronger behavior found: the API role is denied `UPDATE` outright, and deleting the levels of a submitted self-assessment as its owner deletes nothing.

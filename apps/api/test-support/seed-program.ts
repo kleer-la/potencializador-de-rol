@@ -61,3 +61,45 @@ export async function enroll(
     )
   ).rows[0]!.id;
 }
+
+export type SeededBoard = {
+  boardId: string;
+  owner: string;
+  leader: string;
+  otherParticipant: string;
+};
+
+/**
+ * A board on the program for a new participant, with a leader on their panel and the
+ * program's base selection as unplaced placements; plus another participant of the same
+ * program, off this panel. Persons are created in the program's organization.
+ */
+export async function seedBoard(
+  ownerPool: pg.Pool,
+  program: SeededProgram,
+  createPerson: (organizationId: string) => Promise<string>,
+): Promise<SeededBoard> {
+  const owner = await createPerson(program.organizationId);
+  const leader = await createPerson(program.organizationId);
+  const otherParticipant = await createPerson(program.organizationId);
+  const participantEnrollment = await enroll(ownerPool, program, owner, 'participant');
+  await enroll(ownerPool, program, otherParticipant, 'participant');
+  const leaderEnrollment = await enroll(ownerPool, program, leader, 'leader');
+  await ownerPool.query(
+    "insert into panel_assignments (organization_id, participant_enrollment_id, member_enrollment_id, role) values ($1, $2, $3, 'leader')",
+    [program.organizationId, participantEnrollment, leaderEnrollment],
+  );
+  const boardId = (
+    await ownerPool.query<{ id: string }>('insert into boards (organization_id, enrollment_id) values ($1, $2) returning id', [
+      program.organizationId,
+      participantEnrollment,
+    ])
+  ).rows[0]!.id;
+  for (const capabilityId of program.capabilityIds.slice(0, 2)) {
+    await ownerPool.query(
+      'insert into placements (organization_id, board_id, capability_id, added_by) values ($1, $2, $3, $4)',
+      [program.organizationId, boardId, capabilityId, leader],
+    );
+  }
+  return { boardId, owner, leader, otherParticipant };
+}
