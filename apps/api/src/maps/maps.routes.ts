@@ -22,6 +22,10 @@ import {
 import { withScope, type Database } from '../infrastructure/scoped-transaction.ts';
 import { createMapStore, Refusal, type MapHeader } from './map-store.ts';
 
+const MAX_CAPABILITIES = 500;
+/** Unique indexes on names, the only unique violations a client can cause on purpose. */
+const NAME_CONSTRAINTS = new Set(['dimensions_name_unique', 'bonus_rules_name_unique']);
+
 const id = z.uuid().toLowerCase();
 const text = (maxLength: number) => z.string().trim().min(1).max(maxLength);
 const description = z.string().trim().max(2000).default('');
@@ -93,7 +97,9 @@ const schemas = {
             .max(200),
         }),
       )
-      .max(50),
+      .max(50)
+      // A map larger than this is not a map of one role; it also bounds the work of one request.
+      .refine((items) => items.reduce((total, item) => total + item.capabilities.length, 0) <= MAX_CAPABILITIES),
   }),
 };
 
@@ -140,7 +146,9 @@ export async function registerMaps(api: FastifyInstance, options: { database: Da
         if (error instanceof Refusal) return reply.code(error.status).send(error.body);
         const code = postgresCode(error);
         if (code === INVARIANT_10_VIOLATION) return reply.code(409).send({ error: 'map_frozen' });
-        if (code === UNIQUE_VIOLATION) return reply.code(409).send({ error: 'name_taken' });
+        if (code === UNIQUE_VIOLATION && NAME_CONSTRAINTS.has(postgresConstraint(error) ?? '')) {
+          return reply.code(409).send({ error: 'name_taken' });
+        }
         throw error;
       }
     };

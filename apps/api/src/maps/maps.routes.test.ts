@@ -194,6 +194,45 @@ describe('capability maps', () => {
       expect(response.json()).toEqual({ error: 'unknown_reference' });
     });
 
+    it('gives one draft to concurrent requests for a new version of the same role', async () => {
+      const roleId = await newRole();
+
+      const responses = await Promise.all(
+        Array.from({ length: 4 }, () => asDesigner('POST', `roles/${roleId}/maps`, {})),
+      );
+
+      expect(responses.map((response) => response.statusCode).sort()).toEqual([201, 409, 409, 409]);
+      for (const response of responses.filter((candidate) => candidate.statusCode === 409)) {
+        expect(response.json()).toEqual({ error: 'draft_exists' });
+      }
+    });
+
+    it('copies a new version only from a frozen version of the same role', async () => {
+      const draft = await completeDraft();
+      const other = await completeDraft();
+      await publish(other.mapId);
+
+      const fromDraft = await asDesigner('POST', `roles/${draft.roleId}/maps`, { copyFrom: draft.mapId });
+      const fromOtherRole = await asDesigner('POST', `roles/${draft.roleId}/maps`, { copyFrom: other.mapId });
+
+      for (const response of [fromDraft, fromOtherRole]) {
+        expect(response.statusCode).toBe(409);
+        expect(response.json()).toEqual({ error: 'invalid_source' });
+      }
+    });
+
+    it('refuses two dimensions with the same name in one map', async () => {
+      const draft = await completeDraft();
+
+      const response = await asDesigner('POST', `maps/${draft.mapId}/dimensions`, {
+        name: 'ENTENDER',
+        kind: 'transversal',
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({ error: 'name_taken' });
+    });
+
     it('keeps one draft per role and discards it with its content', async () => {
       const draft = await completeDraft();
 
@@ -373,6 +412,24 @@ describe('capability maps', () => {
         ofSuffix.find((tool) => tool.name.startsWith('Jobs'))!.id,
       ]);
       expect(map.dimensions[1].capabilities[0]).toMatchObject({ difficulty: 'low', objectiveIds: [expect.any(String)] });
+    });
+
+    it('refuses a file larger than the limits of a map', async () => {
+      const roleId = await newRole();
+      const capabilities = Array.from({ length: 101 }, (_, index) => ({ statement: `Capacidad ${index}` }));
+      const oversized = {
+        ...file('z'),
+        dimensions: Array.from({ length: 6 }, (_, index) => ({
+          name: `Dimensión ${index}`,
+          kind: 'transversal',
+          capabilities,
+        })),
+      };
+
+      const response = await asDesigner('POST', `roles/${roleId}/maps/import`, oversized);
+
+      expect(response.statusCode).toBe(400);
+      expect((await ok(await asDesigner('GET', `roles/${roleId}/maps`))).maps).toEqual([]);
     });
 
     it('refuses a file in another format, and a role that already has a draft', async () => {

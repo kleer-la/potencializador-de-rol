@@ -110,3 +110,10 @@ Endpoints under `/api/organizations/:organizationId` (read: members; write: map 
 Answers: `409 map_frozen` (state refuses the change), `409 invalid_transition`, `422 cannot_publish` with the obstacles, `409 draft_exists`, `409 name_taken`, `400 unknown_reference` (tool or objective not in the organization's catalog), `404` for a map, role or element not in the organization, including for a super administrator addressing it through another organization.
 Import format `potencializador.capability-map/v1`: scale, bonus rules, dimensions with capabilities; tools and objectives by name, matched ignoring case and created in the catalog when missing; `prioritized` accepted and not stored.
 The map row is locked (`FOR UPDATE`) at the start of every operation, so publishing and editing the same map serialize.
+
+L10 (2026-11-13, review of T4): native review of commits a14232d and 15436d7 (lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged; no blocking finding. Handled in a follow-up commit (4 new tests; RED observed only for the size limit, the other three passed before the fix and now pin the behavior):
+- Import was unbounded in practice (one insert and one select per tool name). It now accepts at most 500 capabilities and resolves each catalog with one insert and one select.
+- Every unique violation answered `name_taken`. Only the name indexes of dimensions and bonus rules do now; anything else is a server error.
+- Draft creation now locks the role, so concurrent requests get one draft and `draft_exists`, never a version collision. Test sends four at once.
+- Added the test for `invalid_source` (copy from a draft, copy from another role) and for a repeated dimension name.
+Checks: `npm test` 144 passed, `npm run typecheck` clean.

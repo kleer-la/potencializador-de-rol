@@ -65,11 +65,13 @@ export function createMapStore(tx: ScopedTransaction, organizationId: string) {
   const inOrganization = <T extends { organizationId: never }>(table: T) =>
     eq((table as unknown as typeof roles).organizationId, organizationId);
 
+  /** The role, locked: versions of one role are created one at a time. */
   const requireRole = async (roleId: string) => {
     const [role] = await tx
       .select({ id: roles.id })
       .from(roles)
-      .where(and(eq(roles.id, roleId), inOrganization(roles as never)));
+      .where(and(eq(roles.id, roleId), inOrganization(roles as never)))
+      .for('update');
     if (role === undefined) throw new Refusal(404, { error: 'not_found' });
   };
 
@@ -421,17 +423,20 @@ export function createMapStore(tx: ScopedTransaction, organizationId: string) {
      */
     async catalogIds(kind: 'tools' | 'objectives', names: string[]): Promise<Map<string, string>> {
       const table = kind === 'tools' ? tools : strategicObjectives;
+      // First spelling of each name wins; one insert and one select for all of them.
+      const byKey = new Map<string, string>();
+      for (const name of names) if (!byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
       const ids = new Map<string, string>();
-      for (const name of names) {
-        const key = name.toLowerCase();
-        if (ids.has(key)) continue;
-        await tx.insert(table).values({ organizationId, name }).onConflictDoNothing();
-        const [found] = await tx
-          .select({ id: table.id })
-          .from(table)
-          .where(and(inOrganization(table as never), sql`lower(${table.name}) = ${key}`));
-        ids.set(key, found!.id);
-      }
+      if (byKey.size === 0) return ids;
+      await tx
+        .insert(table)
+        .values([...byKey.values()].map((name) => ({ organizationId, name })))
+        .onConflictDoNothing();
+      const found = await tx
+        .select({ id: table.id, name: table.name })
+        .from(table)
+        .where(and(inOrganization(table as never), inArray(sql`lower(${table.name})`, [...byKey.keys()])));
+      for (const row of found) ids.set(row.name.toLowerCase(), row.id);
       return ids;
     },
   };
