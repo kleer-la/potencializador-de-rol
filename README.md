@@ -28,6 +28,42 @@ docker compose up --build
 Open `http://localhost:8080`. The API is served under `/api` by the same port; `GET /api/health`
 answers `{"status":"ok"}` when the API reaches the database.
 
+### Backups
+
+`scripts/backup-db.sh` dumps the database of the running stack into
+`~/backups/potencializador/potencializador_<timestamp>.sql.gz` and deletes dumps older than 30 days.
+`POTENCIALIZADOR_BACKUP_DIR` and `POTENCIALIZADOR_BACKUP_RETENTION_DAYS` override both. The script
+fails without writing a file when the `db` service is not running or the dump is incomplete.
+
+To run it every day, schedule it with cron or a systemd user timer, for example:
+
+```ini
+# ~/.config/systemd/user/potencializador-db-backup.service
+[Service]
+Type=oneshot
+ExecStart="/path/to/repo/scripts/backup-db.sh"
+
+# ~/.config/systemd/user/potencializador-db-backup.timer
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+systemctl --user enable --now potencializador-db-backup.timer
+```
+
+To restore a dump over the database of the stack (the `potencializador_app` role must exist, which
+the `migrate` service creates):
+
+```sh
+gunzip -c potencializador_<timestamp>.sql.gz \
+  | docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
 The `migrate` service applies pending migrations from `apps/api/migrations` before the API starts.
 A migration that was applied is never edited: the runner stores a checksum and stops if a file
 changed. Add a new file instead.
