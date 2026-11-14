@@ -33,13 +33,13 @@ export const passwordErrors: Record<string, string> = {
   too_many_attempts: 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.',
   invalid_password: 'La contraseña debe tener entre 10 y 128 caracteres.',
   invalid_request: 'Revisa el correo escrito.',
-  confirmation_failed: 'El enlace venció o ya se usó. Vuelve a crear tu contraseña para recibir uno nuevo.',
+  confirmation_failed: 'El enlace venció o ya se usó. Pide uno nuevo en «Crear contraseña».',
 };
 
 export const passwordMessages = {
   linkSent:
-    'Si tu correo tiene una invitación, te enviamos un enlace para confirmar tu contraseña. Revisa tu bandeja de entrada.',
-  confirmIntro: 'Confirma tu correo para activar tu contraseña.',
+    'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
+  confirmIntro: 'Elige tu contraseña para terminar de confirmar tu correo.',
 };
 
 export const messages = {

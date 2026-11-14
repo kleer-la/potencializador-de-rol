@@ -27,10 +27,10 @@ describe('sign-in with an email and a password', () => {
     return { personId, email };
   };
 
-  const register = (email: string, password = PASSWORD) =>
-    app.inject({ method: 'POST', url: '/api/auth/password/register', payload: { email, password } });
-  const confirm = (token: string) =>
-    app.inject({ method: 'POST', url: '/api/auth/password/confirm', payload: { token } });
+  const register = (email: string) =>
+    app.inject({ method: 'POST', url: '/api/auth/password/register', payload: { email } });
+  const confirm = (token: string, password = PASSWORD) =>
+    app.inject({ method: 'POST', url: '/api/auth/password/confirm', payload: { token, password } });
   const login = (email: string, password = PASSWORD) =>
     app.inject({ method: 'POST', url: '/api/auth/password/login', payload: { email, password } });
   const me = (session: string | undefined) =>
@@ -91,14 +91,14 @@ describe('sign-in with an email and a password', () => {
     expect(response.json()).toEqual({ providers: [], password: true });
   });
 
-  it('mails an invited person a link to the public address that confirms the password and signs in', async () => {
+  it('mails an invited person a link to the public address where they choose the password and are signed in', async () => {
     const invited = await invitedPerson();
 
     const registration = await register(invited.email.toUpperCase());
     const mail = await nextMail();
 
     expect(registration.statusCode).toBe(202);
-    expect(mail).toMatchObject({ to: invited.email, subject: 'Confirma tu correo' });
+    expect(mail).toMatchObject({ to: invited.email, subject: 'Crea tu contraseña' });
     expect(mail!.text).toContain('Hola, Test Person:');
     expect(mail!.text).toMatch(/https:\/\/app\.example\.test\/\?confirm=[\w-]{43}\b/);
 
@@ -120,18 +120,46 @@ describe('sign-in with an email and a password', () => {
     expect(stored.rowCount).toBe(0);
   });
 
-  it('refuses a password shorter than 10 or longer than 128 characters, and a malformed request', async () => {
+  it('refuses a password shorter than 10 or longer than 128 characters, keeping the link usable', async () => {
     const invited = await invitedPerson();
+    await register(invited.email);
+    const token = tokenFrom(await nextMail())!;
 
-    expect((await register(invited.email, 'x'.repeat(9))).json()).toEqual({ error: 'invalid_password' });
-    expect((await register(invited.email, 'x'.repeat(129))).json()).toEqual({ error: 'invalid_password' });
-    expect((await register('not-an-email')).json()).toEqual({ error: 'invalid_request' });
-    expect((await register(invited.email, 'x'.repeat(9))).statusCode).toBe(400);
-    expect(await nextMail()).toBeUndefined();
-    expect((await register(invited.email, 'x'.repeat(10))).statusCode).toBe(202);
+    for (const password of ['x'.repeat(9), 'x'.repeat(129)]) {
+      const response = await confirm(token, password);
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'invalid_password' });
+      expect(sessionOf(response)).toBeUndefined();
+    }
+    expect((await confirm(token, 'x'.repeat(10))).statusCode).toBe(204);
   });
 
-  it('does not sign in with a password that was not confirmed', async () => {
+  it('refuses a malformed registration and mails nothing', async () => {
+    const response = await register('not-an-email');
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'invalid_request' });
+    expect(await nextMail()).toBeUndefined();
+  });
+
+  it('never lets whoever asks for the link choose the password', async () => {
+    const invited = await invitedPerson();
+    // Anyone may ask for the link of an invited email; the request carries no password.
+    const request = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password/register',
+      payload: { email: invited.email, password: 'an attacker password' },
+    });
+    expect(request.statusCode).toBe(202);
+
+    // The person opens the link from their mailbox and chooses their own password.
+    expect((await confirm(tokenFrom(await nextMail())!, PASSWORD)).statusCode).toBe(204);
+
+    expect((await login(invited.email, 'an attacker password')).statusCode).toBe(401);
+    expect((await login(invited.email, PASSWORD)).statusCode).toBe(204);
+  });
+
+  it('does not sign in before the link was used to choose a password', async () => {
     const invited = await invitedPerson();
     await register(invited.email);
 
@@ -183,6 +211,20 @@ describe('sign-in with an email and a password', () => {
     expect((await login(person.email)).statusCode).toBe(204);
   });
 
+  it('checks no more than 5 passwords per lock, even when they arrive at the same time', async () => {
+    const person = await confirmedPerson();
+
+    const wrong = await Promise.all(
+      Array.from({ length: 20 }, () => login(person.email, 'not the password')),
+    );
+    const right = await login(person.email);
+
+    expect(wrong.filter((response) => response.statusCode === 401)).toHaveLength(5);
+    expect(wrong.filter((response) => response.statusCode === 429)).toHaveLength(15);
+    expect(right.statusCode).toBe(429);
+    expect(sessionOf(right)).toBeUndefined();
+  });
+
   it('clears the failure count after a successful sign-in', async () => {
     const person = await confirmedPerson();
     for (let attempt = 0; attempt < 4; attempt += 1) await login(person.email, 'not the password');
@@ -219,33 +261,39 @@ describe('sign-in with an email and a password', () => {
     expect((await login(invited.email)).statusCode).toBe(401);
   });
 
-  it('replaces a pending password and its link when registering again', async () => {
+  it('replaces a pending link when asked again', async () => {
     const invited = await invitedPerson();
-    await register(invited.email, 'first password!');
+    await register(invited.email);
     const firstToken = tokenFrom(await nextMail())!;
-    await register(invited.email, 'second password!');
+    await register(invited.email);
     const secondToken = tokenFrom(await nextMail())!;
 
     expect((await confirm(firstToken)).statusCode).toBe(400);
     expect((await confirm(secondToken)).statusCode).toBe(204);
-    expect((await login(invited.email, 'first password!')).statusCode).toBe(401);
-    expect((await login(invited.email, 'second password!')).statusCode).toBe(204);
   });
 
-  it('never replaces a confirmed password by registering again, and mails nothing', async () => {
+  it('mails no link to a person who already has a password, and keeps it', async () => {
     const person = await confirmedPerson();
 
-    expect((await register(person.email, 'an attacker password')).statusCode).toBe(202);
+    expect((await register(person.email)).statusCode).toBe(202);
 
     expect(await nextMail()).toBeUndefined();
-    expect((await login(person.email, 'an attacker password')).statusCode).toBe(401);
     expect((await login(person.email)).statusCode).toBe(204);
   });
 
-  it('stores only a hash of the password and of the link', async () => {
+  it('stores only a hash of the link, then only a hash of the password', async () => {
     const invited = await invitedPerson();
     await register(invited.email);
     const token = tokenFrom(await nextMail())!;
+    const pending = (
+      await ownerPool.query<{ password_hash: string | null; confirmation_token_hash: string }>(
+        'select password_hash, confirmation_token_hash from password_credentials where person_id = $1',
+        [invited.personId],
+      )
+    ).rows[0]!;
+    expect(pending.password_hash).toBeNull();
+    expect(pending.confirmation_token_hash).not.toBe(token);
+    await confirm(token);
 
     const stored = (
       await ownerPool.query<{ password_hash: string; confirmation_token_hash: string }>(
@@ -256,7 +304,7 @@ describe('sign-in with an email and a password', () => {
 
     expect(stored.password_hash).toMatch(/^scrypt\$16384\$8\$1\$/);
     expect(stored.password_hash).not.toContain(PASSWORD);
-    expect(stored.confirmation_token_hash).not.toBe(token);
+    expect(stored.confirmation_token_hash).toBeNull();
   });
 
   it('answers 202 even when the mail cannot be sent', async () => {

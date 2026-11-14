@@ -21,8 +21,8 @@ const explain = (error: unknown) =>
   (error instanceof ApiError ? passwordErrors[error.code] : undefined) ?? messages.requestFailed;
 
 export function SignInPage({ options, onSignedIn }: Props) {
-  // The mailed link opens `/?confirm=<token>`. Confirming takes a click, not the page load,
-  // so a mail scanner that opens the link does not use it up.
+  // The mailed link opens `/?confirm=<token>`, where the person chooses the password. Only
+  // submitting it uses the link, so a mail scanner that opens the link does not use it up.
   const [confirmToken, setConfirmToken] = useState(() => address().get('confirm'));
   const [error, setError] = useState<string | null>(errorFromAddress);
   const [notice, setNotice] = useState<string | null>(null);
@@ -59,19 +59,22 @@ export function SignInPage({ options, onSignedIn }: Props) {
           onSignedIn();
         })
       }
-      onRegister={(email, password) =>
+      onRequestLink={(email) =>
         run(async () => {
-          await api.registerPassword(email, password);
+          await api.requestPasswordLink(email);
           setNotice(passwordMessages.linkSent);
         })
       }
-      onConfirm={() =>
+      onChoosePassword={(password) =>
         run(async () => {
           try {
-            await api.confirmPassword(confirmToken ?? '');
-          } finally {
-            leaveConfirmation();
+            await api.confirmPassword(confirmToken ?? '', password);
+          } catch (failure) {
+            // A refused password keeps the link for another try; a used or expired link does not.
+            if (!(failure instanceof ApiError && failure.code === 'invalid_password')) leaveConfirmation();
+            throw failure;
           }
+          leaveConfirmation();
           onSignedIn();
         })
       }

@@ -45,35 +45,45 @@ export function createIdentityStore(db: Database) {
     },
 
     /**
-     * Stores a pending password for an invited person. Returns their name when a confirmation
-     * link must be mailed; `null` when nobody has that email or their password is confirmed.
+     * Stores a confirmation link for an invited person. Returns their name when the link must
+     * be mailed; `null` when nobody has that email or the person already has a password.
      */
-    async registerPassword(email: string, passwordHash: string, token: string, expiresAt: Date): Promise<string | null> {
+    async registerPassword(email: string, token: string, expiresAt: Date): Promise<string | null> {
       const result = await db.execute<{ name: string | null }>(
-        sql`select app_password_register(${email}, ${passwordHash}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz) as name`,
+        sql`select app_password_register(${email}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz) as name`,
       );
       return result.rows[0]?.name ?? null;
     },
 
-    /** The person whose password the link confirms, or `null` for an unknown, expired or used link. */
-    async confirmPassword(token: string): Promise<string | null> {
+    /**
+     * Sets the password chosen on the page of the link. Returns the person, or `null` for an
+     * unknown, expired or used link.
+     */
+    async confirmPassword(token: string, passwordHash: string): Promise<string | null> {
       const result = await db.execute<{ person_id: string | null }>(
-        sql`select app_password_confirm(${hashToken(token)}) as person_id`,
+        sql`select app_password_confirm(${hashToken(token)}, ${passwordHash}) as person_id`,
       );
       return result.rows[0]?.person_id ?? null;
     },
 
-    /** The confirmed password of the person with that email, or `null`. */
-    async findPassword(email: string): Promise<{ personId: string; passwordHash: string; locked: boolean } | null> {
-      const result = await db.execute<{ person_id: string; password_hash: string; locked: boolean }>(
-        sql`select person_id, password_hash, locked from app_password_credential(${email})`,
+    /**
+     * Reserves one password check, counted as a failure until `passwordSucceeded`.
+     * `null`: nobody with that email has a password. `locked`: too many failures in a row.
+     */
+    async beginPasswordAttempt(
+      email: string,
+    ): Promise<{ locked: true } | { locked: false; personId: string; passwordHash: string } | null> {
+      const result = await db.execute<{ person_id: string; password_hash: string | null; locked: boolean }>(
+        sql`select person_id, password_hash, locked from app_password_begin_attempt(${email})`,
       );
       const row = result.rows[0];
-      return row === undefined ? null : { personId: row.person_id, passwordHash: row.password_hash, locked: row.locked };
+      if (row === undefined) return null;
+      if (row.locked || row.password_hash === null) return { locked: true };
+      return { locked: false, personId: row.person_id, passwordHash: row.password_hash };
     },
 
-    async recordPasswordAttempt(personId: string, succeeded: boolean): Promise<void> {
-      await db.execute(sql`select app_password_attempt(${personId}::uuid, ${succeeded})`);
+    async passwordSucceeded(personId: string): Promise<void> {
+      await db.execute(sql`select app_password_succeeded(${personId}::uuid)`);
     },
 
     async describePerson(personId: string): Promise<CurrentPerson | null> {

@@ -89,12 +89,14 @@ Without them a Microsoft first sign-in is refused as not invited.
 
 ### Email and password
 
-Offered only when mail is configured. An invited person chooses a password (10 to 128 characters)
-under "Crear contraseña"; the system mails a link valid for 24 hours and for one use, and the
-password works only once the link is opened. Registering answers the same for any email, so it does
-not reveal who was invited. Registering again before confirming replaces the pending password; a
-confirmed password is never replaced this way. Five wrong passwords in a row lock sign-in with a
-password for 15 minutes. Passwords are stored as scrypt hashes. There is no password reset yet.
+Offered only when mail is configured. Under "Crear contraseña" an invited person writes their email;
+the system mails a link valid for 24 hours and for one use, and the person chooses the password on
+the page that link opens (10 to 128 characters). Whoever asks for the link never chooses the
+password, so knowing someone's email is not enough to take their account. Asking answers the same
+for any email, so it does not reveal who was invited. Asking again replaces a pending link; a person
+who already has a password gets no link. Five wrong passwords in a row lock sign-in with a password
+for 15 minutes; the database counts each check before it runs, so parallel requests cannot exceed
+that. Passwords are stored as scrypt hashes. There is no password reset yet.
 
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |

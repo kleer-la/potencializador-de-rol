@@ -159,47 +159,27 @@ describe('sin sesión', () => {
     );
   });
 
-  it('crea una contraseña y avisa que llega un enlace por correo', async () => {
+  it('pide el enlace para crear contraseña con solo el correo', async () => {
     const calls = fakeBackend({ ...withPassword, 'POST /api/auth/password/register': () => ({ status: 202 }) });
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Crear contraseña' }));
+    expect(screen.queryByLabelText('Contraseña')).toBeNull();
     await user.type(screen.getByLabelText('Correo'), 'ana@example.test');
-    await user.type(screen.getByLabelText('Contraseña nueva'), 'una contraseña larga');
     await user.click(screen.getByRole('button', { name: 'Enviar enlace' }));
 
     expect(
       await screen.findByText(
-        'Si tu correo tiene una invitación, te enviamos un enlace para confirmar tu contraseña. Revisa tu bandeja de entrada.',
+        'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
       ),
     ).toBeTruthy();
     expect(calls.find((call) => call.route === 'POST /api/auth/password/register')?.body).toEqual({
       email: 'ana@example.test',
-      password: 'una contraseña larga',
     });
   });
 
-  it('explica una contraseña nueva que no cumple el largo', async () => {
-    fakeBackend({
-      ...withPassword,
-      'POST /api/auth/password/register': () => ({ status: 400, body: { error: 'invalid_password' } }),
-    });
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Crear contraseña' }));
-    expect(screen.getByLabelText('Contraseña nueva').getAttribute('minlength')).toBe('10');
-    await user.type(screen.getByLabelText('Correo'), 'ana@example.test');
-    await user.type(screen.getByLabelText('Contraseña nueva'), 'una contraseña larga');
-    await user.click(screen.getByRole('button', { name: 'Enviar enlace' }));
-
-    expect((await screen.findByRole('alert')).textContent).toBe(
-      'La contraseña debe tener entre 10 y 128 caracteres.',
-    );
-  });
-
-  it('confirma el correo desde el enlace y entra', async () => {
+  it('elige la contraseña desde el enlace y entra', async () => {
     window.history.replaceState({}, '', '/?confirm=token-1');
     let signedIn = false;
     const calls = fakeBackend({
@@ -217,14 +197,40 @@ describe('sin sesión', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Confirmar correo' }));
+    const field = await screen.findByLabelText('Contraseña nueva');
+    expect(field.getAttribute('minlength')).toBe('10');
+    expect(screen.queryByRole('link')).toBeNull();
+    await user.type(field, 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
 
     expect(await screen.findByText('Ana Gómez')).toBeTruthy();
-    expect(calls.find((call) => call.route === 'POST /api/auth/password/confirm')?.body).toEqual({ token: 'token-1' });
+    expect(calls.find((call) => call.route === 'POST /api/auth/password/confirm')?.body).toEqual({
+      token: 'token-1',
+      password: 'una contraseña larga',
+    });
     expect(window.location.search).toBe('');
   });
 
-  it('explica un enlace de confirmación vencido o ya usado', async () => {
+  it('explica una contraseña nueva que no cumple el largo y deja intentar de nuevo', async () => {
+    window.history.replaceState({}, '', '/?confirm=token-1');
+    fakeBackend({
+      ...withPassword,
+      'POST /api/auth/password/confirm': () => ({ status: 400, body: { error: 'invalid_password' } }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(await screen.findByLabelText('Contraseña nueva'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'La contraseña debe tener entre 10 y 128 caracteres.',
+    );
+    expect(screen.getByLabelText('Contraseña nueva')).toBeTruthy();
+    expect(window.location.search).toBe('?confirm=token-1');
+  });
+
+  it('explica un enlace vencido o ya usado y vuelve al ingreso', async () => {
     window.history.replaceState({}, '', '/?confirm=token-1');
     fakeBackend({
       ...withPassword,
@@ -233,11 +239,13 @@ describe('sin sesión', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Confirmar correo' }));
+    await user.type(await screen.findByLabelText('Contraseña nueva'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'El enlace venció o ya se usó. Vuelve a crear tu contraseña para recibir uno nuevo.',
+      'El enlace venció o ya se usó. Pide uno nuevo en «Crear contraseña».',
     );
+    expect(screen.getByRole('button', { name: 'Crear contraseña' })).toBeTruthy();
   });
 
   it('avisa cuando el servicio no responde', async () => {

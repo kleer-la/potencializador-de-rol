@@ -108,9 +108,10 @@ export const api = {
     return { providers: options.providers, password: options.password === true };
   },
   /** Answers the same whether the email was invited or not. */
-  registerPassword: (email: string, password: string) =>
-    request<void>('/auth/password/register', 'POST', { email, password }),
-  confirmPassword: (token: string) => request<void>('/auth/password/confirm', 'POST', { token }),
+  requestPasswordLink: (email: string) => request<void>('/auth/password/register', 'POST', { email }),
+  /** Sets the password chosen on the page the mailed link opens, and signs in. */
+  confirmPassword: (token: string, password: string) =>
+    request<void>('/auth/password/confirm', 'POST', { token, password }),
   passwordSignIn: (email: string, password: string) =>
     request<void>('/auth/password/login', 'POST', { email, password }),
   signOut: () => request<void>('/auth/logout', 'POST'),
