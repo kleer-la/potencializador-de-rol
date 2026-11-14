@@ -38,8 +38,8 @@ export const passwordErrors: Record<string, string> = {
 
 export const passwordMessages = {
   linkSent:
-    'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
-  confirmIntro: 'Elige tu contraseña para terminar de confirmar tu correo.',
+    'Si tu correo tiene una invitación, te enviamos un enlace para elegir tu contraseña. Revisa tu bandeja de entrada.',
+  confirmIntro: 'Elige tu contraseña. Si ya tenías una, esta la reemplaza.',
 };
 
 export const messages = {
