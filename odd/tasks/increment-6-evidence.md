@@ -85,3 +85,8 @@ L8 (2026-11-13, T4 evidence): RED observed (5 interface tests failing), then GRE
 - Owner and panel record evidence ("Hecho", "Fecha del hecho", "Enlace (opcional)", "Muestra que enseñó a otros"). The owner proposes a level change (only placed capabilities and levels above the current one; levels that require transfer say so) and a bonus, choosing the evidence; a refused proposal lists its problems in Spanish. A panel member approves or rejects with a note (buttons named after what they decide) and records mentoring sessions with the experiments of the current cycle.
 - Deleting evidence is in the API only; the interface does not offer it yet.
 - Existing interface test fixtures gained the new board fields; their assertions did not change.
+
+L9 (2026-11-13, review of T3 and T4): native review of commits `45bc2ec` to `f8b489c` (escalated for item 2, permissions; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit (`npm test` green, `npm run typecheck` clean):
+- The default "Fecha del hecho" and "Fecha de la sesión" took the UTC date, a day ahead in the evening in Colombia. They now take the local date (unit case at 21:30 local time).
+- The review warned that migration 0008 was edited after its first commit (the `app_board_evidence` revoke). It exists only on this branch and has run only in throwaway test databases; no shared or user database has applied it. Once merged it is never edited again.
+- Recorded, not changed: the route tests of this increment share state and run in order, as in earlier increments.

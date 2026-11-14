@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Board } from '../api/client.ts';
 import { fakeBackend, json, type Routes } from '../test-support/fake-backend.ts';
 import { BoardView } from './BoardsPage.tsx';
+import { localToday } from './Evidence.tsx';
 
 const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   isOwner: true,
@@ -136,6 +137,14 @@ async function open(who: Board['viewer'], routes: Routes = {}) {
   const region = (name: string) => screen.getByRole('region', { name });
   return { calls, user, region };
 }
+
+describe('default dates', () => {
+  it('use the local date, not the UTC one', () => {
+    // 21:30 on 15 December in a time zone behind UTC is already 16 December in UTC.
+    const lateEvening = new Date(2026, 11, 15, 21, 30);
+    expect(localToday(lateEvening)).toBe('2026-12-15');
+  });
+});
 
 describe('evidence', () => {
   it('lists the facts and lets the owner record one, saying whether it shows transfer', async () => {

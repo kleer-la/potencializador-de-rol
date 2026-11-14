@@ -15,7 +15,12 @@ const failureOf = (error: unknown): Failure => {
   return { text: (error instanceof ApiError && evidenceErrors[error.code]) || messages.requestFailed, items: [] };
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+/** Today in the person's own time zone, as a date input expects it. */
+export const localToday = (now = new Date()) => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+const today = () => localToday();
 
 /**
  * Evidence and what is decided with it, after the baseline: level changes (invariants 4 to
