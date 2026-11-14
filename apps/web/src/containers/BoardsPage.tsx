@@ -3,6 +3,7 @@ import { ApiError, boardApi, type Board, type BoardSummary, type ProposedLevel }
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineSummary, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
+import { EvidenceSections } from './Evidence.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
 /** The boards a person owns and the ones they accompany, and the board they open. */
@@ -238,6 +239,7 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       <BaselineSummary board={board} />
       <InitialLevels board={board} onDone={load} />
       <CycleSection board={board} onChanged={load} />
+      <EvidenceSections board={board} onChanged={load} />
 
       {board.viewer.canAdd && offBoard.length > 0 && (
         <section className="panel">

@@ -128,6 +128,29 @@ export const cycleErrors: Record<string, string> = {
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };
 
+export const decisionStateLabels = { proposed: 'Propuesto', approved: 'Aprobado', rejected: 'Rechazado' } as const;
+
+/** Why a level change proposal does not stand, by problem code. */
+export const proposalProblemLabels: Record<string, string> = {
+  unplaced: 'La capacidad todavía no tiene nivel.',
+  not_above: 'El nivel propuesto debe estar por encima del actual.',
+  no_evidence: 'Elige al menos una evidencia.',
+  no_transfer_evidence: 'Ese nivel exige una evidencia de haber enseñado a otros.',
+};
+
+/** Messages for the `error` code of refused evidence, proposals, bonuses and sessions. */
+export const evidenceErrors: Record<string, string> = {
+  no_baseline: 'Las evidencias y los cambios de nivel empiezan después de la línea base.',
+  unknown_reference: 'Hay una evidencia, capacidad o experimento que no es de este tablero.',
+  proposal_open: 'Esa capacidad ya tiene un cambio de nivel propuesto.',
+  board_changed: 'El tablero cambió mientras se proponía. Vuelve a abrirlo.',
+  already_decided: 'Ya se decidió.',
+  no_longer_above: 'El nivel propuesto ya no está por encima del actual.',
+  already_awarded: 'Esa bonificación ya está propuesta o aprobada para esa capacidad.',
+  evidence_cited: 'Esa evidencia ya sustenta una propuesta y no se puede borrar.',
+  invalid_request: 'Revisa los datos: hay un valor que no es válido.',
+};
+
 /** Messages for the `error` code of a refused calibration or initial level. */
 export const calibrationErrors: Record<string, string> = {
   baseline_set: 'El tablero ya tiene línea base: la calibración no se repite.',

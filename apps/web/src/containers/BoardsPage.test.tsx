@@ -48,6 +48,11 @@ const board = (viewer: Board['viewer']): Board => ({
   calibration: null,
   baseline: null,
   cycle: null,
+  evidence: [],
+  proposals: [],
+  bonuses: [],
+  bonusRules: [],
+  mentoringSessions: [],
 });
 
 const owner = {
@@ -61,6 +66,10 @@ const owner = {
   canPlanCycle: false,
   canStartCycle: false,
   canReviewExperiments: false,
+  canRecordEvidence: false,
+  canProposeChanges: false,
+  canDecideProposals: false,
+  canRecordMentoring: false,
 };
 const leader = { ...owner, isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true };
 const selfAssessing = { ...owner, canSelfAssess: true };

@@ -17,6 +17,10 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   canPlanCycle: true,
   canStartCycle: false,
   canReviewExperiments: false,
+  canRecordEvidence: false,
+  canProposeChanges: false,
+  canDecideProposals: false,
+  canRecordMentoring: false,
   ...overrides,
 });
 const leader = viewer({ isOwner: false, panelRoles: ['leader'], canAdd: true, canStartCycle: true, canReviewExperiments: true });
@@ -49,6 +53,11 @@ const board = (cycle: Cycle | null, who = viewer({})): Board => ({
   calibration: null,
   baseline: { setAt: '2026-11-20T15:00:00Z', entries: [] },
   cycle,
+  evidence: [],
+  proposals: [],
+  bonuses: [],
+  bonusRules: [],
+  mentoringSessions: [],
 });
 
 const planned: Cycle = {

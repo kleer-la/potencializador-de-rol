@@ -17,6 +17,10 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   canPlanCycle: false,
   canStartCycle: false,
   canReviewExperiments: false,
+  canRecordEvidence: false,
+  canProposeChanges: false,
+  canDecideProposals: false,
+  canRecordMentoring: false,
   ...overrides,
 });
 
@@ -52,6 +56,11 @@ const base: Board = {
   calibration: null,
   baseline: null,
   cycle: null,
+  evidence: [],
+  proposals: [],
+  bonuses: [],
+  bonusRules: [],
+  mentoringSessions: [],
 };
 
 const calibrated: Board = {

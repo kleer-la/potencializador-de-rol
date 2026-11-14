@@ -47,7 +47,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Domain rules: who proposes and decides, proposal validity (above current level, evidence, transfer), bonus uniqueness. Specs: S1–S5, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of evidence, level changes and bonuses` (see L4).
 - [x] T2 — Persistence: evidence, level change proposals, bonus awards, mentoring sessions; decision functions; guards; Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store evidence, level changes, bonuses and mentoring under invariants 4 to 7` (see L5).
 - [x] T3 — API: read with the board; evidence, proposals, decisions, bonuses, sessions. Specs: S1–S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: evidence, level changes, bonuses and mentoring through the board API` (see L7).
-- [ ] T4 — Web: evidence, proposals, bonuses and sessions on the board. Specs: S7. Route: inline. Risk: none (interface over the API).
+- [x] T4 — Web: evidence, proposals, bonuses and sessions on the board. Specs: S7. Route: inline. Risk: none (interface over the API). Commit: `feat: evidence, level changes, bonuses and mentoring in the web interface` (see L8).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 2,800 authored changed lines.
@@ -79,3 +79,9 @@ L7 (2026-11-13, T3 evidence): RED observed (5 of 6 route tests failing), then GR
 - `POST .../level-proposals` {capabilityId, levelId, evidenceIds}: `201`; `403` not the owner, `422 invalid_proposal` with `problems` (`unplaced`, `not_above`, `no_evidence`, `no_transfer_evidence`), `400 unknown_reference` (evidence of another board), `409 proposal_open`. `POST .../level-proposals/:id/decision` {approve, note}: `200`; `403` not on the panel, `409 already_decided`, `409 no_longer_above`.
 - `POST .../bonuses` {capabilityId, bonusRuleId, evidenceIds}: `201`; `422 invalid_bonus` (`no_evidence`), `409 already_awarded`, `400 unknown_reference`. `POST .../bonuses/:id/decision`: as for proposals.
 - `POST .../mentoring-sessions` {heldOn, notes, experimentIds}: `201`; `403` not on the panel, `400 unknown_reference`.
+
+L8 (2026-11-13, T4 evidence): RED observed (5 interface tests failing), then GREEN: `npm test` 355 passed in 39 files, `npm run typecheck` and `npm run build` clean.
+- On a board with a baseline, owner and panel see four sections: "Evidencias" (fact, date, author, link opened in a new tab, "Enseñó a otros"), "Cambios de nivel" (capability → level, state, cited evidence, decision note), "Bonificaciones" (the map's rules with points and condition, and the bonuses with their state) and "Mentorías" (date, who recorded it, notes, experiments reviewed).
+- Owner and panel record evidence ("Hecho", "Fecha del hecho", "Enlace (opcional)", "Muestra que enseñó a otros"). The owner proposes a level change (only placed capabilities and levels above the current one; levels that require transfer say so) and a bonus, choosing the evidence; a refused proposal lists its problems in Spanish. A panel member approves or rejects with a note (buttons named after what they decide) and records mentoring sessions with the experiments of the current cycle.
+- Deleting evidence is in the API only; the interface does not offer it yet.
+- Existing interface test fixtures gained the new board fields; their assertions did not change.

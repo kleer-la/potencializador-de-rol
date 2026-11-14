@@ -252,6 +252,10 @@ export type Board = {
     canPlanCycle: boolean;
     canStartCycle: boolean;
     canReviewExperiments: boolean;
+    canRecordEvidence: boolean;
+    canProposeChanges: boolean;
+    canDecideProposals: boolean;
+    canRecordMentoring: boolean;
   };
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
@@ -265,7 +269,28 @@ export type Board = {
   baseline: Baseline | null;
   /** The cycle that is not closed, with its focuses and experiments; `null` if none. */
   cycle: Cycle | null;
+  evidence: Evidence[];
+  proposals: LevelProposal[];
+  bonuses: BonusAward[];
+  bonusRules: { id: string; name: string; extraPoints: number; condition: string }[];
+  mentoringSessions: MentoringSession[];
 };
+export type Evidence = {
+  id: string;
+  description: string;
+  link: string | null;
+  occurredOn: string;
+  showsTransfer: boolean;
+  experimentId: string | null;
+  authorId: string;
+  authorName: string;
+};
+export type DecisionState = 'proposed' | 'approved' | 'rejected';
+type Decided = { id: string; capabilityId: string; state: DecisionState; proposedAt: string; decidedAt: string | null; decisionNote: string; evidenceIds: string[] };
+export type LevelProposal = Decided & { proposedLevelId: string };
+export type BonusAward = Decided & { bonusRuleId: string };
+export type MentoringSession = { id: string; heldOn: string; notes: string; recordedByName: string; experimentIds: string[] };
+export type NewEvidence = { description: string; occurredOn: string; link?: string; showsTransfer: boolean };
 export type CycleState = 'planned' | 'active' | 'closed';
 export type ExperimentState = 'planned' | 'in_progress' | 'reviewed';
 export type ExperimentResult = 'consolidated' | 'not_consolidated' | 'discarded';
@@ -331,6 +356,18 @@ export const boardApi = {
     request<{ startedAt: string }>(`/boards/${boardId}/cycles/${cycleId}/start`, 'POST'),
   moveExperiment: (boardId: string, experimentId: string, move: ExperimentMove) =>
     request<unknown>(`/boards/${boardId}/experiments/${experimentId}`, 'PATCH', move),
+  recordEvidence: (boardId: string, fact: NewEvidence) =>
+    request<{ evidenceId: string }>(`/boards/${boardId}/evidence`, 'POST', fact),
+  proposeLevel: (boardId: string, proposal: { capabilityId: string; levelId: string; evidenceIds: string[] }) =>
+    request<{ proposalId: string }>(`/boards/${boardId}/level-proposals`, 'POST', proposal),
+  decideLevel: (boardId: string, proposalId: string, approve: boolean, note: string) =>
+    request<unknown>(`/boards/${boardId}/level-proposals/${proposalId}/decision`, 'POST', { approve, note }),
+  proposeBonus: (boardId: string, bonus: { capabilityId: string; bonusRuleId: string; evidenceIds: string[] }) =>
+    request<{ bonusId: string }>(`/boards/${boardId}/bonuses`, 'POST', bonus),
+  decideBonus: (boardId: string, bonusId: string, approve: boolean, note: string) =>
+    request<unknown>(`/boards/${boardId}/bonuses/${bonusId}/decision`, 'POST', { approve, note }),
+  recordMentoring: (boardId: string, session: { heldOn: string; notes: string; experimentIds: string[] }) =>
+    request<{ mentoringSessionId: string }>(`/boards/${boardId}/mentoring-sessions`, 'POST', session),
   recordInitialLevel: (boardId: string, level: ProposedLevel) =>
     request<{ levelChangeId: string }>(`/boards/${boardId}/initial-levels`, 'POST', level),
 };
