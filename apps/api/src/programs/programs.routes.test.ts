@@ -13,6 +13,7 @@ describe('programs, enrollments and panels', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
   let app: FastifyInstance;
+  let signInAs: (email: string) => Promise<string>;
   let seed: ReturnType<typeof createSeeder>;
   let organizationA: string;
   let organizationB: string;
@@ -41,6 +42,7 @@ describe('programs, enrollments and panels', () => {
     appPool = new pg.Pool({ connectionString: inject('appDatabaseUrl') });
     const signedIn = createSignedInApp(appPool);
     app = signedIn.app;
+    signInAs = signedIn.signInAs;
     seed = createSeeder(ownerPool);
     organizationA = await seed.organization();
     organizationB = await seed.organization();
@@ -268,6 +270,46 @@ describe('programs, enrollments and panels', () => {
       expect(firmAsParticipant.json()).toEqual({ error: 'firm_person_cannot_participate' });
       expect([unknown.statusCode, ofB.statusCode]).toEqual([404, 404]);
       expect(ofB.json()).toEqual(unknown.json());
+    });
+
+    it('invites an unknown email with a name and enrolls the new person in one step, who can then sign in', async () => {
+      const email = `${randomUUID()}@example.test`;
+      const response = await asAdmin('POST', `programs/${program.programId}/enrollments`, {
+        email,
+        name: '  Sofía Peña ',
+        roles: ['specialist'],
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({ enrollments: [{ id: expect.any(String), role: 'specialist' }], boardId: null });
+      const stored = await ownerPool.query('select id, name, organization_id from persons where email = $1', [email]);
+      expect(stored.rows).toEqual([{ id: expect.any(String), name: 'Sofía Peña', organization_id: organizationA }]);
+      const memberships = await ownerPool.query('select count(*)::int as n from organization_memberships where person_id = $1', [
+        stored.rows[0].id,
+      ]);
+      expect(memberships.rows[0].n).toBe(0);
+      const me = (await app.inject({ method: 'GET', url: '/api/me', cookies: { session: await signInAs(email) } })).json();
+      expect(me).toMatchObject({ person: { email }, memberships: [] });
+    });
+
+    it('enrolls an existing person ignoring the name, and refuses an email of another organization alike', async () => {
+      const again = await asAdmin('POST', `programs/${program.programId}/enrollments`, {
+        email: emails.leader,
+        name: 'Otro nombre',
+        roles: ['leader'],
+      });
+      const ofB = await asAdmin('POST', `programs/${program.programId}/enrollments`, {
+        email: emails.personOfB,
+        name: 'Alguien',
+        roles: ['leader'],
+      });
+
+      expect(again.statusCode).toBe(201);
+      const leaderName = await ownerPool.query('select name from persons where email = $1', [emails.leader]);
+      expect(leaderName.rows[0].name).not.toBe('Otro nombre');
+      expect([ofB.statusCode, ofB.json()]).toEqual([409, { error: 'invitation_not_possible' }]);
+      const stillOne = await ownerPool.query('select count(*)::int as n from persons where lower(email) = lower($1)', [emails.personOfB]);
+      expect(stillOne.rows[0].n).toBe(1);
     });
 
     it('assigns the panel, names the mandatory roles still missing, and refuses an invalid assignment', async () => {

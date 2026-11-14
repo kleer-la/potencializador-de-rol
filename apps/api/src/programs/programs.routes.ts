@@ -13,6 +13,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createOrganizationAccess, type OrganizationPolicy } from '../access/organization-access.ts';
+import { findOrInvitePerson } from '../organizations/invite-person.ts';
 import { Refusal } from '../maps/map-store.ts';
 import { postgresCode } from '../infrastructure/postgres-errors.ts';
 import {
@@ -59,6 +60,8 @@ const programChange = z
 const selectionInput = z.object({ capabilityIds: z.array(id).max(500) });
 const enrollmentInput = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
+  // Needed only when nobody has this email yet: the person is invited and enrolled at once.
+  name: z.string().trim().min(1).max(120).optional(),
   roles: z
     .array(z.enum(ENROLLMENT_ROLES))
     .min(1)
@@ -282,9 +285,14 @@ export async function registerPrograms(api: FastifyInstance, options: { database
         const found = await tx.execute<{ id: string; is_firm_person: boolean }>(
           sql`select id, is_firm_person from app_find_enrollable_person(${body.email})`,
         );
-        const person = found.rows[0];
-        // Unknown and another organization's person answer alike.
-        if (person === undefined) throw new Refusal(404, { error: 'person_not_found' });
+        let person = found.rows[0];
+        if (person === undefined) {
+          // Unknown and another organization's person answer alike.
+          if (body.name === undefined) throw new Refusal(404, { error: 'person_not_found' });
+          const invited = await findOrInvitePerson(tx, organizationId, body.email, body.name);
+          if (invited === 'email_taken') throw new Refusal(409, { error: 'invitation_not_possible' });
+          person = { id: invited.person.id, is_firm_person: false };
+        }
         if (body.roles.some((role) => !canEnrollAs({ isFirmPerson: person.is_firm_person }, role))) {
           throw new Refusal(400, { error: 'firm_person_cannot_participate' });
         }

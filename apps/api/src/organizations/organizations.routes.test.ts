@@ -185,6 +185,17 @@ describe('organizations and memberships', () => {
     });
   });
 
+  it('lets an administrator invite a person without an organization role', async () => {
+    const email = newEmail();
+
+    const invited = await invite(sessions.administratorA, organizationA, { email, name: 'Pedro Gil' });
+    const listed = await call(sessions.administratorA, 'GET', `/api/organizations/${organizationA}/members`);
+
+    expect(invited.statusCode).toBe(201);
+    expect(invited.json()).toEqual({ personId: expect.any(String), name: 'Pedro Gil', email, roles: [] });
+    expect(listed.json().members).toContainEqual({ personId: invited.json().personId, name: 'Pedro Gil', email, roles: [] });
+  });
+
   it('adds a second role to an existing member without duplicating the person, and repeats safely', async () => {
     const email = newEmail();
     const body = { email, name: 'Marta Ruiz' };

@@ -8,6 +8,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createOrganizationAccess } from '../access/organization-access.ts';
+import { findOrInvitePerson } from './invite-person.ts';
 import { organizationMemberships, organizations, persons } from '../infrastructure/schema.ts';
 import { withScope, type Database } from '../infrastructure/scoped-transaction.ts';
 
@@ -15,7 +16,8 @@ const organizationInput = z.object({ name: z.string().trim().min(1).max(120) });
 const invitationInput = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
   name: z.string().trim().min(1).max(120),
-  role: z.enum(MEMBERSHIP_ROLES),
+  // Without a role, the person belongs to the organization only to be enrolled in programs.
+  role: z.enum(MEMBERSHIP_ROLES).optional(),
 });
 
 type Member = { personId: string; name: string; email: string; roles: MembershipRole[] };
@@ -115,32 +117,16 @@ export async function registerOrganizations(
     const { email, name, role } = input.data;
 
     const outcome = await withScope(db, scope, async (tx) => {
-        const findInOrganization = () =>
-          tx
-            .select({ id: persons.id, name: persons.name, email: persons.email })
-            .from(persons)
-            .where(and(eq(persons.organizationId, organizationId), sql`lower(${persons.email}) = ${email}`));
+        const found = await findOrInvitePerson(tx, organizationId, email, name);
+        if (found === 'email_taken') return 'email_taken' as const;
+        const { person: invited, created } = found;
 
-        let [invited] = await findInOrganization();
-        let created = false;
-        if (invited === undefined) {
-          // Emails are unique across organizations. No row comes back when the email is
-          // taken: by a concurrent invitation to this organization, or by a person elsewhere.
-          [invited] = await tx
-            .insert(persons)
-            .values({ organizationId, email, name })
-            .onConflictDoNothing()
-            .returning({ id: persons.id, name: persons.name, email: persons.email });
-          created = invited !== undefined;
-          if (invited === undefined) [invited] = await findInOrganization();
-          // Still nothing: it belongs to a person the caller cannot see.
-          if (invited === undefined) return 'email_taken' as const;
+        if (role !== undefined) {
+          await tx
+            .insert(organizationMemberships)
+            .values({ organizationId, personId: invited.id, role })
+            .onConflictDoNothing();
         }
-
-        await tx
-          .insert(organizationMemberships)
-          .values({ organizationId, personId: invited.id, role })
-          .onConflictDoNothing();
         const roles = await tx
           .select({ role: organizationMemberships.role })
           .from(organizationMemberships)
