@@ -2,12 +2,17 @@ import {
   canAdjustSelection,
   bonusProblems,
   canCalibrate,
+  canCloseBoard,
+  canCloseCycle,
   canDecideProposal,
   canMoveExperiment,
   canProposeChange,
   canRecordEvidence,
+  canRecalibrate,
   canRecordMentoring,
+  computeScore,
   isEvidenceLink,
+  withChanges,
   proposalProblems,
   canPlanCycle,
   canRecordInitialLevel,
@@ -41,6 +46,9 @@ import {
   mentoringSessionExperiments,
   mentoringSessions,
   proposalEvidence,
+  recalibrationAttendees,
+  recalibrationSessions,
+  snapshots,
   calibrationAttendees,
   calibrationLevels,
   calibrationSessions,
@@ -118,6 +126,16 @@ const mentoringInput = z.object({
   experimentIds: z.array(id).max(100),
 });
 
+const recalibrationInput = z.object({
+  heldOn: z.iso.date(),
+  notes: z.string().max(5000).default(''),
+  attendees: z.array(id).max(50),
+  levels: z
+    .array(z.object({ capabilityId: id, levelId: id }))
+    .max(500)
+    .refine((levels) => new Set(levels.map((level) => level.capabilityId)).size === levels.length),
+});
+
 const NOT_FOUND = { error: 'not_found' } as const;
 
 type BoardRow = {
@@ -164,6 +182,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return withScope(db, { personId, organizationId }, async (tx) => {
       const [row] = await tx.select().from(boards).where(eq(boards.id, boardId));
       if (row === undefined) throw new Refusal(404, NOT_FOUND);
+      // A closed board is read-only for everyone (migration 0009 refuses it as well).
+      if (request.method !== 'GET' && row.status === 'closed') throw new Refusal(409, { error: 'board_closed' });
       const panel = await tx
         .select({ personId: enrollments.personId, role: panelAssignments.role })
         .from(panelAssignments)
@@ -358,6 +378,85 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return rows;
   };
 
+  /** Today's score with its breakdowns, its evolution from the baseline, and the recalibrations. */
+  const readProgress = async (tx: ScopedTransaction, boardId: string, baselineSetAt: Date, topMultiplier: number) => {
+    const placedRows = await tx
+      .select({
+        placementId: placements.id,
+        capabilityId: placements.capabilityId,
+        dimensionId: capabilities.dimensionId,
+        difficulty: capabilities.difficulty,
+        multiplier: levels.multiplier,
+      })
+      .from(placements)
+      .innerJoin(capabilities, eq(capabilities.id, placements.capabilityId))
+      .innerJoin(dimensions, eq(dimensions.id, capabilities.dimensionId))
+      .leftJoin(levels, eq(levels.id, placements.levelId))
+      .where(eq(placements.boardId, boardId))
+      .orderBy(asc(dimensions.position), asc(capabilities.position));
+    const approved = await tx
+      .select({ placementId: bonusAwards.placementId, points: sql<string>`sum(${bonusRules.extraPoints})` })
+      .from(bonusAwards)
+      .innerJoin(bonusRules, eq(bonusRules.id, bonusAwards.bonusRuleId))
+      .where(and(eq(bonusAwards.boardId, boardId), eq(bonusAwards.state, 'approved')))
+      .groupBy(bonusAwards.placementId);
+    const bonusOf = new Map(approved.map((row) => [row.placementId, Number(row.points)]));
+    const score = computeScore(
+      placedRows.map((row) => ({
+        capabilityId: row.capabilityId,
+        dimensionId: row.dimensionId,
+        difficulty: row.difficulty,
+        multiplier: row.multiplier === null ? null : Number(row.multiplier),
+        bonusPoints: bonusOf.get(row.placementId) ?? 0,
+      })),
+      topMultiplier,
+    );
+    // The baseline counts its entries, each capability added later with its initial level;
+    // no bonus exists before it.
+    const [baseline] = await tx
+      .select({ total: sql<string>`coalesce(sum(${levels.multiplier}), 0)`, count: sql<number>`count(*)::int` })
+      .from(baselineEntries)
+      .innerJoin(levels, eq(levels.id, baselineEntries.levelId))
+      .where(eq(baselineEntries.boardId, boardId));
+    const taken = await tx
+      .select({ kind: snapshots.kind, takenAt: snapshots.takenAt, score: snapshots.score, count: snapshots.capabilityCount })
+      .from(snapshots)
+      .where(eq(snapshots.boardId, boardId))
+      .orderBy(asc(snapshots.takenAt));
+    const point = (kind: string, date: Date | string, total: number, count: number) => ({
+      kind,
+      date,
+      total,
+      capabilities: count,
+      maximum: count * topMultiplier,
+    });
+    const evolution = withChanges([
+      point('baseline', baselineSetAt, Number(baseline?.total ?? 0), baseline?.count ?? 0),
+      ...taken.map((snapshot) => point(snapshot.kind, snapshot.takenAt, Number(snapshot.score), snapshot.count)),
+      point('today', new Date(), score.total, score.capabilities),
+    ]);
+    const sessions = await tx
+      .select({ id: recalibrationSessions.id, heldOn: recalibrationSessions.heldOn, notes: recalibrationSessions.notes })
+      .from(recalibrationSessions)
+      .where(eq(recalibrationSessions.boardId, boardId))
+      .orderBy(asc(recalibrationSessions.recordedAt));
+    const attendees = await tx
+      .select({ sessionId: recalibrationAttendees.recalibrationSessionId, personId: recalibrationAttendees.personId, name: persons.name })
+      .from(recalibrationAttendees)
+      .innerJoin(persons, eq(persons.id, recalibrationAttendees.personId))
+      .where(eq(recalibrationAttendees.boardId, boardId));
+    return {
+      score,
+      evolution,
+      recalibrations: sessions.map((session) => ({
+        ...session,
+        attendees: attendees
+          .filter((attendee) => attendee.sessionId === session.id)
+          .map(({ personId, name }) => ({ personId, name })),
+      })),
+    };
+  };
+
   /** A cycle of this board, or a 404 as for anything not on it. */
   const cycleOfBoard = async (tx: ScopedTransaction, boardId: string, cycleId: string) => {
     const [cycle] = await tx
@@ -508,6 +607,11 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         const calibration = await readCalibration(tx, row.id, byMapOrder);
         const cycle = await readOpenCycle(tx, row.id, program!.maxFocuses, byMapOrder);
         const history = await readEvidenceAndDecisions(tx, row.id, program!.mapId);
+        const topMultiplier = Math.max(0, ...scale.map((level) => Number(level.multiplier)));
+        const progress =
+          row.baselineSetAt === null
+            ? { score: null, evolution: [], recalibrations: [] }
+            : await readProgress(tx, row.id, row.baselineSetAt, topMultiplier);
         const baseline =
           row.baselineSetAt === null
             ? null
@@ -547,7 +651,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             panel,
             status: row.status,
             hasBaseline: access.hasBaseline,
-            viewer: {
+            viewer: readOnlyWhenClosed(row.status, {
               isOwner: personId === access.ownerPersonId,
               panelRoles: access.panel.filter((member) => member.personId === personId).map((member) => member.role).sort(),
               canAdd: canAdjustSelection(personId, access, 'add'),
@@ -562,7 +666,10 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               canProposeChanges: canProposeChange(personId, access),
               canDecideProposals: canDecideProposal(personId, access),
               canRecordMentoring: canRecordMentoring(personId, access),
-            },
+              canCloseCycle: cycle !== null && canCloseCycle(personId, access, cycle.state),
+              canRecalibrate: canRecalibrate(personId, access, row.status),
+              canCloseBoard: canCloseBoard(personId, access, row.status) && (cycle === null || cycle.state === 'closed'),
+            }),
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
             capabilities: capabilityRows,
@@ -577,6 +684,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             cycle,
             // Facts of the board and what was proposed and decided with them (invariants 4 to 7).
             ...history,
+            // The maturity score of this board only: no list or program view carries it (invariant 9).
+            ...progress,
           },
         };
       }),
@@ -1105,4 +1214,88 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       }),
     );
   });
+
+  api.post('/boards/:boardId/cycles/:cycleId/close', async (request, reply) => {
+    const params = cycleParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        if (!canCloseCycle(personId, access, 'active')) throw new Refusal(403, { error: 'forbidden' });
+        if (cycle.state !== 'active') throw new Refusal(409, { error: 'cycle_not_active' });
+        try {
+          const snapshot = await tx.execute<{ id: string }>(sql`select app_close_cycle(${cycle.id}::uuid) as id`);
+          return { body: { snapshotId: snapshot.rows[0]!.id } };
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_active' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/recalibration', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = recalibrationInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!isOnPanel(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (!canRecalibrate(personId, access, row.status)) throw new Refusal(409, { error: 'not_between_cycles' });
+        const { attendees, levels: agreed } = body.data;
+        const onBoard = new Set([access.ownerPersonId, ...access.panel.map((member) => member.personId)]);
+        if (attendees.some((attendee) => !onBoard.has(attendee))) throw new Refusal(400, { error: 'unknown_reference' });
+        const [program] = await tx
+          .select({ mandatoryPanelRoles: programs.mandatoryPanelRoles })
+          .from(programs)
+          .where(eq(programs.id, row.programId));
+        const absent = missingAttendance(attendees, access, program!.mandatoryPanelRoles);
+        if (absent.participant || absent.roles.length > 0) {
+          throw new Refusal(422, { error: 'attendance', participantMissing: absent.participant, missingRoles: absent.roles });
+        }
+        const missing = missingFromCalibration(await capabilitiesOnBoard(tx, row.id), agreed);
+        if (missing.length > 0) throw new Refusal(422, { error: 'incomplete', missing });
+        try {
+          const recorded = await tx.execute<{ id: string }>(
+            sql`select app_recalibrate_board(${row.id}::uuid, ${body.data.heldOn}::date, ${body.data.notes},
+                  ${`{${attendees.join(',')}}`}::uuid[], ${JSON.stringify(agreed)}::jsonb) as id`,
+          );
+          return { status: 201, body: { recalibrationId: recorded.rows[0]!.id } };
+        } catch (error) {
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          if (postgresCode(error) === 'PM031') throw new Refusal(409, { error: 'panel_changed' });
+          if (postgresCode(error) === 'PM050' || postgresConstraint(error) === 'recalibration_sessions_one_per_gap') {
+            throw new Refusal(409, { error: 'already_recalibrated' });
+          }
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/close', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!isOnPanel(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (!canCloseBoard(personId, access, row.status)) throw new Refusal(409, { error: 'cycle_open' });
+        try {
+          await tx.execute(sql`select app_close_board(${row.id}::uuid)`);
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_open' });
+          throw error;
+        }
+        return { body: { status: 'closed' } };
+      }),
+    );
+  });
+}
+
+/** Every permission of a closed board is off: it no longer changes (migration 0009). */
+function readOnlyWhenClosed<T extends Record<string, unknown>>(status: string, viewer: T): T {
+  if (status !== 'closed') return viewer;
+  return Object.fromEntries(
+    Object.entries(viewer).map(([key, value]) => [key, key.startsWith('can') ? false : value]),
+  ) as T;
 }

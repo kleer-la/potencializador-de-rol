@@ -213,7 +213,8 @@ describe('cycles, focuses and experiments', () => {
       cookies: { session: closingLeader },
       headers: { origin: TEST_PUBLIC_URL.origin },
     });
-    expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'board_not_ready' }]);
+    // A closed board refuses every change before anything else (increment 7).
+    expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'board_closed' }]);
 
     const foreignCycle = (
       await ownerPool.query<{ id: string }>(

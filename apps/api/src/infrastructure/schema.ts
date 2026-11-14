@@ -334,3 +334,34 @@ export const mentoringSessionExperiments = pgTable('mentoring_session_experiment
   mentoringSessionId: uuid('mentoring_session_id').notNull(),
   experimentId: uuid('experiment_id').notNull(),
 });
+
+export const snapshots = pgTable('snapshots', {
+  id: uuid('id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  kind: text('kind', { enum: ['recalibration', 'cycle_close'] }).notNull(),
+  cycleId: uuid('cycle_id'),
+  takenAt: timestamp('taken_at', { withTimezone: true }).notNull(),
+  capabilityCount: integer('capability_count').notNull(),
+  score: numeric('score', { precision: 10, scale: 2 }).notNull(),
+  recordedBy: uuid('recorded_by').notNull(),
+});
+
+export const recalibrationSessions = pgTable('recalibration_sessions', {
+  id: uuid('id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  heldOn: date('held_on', { mode: 'string' }).notNull(),
+  notes: text('notes').notNull(),
+  snapshotId: uuid('snapshot_id').notNull(),
+  afterCycleId: uuid('after_cycle_id').notNull(),
+  recordedBy: uuid('recorded_by').notNull(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+});
+
+export const recalibrationAttendees = pgTable('recalibration_attendees', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  recalibrationSessionId: uuid('recalibration_session_id').notNull(),
+  personId: uuid('person_id').notNull(),
+});

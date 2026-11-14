@@ -130,6 +130,9 @@ describe('boards', () => {
       canProposeChanges: false,
       canDecideProposals: false,
       canRecordMentoring: false,
+      canCloseCycle: false,
+      canRecalibrate: false,
+      canCloseBoard: false,
     });
     expect(mentor.json().placements).toHaveLength(2);
   });

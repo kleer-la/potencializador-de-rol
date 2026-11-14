@@ -206,7 +206,8 @@ describe('self-assessment', () => {
     expect(byOwner.status).toBe('self_assessed');
     expect(byOwner.selfAssessment.submittedAt).toEqual(expect.any(String));
     expect(byOwner.placements.every((placement: { levelId: string | null }) => placement.levelId === null)).toBe(true);
-    expect(JSON.stringify(byOwner)).not.toMatch(/score|puntaje/i);
+    // No score comes from a self-assessment: the board has none until its baseline.
+    expect([byOwner.score, byOwner.evolution]).toEqual([null, []]);
   });
 
   it('INV-9 shows the submitted self-assessment to the panel, and to nobody else', async () => {

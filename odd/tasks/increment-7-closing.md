@@ -46,7 +46,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: score, maximum, breakdowns, evolution; who closes and recalibrates. Specs: S1, S2, S4–S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the score, closing and recalibration` (see L5).
 - [x] T2 — Persistence: snapshots and their entries; close cycle, recalibrate and close board functions; closed-board guards; Row Level Security. Specs: S3–S7, S9. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store snapshots, recalibrations and closed boards` (see L6).
-- [ ] T3 — API: score and evolution with the board; close cycle, recalibrate, close board. Specs: S1–S7. Route: inline. Risk: item 2 (permissions).
+- [x] T3 — API: score and evolution with the board; close cycle, recalibrate, close board. Specs: S1–S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: score, evolution, closing and recalibration through the board API` (see L8).
 - [ ] T4 — Web: score, evolution, breakdowns; close cycle, recalibration, close board. Specs: S8. Route: inline. Risk: none (interface over the API).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
@@ -75,3 +75,10 @@ L7 (2026-11-13, review of T1 and T2): native review of commits `f057c5a` and `06
 - "One recalibration between cycles" compared timestamps, which tie inside one transaction. Each recalibration now names the cycle it follows (`after_cycle_id`, unique).
 - Added closed-board cases for proposing a level change and a bonus.
 - Recorded, not changed: the storage tests of this increment share one board and run in order, as in earlier increments.
+
+L8 (2026-11-13, T3 evidence): RED observed (4 of 5 route tests failing), then GREEN: `npm test` 373 passed in 42 files, `npm run typecheck` clean.
+- `GET /api/boards/:boardId` adds `score` (`total`, `maximum`, `capabilities`, `byDimension`, `byDifficulty`; `null` before the baseline), `evolution` (baseline, each snapshot in order, today; each with total, capabilities, maximum and `change`), `recalibrations` (date, notes, attendees), and `viewer.canCloseCycle`, `canRecalibrate`, `canCloseBoard`. On a closed board every `viewer.can*` is false.
+- `POST .../cycles/:cycleId/close` (panel): `200`; `403`, `409 cycle_not_active`. `POST .../recalibration` {heldOn, notes, attendees, levels} (panel, between cycles): `201`; `403`, `409 not_between_cycles`, `422 attendance`, `422 incomplete`, `400 unknown_reference`, `409 already_recalibrated`, `409 panel_changed`. `POST .../close` (panel): `200`; `403`, `409 cycle_open`.
+- Any change to a closed board answers `409 board_closed` before anything else. Changed existing answers, by this rule: starting a planned cycle on a closed board answered `409 board_not_ready` and now answers `409 board_closed` (its test updated).
+- Existing tests adjusted: the whole-`viewer` comparison gains three fields; the INV-2 case that searched the body for "score" now asserts `score: null` and an empty evolution before the baseline (stronger).
+- INV-9: `GET /api/boards` and the program detail carry no score or evolution (route test).
