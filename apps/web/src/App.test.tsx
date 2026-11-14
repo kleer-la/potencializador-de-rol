@@ -266,20 +266,18 @@ describe('diseñador del mapa', () => {
 });
 
 describe('participante sin rol en la organización', () => {
-  it('llega a sus tableros y puede ir a organizaciones', async () => {
-    fakeBackend({
+  it('llega a sus tableros y no ve el menú de organizaciones', async () => {
+    const calls = fakeBackend({
       ...signedInAs({ isSuperAdmin: false, memberships: [] }),
       'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [] } }),
-      'GET /api/organizations': () => ({ status: 200, body: { organizations: [] } }),
     });
-    const user = userEvent.setup();
 
     render(<App />);
 
     expect(await screen.findByText('Todavía no tienes tableros. Aparecen cuando te inscriben en un programa.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Tableros' }).getAttribute('aria-current')).toBe('page');
-    await user.click(screen.getByRole('button', { name: 'Organizaciones' }));
-    expect(await screen.findByText('Todavía no hay organizaciones.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Organizaciones' })).toBeNull();
+    expect(calls.some((call) => call.route.includes('/organizations'))).toBe(false);
   });
 });
 
