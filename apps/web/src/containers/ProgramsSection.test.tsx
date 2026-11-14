@@ -151,6 +151,24 @@ describe('programs', () => {
     expect(within(panel).getByText('Faltan: Especialista, Mentor')).toBeTruthy();
   });
 
+  it('invites and enrolls someone new when their name is given', async () => {
+    const { calls, user } = await openProgram(true, false, {
+      [`POST ${base}/programs/program-1/enrollments`]: () => json({ enrollments: [], boardId: null }, 201),
+    });
+
+    expect(screen.getByText(/Si la persona todavía no está en la organización, escribe su nombre/)).toBeTruthy();
+    await user.type(screen.getByLabelText('Correo de la persona'), 'nueva@uni.test');
+    await user.type(screen.getByLabelText('Nombre (si es nueva)'), 'Sofía Peña');
+    await user.click(within(screen.getByRole('group', { name: 'Roles en el programa' })).getByRole('checkbox', { name: 'Líder' }));
+    await user.click(screen.getByRole('button', { name: 'Inscribir' }));
+
+    expect(calls.find((call) => call.route.endsWith('/enrollments'))?.body).toEqual({
+      email: 'nueva@uni.test',
+      name: 'Sofía Peña',
+      roles: ['leader'],
+    });
+  });
+
   it('enrolls a person by email with their roles, and assigns a panel member', async () => {
     const { calls, user } = await openProgram(true, false, {
       [`POST ${base}/programs/program-1/enrollments`]: () => json({ enrollments: [], boardId: null }, 201),

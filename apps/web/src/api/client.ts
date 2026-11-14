@@ -18,7 +18,8 @@ export type CurrentPerson = {
 
 export type Organization = { id: string; name: string };
 export type Member = { personId: string; name: string; email: string; roles: MembershipRole[] };
-export type Invitation = { email: string; name: string; role: MembershipRole };
+/** Without `role`, the person joins the organization only to be enrolled in programs. */
+export type Invitation = { email: string; name: string; role?: MembershipRole };
 
 export type Role = { id: string; name: string; description: string };
 export type Tool = { id: string; name: string; description: string; link: string | null };
@@ -200,11 +201,12 @@ export function programApi(organizationId: string) {
     update: (programId: string, settings: ProgramSettings) => request<Program>(at(`/${programId}`), 'PATCH', settings),
     setSelection: (programId: string, capabilityIds: string[]) =>
       request<unknown>(at(`/${programId}/selection`), 'PUT', { capabilityIds }),
-    enroll: (programId: string, email: string, roles: EnrollmentRole[]) =>
+    /** With `name`, someone not in the organization yet is invited and enrolled at once. */
+    enroll: (programId: string, email: string, roles: EnrollmentRole[], name?: string) =>
       request<{ enrollments: { id: string; role: EnrollmentRole }[]; boardId: string | null }>(
         at(`/${programId}/enrollments`),
         'POST',
-        { email, roles },
+        name === undefined ? { email, roles } : { email, name, roles },
       ),
     unenroll: (programId: string, enrollmentId: string) =>
       request<void>(at(`/${programId}/enrollments/${enrollmentId}`), 'DELETE'),

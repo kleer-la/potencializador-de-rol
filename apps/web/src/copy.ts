@@ -142,7 +142,8 @@ export const calibrationErrors: Record<string, string> = {
 /** Messages for the `error` code of a refused program or board change. */
 export const programErrors: Record<string, string> = {
   map_not_published: 'Solo se puede usar una versión publicada del mapa.',
-  person_not_found: 'Ese correo no corresponde a una persona de la organización ni de Kleer. Invítala primero.',
+  person_not_found: 'Ese correo no corresponde a una persona de la organización ni de Kleer. Escribe su nombre para invitarla e inscribirla.',
+  invitation_not_possible: 'No se pudo invitar ese correo. Si crees que es un error, contacta a soporte.',
   firm_person_cannot_participate: 'Una persona de Kleer puede acompañar, pero no participar.',
   invalid_panel: 'Esa persona no está inscrita en el programa con ese rol.',
   baseline_set: 'El tablero ya tiene línea base: no se le pueden quitar capacidades.',

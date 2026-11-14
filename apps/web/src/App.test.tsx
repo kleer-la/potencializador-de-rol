@@ -196,6 +196,29 @@ describe('administrador de una organización', () => {
     });
   });
 
+  it('invita a una persona sin rol en la organización', async () => {
+    const calls = fakeBackend({
+      ...administrator,
+      'GET /api/organizations': () => ({ status: 200, body: { organizations: [organizationA] } }),
+      'GET /api/organizations/org-a/members': () => ({ status: 200, body: { members } }),
+      'POST /api/organizations/org-a/members': (body) => ({ status: 201, body: { personId: 'person-3', roles: [], ...(body as object) } }),
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Universidad A' }));
+    await screen.findByRole('table', { name: 'Personas de Universidad A' });
+    await user.type(screen.getByLabelText('Correo'), 'pedro@example.test');
+    await user.type(screen.getByLabelText('Nombre'), 'Pedro Gil');
+    await user.selectOptions(screen.getByLabelText('Rol'), 'Sin rol en la organización');
+    await user.click(screen.getByRole('button', { name: 'Invitar' }));
+
+    expect(calls.find((call) => call.route === 'POST /api/organizations/org-a/members')?.body).toEqual({
+      email: 'pedro@example.test',
+      name: 'Pedro Gil',
+    });
+  });
+
   it('explica cuando un correo no se puede invitar, sin decir a quién pertenece', async () => {
     fakeBackend({
       ...administrator,

@@ -332,7 +332,9 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
             })}
           </tbody>
         </table>
-        {props.canAdminister && <EnrollForm onEnroll={(email, roles) => run(() => programs.enroll(program.id, email, roles))} />}
+        {props.canAdminister && (
+          <EnrollForm onEnroll={(email, roles, name) => run(() => programs.enroll(program.id, email, roles, name))} />
+        )}
       </section>
 
       {participants.map((participant) => (
@@ -434,15 +436,21 @@ function SelectionEditor(props: {
   );
 }
 
-function EnrollForm({ onEnroll }: { onEnroll: (email: string, roles: EnrollmentRole[]) => Promise<void> }) {
+function EnrollForm({
+  onEnroll,
+}: {
+  onEnroll: (email: string, roles: EnrollmentRole[], name?: string) => Promise<void>;
+}) {
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [roles, setRoles] = useState<EnrollmentRole[]>([]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      await onEnroll(email, roles);
+      await onEnroll(email, roles, name.trim() === '' ? undefined : name.trim());
       setEmail('');
+      setName('');
       setRoles([]);
     } catch {
       // The program view shows the refusal; what was typed stays.
@@ -452,9 +460,14 @@ function EnrollForm({ onEnroll }: { onEnroll: (email: string, roles: EnrollmentR
   return (
     <form className="inline-form" onSubmit={submit}>
       <h4>Inscribir</h4>
+      <p className="muted">Si la persona todavía no está en la organización, escribe su nombre: se la invita y se inscribe a la vez.</p>
       <label>
         Correo de la persona
         <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+      </label>
+      <label>
+        Nombre (si es nueva)
+        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
       </label>
       <fieldset>
         <legend>Roles en el programa</legend>

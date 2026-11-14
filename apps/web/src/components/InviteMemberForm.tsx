@@ -12,14 +12,15 @@ type Props = {
 export function InviteMemberForm({ onInvite, error }: Props) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<MembershipRole>('administrator');
+  // '' invites without an organization role: participants and panel members of programs.
+  const [role, setRole] = useState<MembershipRole | ''>('administrator');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
     try {
-      await onInvite({ email, name, role });
+      await onInvite(role === '' ? { email, name } : { email, name, role });
       setEmail('');
       setName('');
     } catch {
@@ -41,12 +42,13 @@ export function InviteMemberForm({ onInvite, error }: Props) {
       </label>
       <label>
         Rol
-        <select value={role} onChange={(event) => setRole(event.target.value as MembershipRole)}>
+        <select value={role} onChange={(event) => setRole(event.target.value as MembershipRole | '')}>
           {MEMBERSHIP_ROLES.map((option) => (
             <option key={option} value={option}>
               {roleLabels[option]}
             </option>
           ))}
+          <option value="">Sin rol en la organización</option>
         </select>
       </label>
       <button type="submit" className="primary" disabled={submitting}>
