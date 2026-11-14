@@ -30,7 +30,7 @@ export type PasswordSignInOptions = {
   openSession: (reply: FastifyReply, personId: string) => Promise<void>;
 };
 
-const confirmationMail = (name: string, link: string) =>
+const creationMail = (name: string, link: string) =>
   [
     `Hola, ${name}:`,
     '',
@@ -42,7 +42,20 @@ const confirmationMail = (name: string, link: string) =>
     'Si no lo pediste, ignora este mensaje: no se creará ninguna contraseña.',
   ].join('\n');
 
-/** Registration, email confirmation and sign-in with a password, for invited persons only. */
+const changeMail = (name: string, link: string) =>
+  [
+    `Hola, ${name}:`,
+    '',
+    'Para cambiar tu contraseña en Potencializador de rol, abre este enlace y elige una nueva:',
+    '',
+    link,
+    '',
+    `El enlace vale por ${CONFIRMATION_HOURS} horas y sirve una sola vez.`,
+    'Al cambiarla se cierran tus sesiones abiertas en otros dispositivos.',
+    'Si no lo pediste, ignora este mensaje: tu contraseña actual sigue funcionando.',
+  ].join('\n');
+
+/** Creating, recovering and signing in with a password, for invited persons only. */
 export function registerPasswordSignIn(api: FastifyInstance, options: PasswordSignInOptions): void {
   const { store, mailer } = options;
 
@@ -52,12 +65,15 @@ export function registerPasswordSignIn(api: FastifyInstance, options: PasswordSi
 
     const token = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + CONFIRMATION_HOURS * 3_600_000);
-    const name = await store.registerPassword(input.data.email, token, expiresAt);
-    if (name !== null) {
+    const recipient = await store.registerPassword(input.data.email, token, expiresAt);
+    if (recipient !== null) {
       // Not awaited: the answer is the same, and as fast, whether the email was invited or not.
       const link = new URL(`/?confirm=${token}`, options.publicUrl).href;
+      const mail = recipient.hasPassword
+        ? { subject: 'Cambia tu contraseña', text: changeMail(recipient.name, link) }
+        : { subject: 'Crea tu contraseña', text: creationMail(recipient.name, link) };
       mailer
-        .send({ to: input.data.email, subject: 'Crea tu contraseña', text: confirmationMail(name, link) })
+        .send({ to: input.data.email, ...mail })
         .catch((error: unknown) => request.log.error(error, 'could not mail the confirmation link'));
     }
     return reply.code(202).send();

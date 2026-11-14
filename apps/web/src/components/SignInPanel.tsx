@@ -88,9 +88,21 @@ export function SignInPanel({ options, error, notice, confirming, busy, ...actio
               <button type="submit" className="primary" disabled={busy}>
                 {mode === 'sign_in' ? 'Ingresar' : 'Enviar enlace'}
               </button>
-              <button type="button" onClick={() => setMode(mode === 'sign_in' ? 'request_link' : 'sign_in')}>
-                {mode === 'sign_in' ? 'Crear contraseña' : 'Ya tengo contraseña'}
-              </button>
+              {mode === 'sign_in' ? (
+                <>
+                  <button type="button" onClick={() => setMode('request_link')}>
+                    Crear contraseña
+                  </button>
+                  {/* The same link creates a password or replaces a forgotten one. */}
+                  <button type="button" onClick={() => setMode('request_link')}>
+                    Olvidé mi contraseña
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => setMode('sign_in')}>
+                  Ya tengo contraseña
+                </button>
+              )}
             </form>
           )}
         </>

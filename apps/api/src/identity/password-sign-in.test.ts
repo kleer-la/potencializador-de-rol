@@ -272,13 +272,44 @@ describe('sign-in with an email and a password', () => {
     expect((await confirm(secondToken)).statusCode).toBe(204);
   });
 
-  it('mails no link to a person who already has a password, and keeps it', async () => {
+  it('mails a person who forgot their password a link to change it, keeping the old one until it is used', async () => {
     const person = await confirmedPerson();
 
     expect((await register(person.email)).statusCode).toBe(202);
+    const mail = await nextMail();
 
-    expect(await nextMail()).toBeUndefined();
+    expect(mail).toMatchObject({ to: person.email, subject: 'Cambia tu contraseña' });
+    expect(mail!.text).toContain('Para cambiar tu contraseña');
+    expect(mail!.text).toContain('tu contraseña actual sigue funcionando');
     expect((await login(person.email)).statusCode).toBe(204);
+  });
+
+  it('replaces the password, clears the lock and closes every other session when the link is used', async () => {
+    const person = await confirmedPerson();
+    const oldSession = sessionOf(await login(person.email))!.value;
+    for (let attempt = 0; attempt < 5; attempt += 1) await login(person.email, 'not the password');
+    expect((await login(person.email)).statusCode).toBe(429);
+
+    await register(person.email);
+    const changed = await confirm(tokenFrom(await nextMail())!, 'a brand new password');
+
+    expect(changed.statusCode).toBe(204);
+    expect((await me(sessionOf(changed)!.value)).statusCode).toBe(200);
+    expect((await me(oldSession)).statusCode).toBe(401);
+    expect((await login(person.email)).statusCode).toBe(401);
+    expect((await login(person.email, 'a brand new password')).statusCode).toBe(204);
+  });
+
+  it('accepts a password change link only once', async () => {
+    const person = await confirmedPerson();
+    await register(person.email);
+    const token = tokenFrom(await nextMail())!;
+
+    expect((await confirm(token, 'a brand new password')).statusCode).toBe(204);
+    const again = await confirm(token, 'an attacker password');
+
+    expect(again.json()).toEqual({ error: 'confirmation_failed' });
+    expect((await login(person.email, 'an attacker password')).statusCode).toBe(401);
   });
 
   it('stores only a hash of the link, then only a hash of the password', async () => {

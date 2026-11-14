@@ -93,10 +93,13 @@ Offered only when mail is configured. Under "Crear contraseña" an invited perso
 the system mails a link valid for 24 hours and for one use, and the person chooses the password on
 the page that link opens (10 to 128 characters). Whoever asks for the link never chooses the
 password, so knowing someone's email is not enough to take their account. Asking answers the same
-for any email, so it does not reveal who was invited. Asking again replaces a pending link; a person
-who already has a password gets no link. Five wrong passwords in a row lock sign-in with a password
+for any email, so it does not reveal who was invited. Asking again replaces a pending link.
+
+A person who forgot their password uses "Olvidé mi contraseña" the same way. The current password
+keeps working until the link is used; choosing the new one clears the lockout and closes every other
+session of that person. Five wrong passwords in a row lock sign-in with a password
 for 15 minutes; the database counts each check before it runs, so parallel requests cannot exceed
-that. Passwords are stored as scrypt hashes. There is no password reset yet.
+that. Passwords are stored as scrypt hashes.
 
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |

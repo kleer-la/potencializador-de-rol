@@ -45,19 +45,24 @@ export function createIdentityStore(db: Database) {
     },
 
     /**
-     * Stores a confirmation link for an invited person. Returns their name when the link must
-     * be mailed; `null` when nobody has that email or the person already has a password.
+     * Stores a link for an invited person, to create a password or to change a forgotten one.
+     * Returns who to mail, or `null` when nobody has that email.
      */
-    async registerPassword(email: string, token: string, expiresAt: Date): Promise<string | null> {
-      const result = await db.execute<{ name: string | null }>(
-        sql`select app_password_register(${email}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz) as name`,
+    async registerPassword(
+      email: string,
+      token: string,
+      expiresAt: Date,
+    ): Promise<{ name: string; hasPassword: boolean } | null> {
+      const result = await db.execute<{ name: string; has_password: boolean }>(
+        sql`select name, has_password from app_password_register(${email}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz)`,
       );
-      return result.rows[0]?.name ?? null;
+      const row = result.rows[0];
+      return row === undefined ? null : { name: row.name, hasPassword: row.has_password };
     },
 
     /**
-     * Sets the password chosen on the page of the link. Returns the person, or `null` for an
-     * unknown, expired or used link.
+     * Sets the password chosen on the page of the link, ending the person's sessions. Returns
+     * the person, or `null` for an unknown, expired or used link.
      */
     async confirmPassword(token: string, passwordHash: string): Promise<string | null> {
       const result = await db.execute<{ person_id: string | null }>(

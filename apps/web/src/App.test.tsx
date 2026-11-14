@@ -171,12 +171,34 @@ describe('sin sesión', () => {
 
     expect(
       await screen.findByText(
-        'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
+        'Si tu correo tiene una invitación, te enviamos un enlace para elegir tu contraseña. Revisa tu bandeja de entrada.',
       ),
     ).toBeTruthy();
     expect(calls.find((call) => call.route === 'POST /api/auth/password/register')?.body).toEqual({
       email: 'ana@example.test',
     });
+  });
+
+  it('pide un enlace para cambiar la contraseña olvidada', async () => {
+    const calls = fakeBackend({ ...withPassword, 'POST /api/auth/password/register': () => ({ status: 202 }) });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Olvidé mi contraseña' }));
+    expect(screen.queryByLabelText('Contraseña')).toBeNull();
+    await user.type(screen.getByLabelText('Correo'), 'ana@example.test');
+    await user.click(screen.getByRole('button', { name: 'Enviar enlace' }));
+
+    expect(
+      await screen.findByText(
+        'Si tu correo tiene una invitación, te enviamos un enlace para elegir tu contraseña. Revisa tu bandeja de entrada.',
+      ),
+    ).toBeTruthy();
+    expect(calls.find((call) => call.route === 'POST /api/auth/password/register')?.body).toEqual({
+      email: 'ana@example.test',
+    });
+    await user.click(screen.getByRole('button', { name: 'Ya tengo contraseña' }));
+    expect(screen.getByLabelText('Contraseña')).toBeTruthy();
   });
 
   it('elige la contraseña desde el enlace y entra', async () => {
