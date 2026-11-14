@@ -44,6 +44,38 @@ export function createIdentityStore(db: Database) {
       await db.execute(sql`select app_delete_session(${hashToken(token)})`);
     },
 
+    /**
+     * Stores a pending password for an invited person. Returns their name when a confirmation
+     * link must be mailed; `null` when nobody has that email or their password is confirmed.
+     */
+    async registerPassword(email: string, passwordHash: string, token: string, expiresAt: Date): Promise<string | null> {
+      const result = await db.execute<{ name: string | null }>(
+        sql`select app_password_register(${email}, ${passwordHash}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz) as name`,
+      );
+      return result.rows[0]?.name ?? null;
+    },
+
+    /** The person whose password the link confirms, or `null` for an unknown, expired or used link. */
+    async confirmPassword(token: string): Promise<string | null> {
+      const result = await db.execute<{ person_id: string | null }>(
+        sql`select app_password_confirm(${hashToken(token)}) as person_id`,
+      );
+      return result.rows[0]?.person_id ?? null;
+    },
+
+    /** The confirmed password of the person with that email, or `null`. */
+    async findPassword(email: string): Promise<{ personId: string; passwordHash: string; locked: boolean } | null> {
+      const result = await db.execute<{ person_id: string; password_hash: string; locked: boolean }>(
+        sql`select person_id, password_hash, locked from app_password_credential(${email})`,
+      );
+      const row = result.rows[0];
+      return row === undefined ? null : { personId: row.person_id, passwordHash: row.password_hash, locked: row.locked };
+    },
+
+    async recordPasswordAttempt(personId: string, succeeded: boolean): Promise<void> {
+      await db.execute(sql`select app_password_attempt(${personId}::uuid, ${succeeded})`);
+    },
+
     async describePerson(personId: string): Promise<CurrentPerson | null> {
       return withScope(db, { personId, organizationId: null }, async (tx) => {
         const [person] = await tx.select().from(persons).where(eq(persons.id, personId));

@@ -70,10 +70,10 @@ changed. Add a new file instead.
 
 ## Sign-in
 
-People sign in only with a Google or a Microsoft account; the system stores no passwords. Access is
+People sign in with a Google or a Microsoft account, or with their email and a password. Access is
 by invitation: a person signs in only if a person with that email already exists. On the first
 sign-in the provider account is bound to the person, and later sign-ins use that binding, not the
-email. With no provider configured the application starts, but nobody can sign in.
+email. With no provider and no mail configured the application starts, but nobody can sign in.
 
 Register one application per provider and copy its client id and secret to `.env`:
 
@@ -86,6 +86,28 @@ Microsoft needs one more step. Entra does not verify the `email` claim, so the f
 accepted only when the token also carries `xms_edov` (email domain owner verified). In the app
 registration, under Token configuration, add the optional ID token claims `email` and `xms_edov`.
 Without them a Microsoft first sign-in is refused as not invited.
+
+### Email and password
+
+Offered only when mail is configured. An invited person chooses a password (10 to 128 characters)
+under "Crear contraseña"; the system mails a link valid for 24 hours and for one use, and the
+password works only once the link is opened. Registering answers the same for any email, so it does
+not reveal who was invited. Registering again before confirming replaces the pending password; a
+confirmed password is never replaced this way. Five wrong passwords in a row lock sign-in with a
+password for 15 minutes. Passwords are stored as scrypt hashes. There is no password reset yet.
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `SMTP_HOST` | with the others | — | SMTP server, for example `smtp.gmail.com` |
+| `SMTP_PORT` | no | `465` | 465 uses TLS from the start; any other port must offer STARTTLS |
+| `SMTP_USER` | with the others | — | Account that sends |
+| `SMTP_PASSWORD` | with the others | — | Its password; with Google, an app password |
+| `SMTP_FROM` | with the others | — | Sender, for example `Potencializador de rol <no-reply@example.com>` |
+
+With Google Workspace: turn on 2-Step Verification for the sending account, create an app password
+at <https://myaccount.google.com/apppasswords>, and use `smtp.gmail.com`, port 465, the account's
+address as `SMTP_USER` and the app password as `SMTP_PASSWORD`. `SMTP_FROM` must be that address
+or an alias the account may send as.
 
 ## Roles
 

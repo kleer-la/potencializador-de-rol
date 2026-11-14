@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Database } from '../infrastructure/scoped-transaction.ts';
 import type { IdentityProvider, SignInTransaction } from './identity-provider.ts';
 import { createIdentityStore } from './identity-store.ts';
+import type { Mailer } from './mailer.ts';
+import { registerPasswordSignIn } from './password-sign-in.ts';
 
 export type IdentityOptions = {
   database: Database;
@@ -10,6 +12,8 @@ export type IdentityOptions = {
   /** Address the browser uses, for example `https://app.example.com`. Provider callbacks hang from it. */
   publicUrl: URL;
   sessionTtlHours: number;
+  /** Sign-in with an email and a password; offered only when mail can be sent. */
+  password?: { mailer: Mailer };
 };
 
 declare module 'fastify' {
@@ -81,7 +85,29 @@ export async function registerIdentity(api: FastifyInstance, options: IdentityOp
   const failSignIn = (reply: FastifyReply, reason: 'not_invited' | 'sign_in_failed') =>
     reply.clearCookie(SIGN_IN_COOKIE, { path: SIGN_IN_COOKIE_PATH }).redirect(`/?error=${reason}`);
 
-  api.get('/auth/providers', async () => ({ providers: [...providers.keys()] }));
+  api.get('/auth/providers', async () => ({
+    providers: [...providers.keys()],
+    password: options.password !== undefined,
+  }));
+
+  const openSession = async (reply: FastifyReply, personId: string) => {
+    const token = await store.createSession(personId, options.sessionTtlHours);
+    // Returns nothing: a Fastify reply is thenable, and awaiting it would wait for it to be sent.
+    reply.setCookie(SESSION_COOKIE, token, {
+      ...cookieBase,
+      path: '/',
+      maxAge: options.sessionTtlHours * 3600,
+    });
+  };
+
+  if (options.password !== undefined) {
+    registerPasswordSignIn(api, {
+      store,
+      mailer: options.password.mailer,
+      publicUrl: options.publicUrl,
+      openSession,
+    });
+  }
 
   api.get<{ Params: { provider: string } }>('/auth/:provider/login', async (request, reply) => {
     const provider = providers.get(request.params.provider);
