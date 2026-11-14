@@ -43,3 +43,5 @@ L5 (2026-11-14, independent verifier, two blockers reproduced):
 3. S4 said a failed link redirects to `/?error=verification_failed`; the link page explains `confirmation_failed` instead (submission, not page load, uses the link, so mail scanners cannot consume it). S4 rewritten.
 Migration 0010 edited in place: it never left this unmerged branch.
 Advisories kept as follow-ups: no rate limit on asking for links (mail bombing, Gmail quota) or on sign-in; the locked answer reveals that an email has a password; anyone can lock a person out for 15 minutes.
+
+L6 (2026-11-14, user): real end-to-end test with Google Workspace SMTP validated by the user: "ya hice la prueba y funcionó bien".
