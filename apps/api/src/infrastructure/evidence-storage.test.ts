@@ -233,6 +233,41 @@ describe('evidence, level changes, bonuses and mentoring storage', () => {
         experiments,
       ]);
 
+    const fromExperiment = (experimentId: string) =>
+      one(
+        board.owner,
+        "insert into evidence (organization_id, board_id, experiment_id, description, occurred_on) values ($1, $2, $3, 'Salió del experimento', current_date) returning id",
+        [program.organizationId, board.boardId, experimentId],
+      );
+    expect((await fromExperiment(experiment)).rowCount).toBe(1);
+    const elsewhere = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    await ownerPool.query('update placements set level_id = $1 where board_id = $2', [program.levelIds[0], elsewhere.boardId]);
+    await giveBaseline(ownerPool, elsewhere.boardId, 'calibrated');
+    const foreignCycle = (
+      await ownerPool.query(
+        "insert into cycles (organization_id, board_id, starts_on, ends_on, created_by) values ($1, $2, date '2027-01-01', date '2027-03-01', $3) returning id",
+        [program.organizationId, elsewhere.boardId, elsewhere.owner],
+      )
+    ).rows[0].id;
+    const foreignFocus = (
+      await ownerPool.query(
+        'insert into focuses (organization_id, cycle_id, capability_id, target_level_id, created_by) values ($1, $2, $3, $4, $5) returning id',
+        [program.organizationId, foreignCycle, program.capabilityIds[0], program.levelIds[1], elsewhere.owner],
+      )
+    ).rows[0].id;
+    const foreignExperiment = (
+      await ownerPool.query(
+        "insert into experiments (organization_id, focus_id, description, created_by) values ($1, $2, 'Ajeno', $3) returning id",
+        [program.organizationId, foreignFocus, elsewhere.owner],
+      )
+    ).rows[0].id;
+    await expectRefused(fromExperiment(foreignExperiment), /experiment is not of the board/);
+    await expectRefused(session(board.leader, [foreignExperiment]), /experiment of the board/);
+    await expectRefused(
+      one(board.owner, 'select * from app_board_evidence($1, $2::uuid[])', [board.boardId, [evidence.owner]]),
+      /permission denied/,
+    );
+
     await expectRefused(session(board.owner, [experiment]), /only a panel member/);
     await expectRefused(session(board.leader, [cycle]), /experiment of the board/);
     const recorded = (await session(board.leader, [experiment])).rows[0].id;

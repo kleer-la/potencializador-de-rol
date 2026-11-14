@@ -67,3 +67,8 @@ L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "evidence" d
 - `level_changes` gains reason `evidence` and `proposal_id`, required together. `bonus_rules` gains the composite key bonus awards need. Migration 0006 is not edited.
 - The API role inserts evidence and deletes its own evidence while nothing cites it; it writes nothing else. `app_propose_level_change`, `app_decide_level_change`, `app_propose_bonus`, `app_decide_bonus` and `app_record_mentoring` write after their checks. A decided proposal or bonus, a citation and a session never change, for every role.
 - SQL states: `PM004`, `PM006`, `PM007` for the invariants, `PM050` for states, `23514` for references outside the board or the map, `42501` for who acts.
+
+L6 (2026-11-13, review of T1 and T2): native review of commits `a4a2176` and `5a43951` (escalated for item 2, access rules; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit (`npm test` green, `npm run typecheck` clean):
+- `app_board_evidence` returned evidence rows across Row Level Security to anyone who could call it. Only the proposal functions use it now; the API role can no longer call it (test: `permission denied`).
+- The domain accepted a link with spaces that the database refuses; `isEvidenceLink` now refuses it too (unit case added).
+- Added storage cases: evidence from an experiment of the board is accepted; from an experiment of another board it is refused, as is a mentoring session that names it.

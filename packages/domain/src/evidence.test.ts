@@ -72,5 +72,6 @@ describe('evidence link', () => {
     expect(isEvidenceLink('http://intranet.local/x')).toBe(true);
     expect(isEvidenceLink('javascript:alert(1)')).toBe(false);
     expect(isEvidenceLink('not a url')).toBe(false);
+    expect(isEvidenceLink('https://example.test/acta de junio')).toBe(false);
   });
 });

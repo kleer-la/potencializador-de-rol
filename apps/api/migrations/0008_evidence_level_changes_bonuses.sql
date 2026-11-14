@@ -388,6 +388,9 @@ CREATE FUNCTION app_record_mentoring(p_board_id uuid, p_held_on date, p_notes te
   END
   $$;
 
+-- Only the functions above use it; it returns evidence across Row Level Security.
+REVOKE ALL ON FUNCTION app_board_evidence(uuid, uuid[]) FROM PUBLIC;
+
 -- Row Level Security: owner and panel read; no super administrator clause (invariant 9).
 
 DO $$
@@ -418,7 +421,7 @@ DECLARE
   v_function text;
 BEGIN
   FOREACH v_function IN ARRAY ARRAY[
-    'app_board_evidence(uuid, uuid[])', 'app_propose_level_change(uuid, uuid, uuid, uuid[])',
+    'app_propose_level_change(uuid, uuid, uuid, uuid[])',
     'app_decide_level_change(uuid, boolean, text)', 'app_propose_bonus(uuid, uuid, uuid, uuid[])',
     'app_decide_bonus(uuid, boolean, text)', 'app_record_mentoring(uuid, date, text, uuid[])'
   ] LOOP

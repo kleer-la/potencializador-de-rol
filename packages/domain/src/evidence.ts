@@ -55,8 +55,9 @@ export function bonusProblems(bonus: { evidenceCount: number; alreadyAwarded: bo
   return [...(bonus.evidenceCount === 0 ? ['no_evidence' as const] : []), ...(bonus.alreadyAwarded ? ['already_awarded' as const] : [])];
 }
 
-/** An evidence link opens a web page: http or https only. */
+/** An evidence link opens a web page: http or https only, without spaces (as the database checks). */
 export function isEvidenceLink(link: string): boolean {
+  if (!/^https?:\/\/\S+$/i.test(link)) return false;
   try {
     const url = new URL(link);
     return url.protocol === 'http:' || url.protocol === 'https:';
