@@ -96,6 +96,158 @@ describe('sin sesión', () => {
     );
   });
 
+  const withPassword: Routes = {
+    ...notSignedIn,
+    'GET /api/auth/providers': () => ({ status: 200, body: { providers: ['google'], password: true } }),
+  };
+
+  it('no ofrece contraseña cuando el correo no está configurado', async () => {
+    fakeBackend(notSignedIn);
+
+    render(<App />);
+
+    await screen.findByRole('link', { name: 'Continuar con Google' });
+    expect(screen.queryByLabelText('Contraseña')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Crear contraseña' })).toBeNull();
+  });
+
+  it('ingresa con correo y contraseña y muestra la sesión', async () => {
+    let signedIn = false;
+    const calls = fakeBackend({
+      ...withPassword,
+      'GET /api/me': () =>
+        signedIn
+          ? { status: 200, body: { person: { id: 'p1', name: 'Ana Gómez', email: 'ana@example.test' }, isSuperAdmin: false, memberships: [] } }
+          : { status: 401, body: { error: 'not_signed_in' } },
+      'POST /api/auth/password/login': () => {
+        signedIn = true;
+        return { status: 204 };
+      },
+      'GET /api/me/boards': () => ({ status: 200, body: { boards: [] } }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(await screen.findByLabelText('Correo'), 'ana@example.test');
+    await user.type(screen.getByLabelText('Contraseña'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }));
+
+    expect(await screen.findByText('Ana Gómez')).toBeTruthy();
+    expect(calls.find((call) => call.route === 'POST /api/auth/password/login')?.body).toEqual({
+      email: 'ana@example.test',
+      password: 'una contraseña larga',
+    });
+  });
+
+  it('explica una contraseña equivocada y un bloqueo por intentos', async () => {
+    let answer = { status: 401, body: { error: 'invalid_credentials' } };
+    fakeBackend({ ...withPassword, 'POST /api/auth/password/login': () => answer });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(await screen.findByLabelText('Correo'), 'ana@example.test');
+    await user.type(screen.getByLabelText('Contraseña'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('El correo o la contraseña no son correctos.');
+
+    answer = { status: 429, body: { error: 'too_many_attempts' } };
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toBe(
+        'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.',
+      ),
+    );
+  });
+
+  it('pide el enlace para crear contraseña con solo el correo', async () => {
+    const calls = fakeBackend({ ...withPassword, 'POST /api/auth/password/register': () => ({ status: 202 }) });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Crear contraseña' }));
+    expect(screen.queryByLabelText('Contraseña')).toBeNull();
+    await user.type(screen.getByLabelText('Correo'), 'ana@example.test');
+    await user.click(screen.getByRole('button', { name: 'Enviar enlace' }));
+
+    expect(
+      await screen.findByText(
+        'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
+      ),
+    ).toBeTruthy();
+    expect(calls.find((call) => call.route === 'POST /api/auth/password/register')?.body).toEqual({
+      email: 'ana@example.test',
+    });
+  });
+
+  it('elige la contraseña desde el enlace y entra', async () => {
+    window.history.replaceState({}, '', '/?confirm=token-1');
+    let signedIn = false;
+    const calls = fakeBackend({
+      ...withPassword,
+      'GET /api/me': () =>
+        signedIn
+          ? { status: 200, body: { person: { id: 'p1', name: 'Ana Gómez', email: 'ana@example.test' }, isSuperAdmin: false, memberships: [] } }
+          : { status: 401, body: { error: 'not_signed_in' } },
+      'POST /api/auth/password/confirm': () => {
+        signedIn = true;
+        return { status: 204 };
+      },
+      'GET /api/me/boards': () => ({ status: 200, body: { boards: [] } }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    const field = await screen.findByLabelText('Contraseña nueva');
+    expect(field.getAttribute('minlength')).toBe('10');
+    expect(screen.queryByRole('link')).toBeNull();
+    await user.type(field, 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
+
+    expect(await screen.findByText('Ana Gómez')).toBeTruthy();
+    expect(calls.find((call) => call.route === 'POST /api/auth/password/confirm')?.body).toEqual({
+      token: 'token-1',
+      password: 'una contraseña larga',
+    });
+    expect(window.location.search).toBe('');
+  });
+
+  it('explica una contraseña nueva que no cumple el largo y deja intentar de nuevo', async () => {
+    window.history.replaceState({}, '', '/?confirm=token-1');
+    fakeBackend({
+      ...withPassword,
+      'POST /api/auth/password/confirm': () => ({ status: 400, body: { error: 'invalid_password' } }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(await screen.findByLabelText('Contraseña nueva'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'La contraseña debe tener entre 10 y 128 caracteres.',
+    );
+    expect(screen.getByLabelText('Contraseña nueva')).toBeTruthy();
+    expect(window.location.search).toBe('?confirm=token-1');
+  });
+
+  it('explica un enlace vencido o ya usado y vuelve al ingreso', async () => {
+    window.history.replaceState({}, '', '/?confirm=token-1');
+    fakeBackend({
+      ...withPassword,
+      'POST /api/auth/password/confirm': () => ({ status: 400, body: { error: 'confirmation_failed' } }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(await screen.findByLabelText('Contraseña nueva'), 'una contraseña larga');
+    await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'El enlace venció o ya se usó. Pide uno nuevo en «Crear contraseña».',
+    );
+    expect(screen.getByRole('button', { name: 'Crear contraseña' })).toBeTruthy();
+  });
+
   it('avisa cuando el servicio no responde', async () => {
     fakeBackend({ 'GET /api/me': () => ({ status: 503, body: { error: 'unavailable' } }) });
 

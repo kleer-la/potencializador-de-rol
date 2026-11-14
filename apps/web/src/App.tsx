@@ -1,21 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type CurrentPerson, type ProviderId } from './api/client.ts';
-import { SignInPanel } from './components/SignInPanel.tsx';
+import { api, type CurrentPerson, type SignInOptions } from './api/client.ts';
 import { BoardsPage } from './containers/BoardsPage.tsx';
 import { OrganizationsPage } from './containers/OrganizationsPage.tsx';
-import { messages, signInErrors } from './copy.ts';
+import { SignInPage } from './containers/SignInPage.tsx';
+import { messages } from './copy.ts';
 
 type Session =
   | { status: 'loading' }
   | { status: 'unavailable' }
-  | { status: 'signed_out'; providers: ProviderId[] }
+  | { status: 'signed_out'; options: SignInOptions }
   | { status: 'signed_in'; me: CurrentPerson };
-
-/** The sign-in callback reports a refusal as `?error=<code>` in the address. */
-function signInErrorFromAddress(): string | null {
-  const code = new URLSearchParams(window.location.search).get('error');
-  return code === null ? null : (signInErrors[code] ?? signInErrors.sign_in_failed ?? null);
-}
 
 type View = 'boards' | 'organizations';
 
@@ -27,7 +21,7 @@ export function App() {
     try {
       const me = await api.currentPerson();
       setSession(
-        me === null ? { status: 'signed_out', providers: await api.providers() } : { status: 'signed_in', me },
+        me === null ? { status: 'signed_out', options: await api.signInOptions() } : { status: 'signed_in', me },
       );
     } catch {
       setSession({ status: 'unavailable' });
@@ -55,7 +49,7 @@ export function App() {
     );
   }
   if (session.status === 'signed_out') {
-    return <SignInPanel providers={session.providers} error={signInErrorFromAddress()} />;
+    return <SignInPage options={session.options} onSignedIn={() => void load()} />;
   }
 
   const { me } = session;

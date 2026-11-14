@@ -91,7 +91,7 @@ describe('sign-in with Google or Microsoft', () => {
     const response = await app.inject({ method: 'GET', url: '/api/auth/providers' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ providers: ['google', 'microsoft'] });
+    expect(response.json()).toEqual({ providers: ['google', 'microsoft'], password: false });
   });
 
   it('starts sign-in by redirecting to the provider with the public callback address', async () => {

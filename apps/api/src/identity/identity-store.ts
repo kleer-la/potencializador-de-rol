@@ -44,6 +44,48 @@ export function createIdentityStore(db: Database) {
       await db.execute(sql`select app_delete_session(${hashToken(token)})`);
     },
 
+    /**
+     * Stores a confirmation link for an invited person. Returns their name when the link must
+     * be mailed; `null` when nobody has that email or the person already has a password.
+     */
+    async registerPassword(email: string, token: string, expiresAt: Date): Promise<string | null> {
+      const result = await db.execute<{ name: string | null }>(
+        sql`select app_password_register(${email}, ${hashToken(token)}, ${expiresAt.toISOString()}::timestamptz) as name`,
+      );
+      return result.rows[0]?.name ?? null;
+    },
+
+    /**
+     * Sets the password chosen on the page of the link. Returns the person, or `null` for an
+     * unknown, expired or used link.
+     */
+    async confirmPassword(token: string, passwordHash: string): Promise<string | null> {
+      const result = await db.execute<{ person_id: string | null }>(
+        sql`select app_password_confirm(${hashToken(token)}, ${passwordHash}) as person_id`,
+      );
+      return result.rows[0]?.person_id ?? null;
+    },
+
+    /**
+     * Reserves one password check, counted as a failure until `passwordSucceeded`.
+     * `null`: nobody with that email has a password. `locked`: too many failures in a row.
+     */
+    async beginPasswordAttempt(
+      email: string,
+    ): Promise<{ locked: true } | { locked: false; personId: string; passwordHash: string } | null> {
+      const result = await db.execute<{ person_id: string; password_hash: string | null; locked: boolean }>(
+        sql`select person_id, password_hash, locked from app_password_begin_attempt(${email})`,
+      );
+      const row = result.rows[0];
+      if (row === undefined) return null;
+      if (row.locked || row.password_hash === null) return { locked: true };
+      return { locked: false, personId: row.person_id, passwordHash: row.password_hash };
+    },
+
+    async passwordSucceeded(personId: string): Promise<void> {
+      await db.execute(sql`select app_password_succeeded(${personId}::uuid)`);
+    },
+
     async describePerson(personId: string): Promise<CurrentPerson | null> {
       return withScope(db, { personId, organizationId: null }, async (tx) => {
         const [person] = await tx.select().from(persons).where(eq(persons.id, personId));

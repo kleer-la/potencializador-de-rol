@@ -27,6 +27,21 @@ export const signInErrors: Record<string, string> = {
   sign_in_failed: 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 };
 
+/** Messages for the `error` code of a refused password registration, confirmation or sign-in. */
+export const passwordErrors: Record<string, string> = {
+  invalid_credentials: 'El correo o la contraseña no son correctos.',
+  too_many_attempts: 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.',
+  invalid_password: 'La contraseña debe tener entre 10 y 128 caracteres.',
+  invalid_request: 'Revisa el correo escrito.',
+  confirmation_failed: 'El enlace venció o ya se usó. Pide uno nuevo en «Crear contraseña».',
+};
+
+export const passwordMessages = {
+  linkSent:
+    'Si tu correo tiene una invitación, te enviamos un enlace para crear tu contraseña. Revisa tu bandeja de entrada.',
+  confirmIntro: 'Elige tu contraseña para terminar de confirmar tu correo.',
+};
+
 export const messages = {
   loading: 'Cargando…',
   unavailable: 'El servicio no está disponible. Inténtalo más tarde.',

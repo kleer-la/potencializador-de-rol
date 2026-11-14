@@ -1,6 +1,7 @@
 import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import type { IdentityProvider } from './identity/identity-provider.ts';
+import { createSmtpMailer } from './identity/mailer.ts';
 import { createGoogleProvider, createMicrosoftProvider } from './identity/oidc-identity-provider.ts';
 import { createDatabaseProbe, createPool } from './infrastructure/database.ts';
 import { createDatabase } from './infrastructure/scoped-transaction.ts';
@@ -19,10 +20,11 @@ const app = buildApp({
     providers,
     publicUrl: config.publicUrl,
     sessionTtlHours: config.sessionTtlHours,
+    ...(config.smtp ? { password: { mailer: createSmtpMailer(config.smtp) } } : {}),
   },
   logger: true,
 });
-if (providers.length === 0) {
+if (providers.length === 0 && !config.smtp) {
   app.log.warn('no sign-in provider is configured: nobody can sign in');
 }
 
