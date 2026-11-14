@@ -59,8 +59,9 @@ export function App() {
   }
 
   const { me } = session;
-  // A participant may hold no organization role: their place is their boards.
-  const shown: View = view ?? (me.isSuperAdmin || me.memberships.length > 0 ? 'organizations' : 'boards');
+  // A participant may hold no organization role: their place is their boards, and organizations stay out of sight.
+  const managesOrganizations = me.isSuperAdmin || me.memberships.length > 0;
+  const shown: View = managesOrganizations ? (view ?? 'organizations') : 'boards';
   return (
     <>
       <header className="top-bar">
@@ -69,13 +70,15 @@ export function App() {
           <button type="button" aria-current={shown === 'boards' ? 'page' : undefined} onClick={() => setView('boards')}>
             Tableros
           </button>
-          <button
-            type="button"
-            aria-current={shown === 'organizations' ? 'page' : undefined}
-            onClick={() => setView('organizations')}
-          >
-            Organizaciones
-          </button>
+          {managesOrganizations && (
+            <button
+              type="button"
+              aria-current={shown === 'organizations' ? 'page' : undefined}
+              onClick={() => setView('organizations')}
+            >
+              Organizaciones
+            </button>
+          )}
         </nav>
         <span>
           <span>{me.person.name}</span>
