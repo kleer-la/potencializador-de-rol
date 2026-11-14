@@ -251,23 +251,32 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       <CloseBoard board={board} onDone={load} />
 
       {board.viewer.canAdd && offBoard.length > 0 && (
-        <section className="panel">
-          <h3>Capacidades del mapa que no están en el tablero</h3>
-          <ul className="plain-list">
-            {offBoard.map((capability) => (
-              <li key={capability.id} className="board-item">
-                <span>{capability.statement}</span>
-                <button
-                  type="button"
-                  className="secondary"
-                  aria-label={`Agregar «${capability.statement}»`}
-                  onClick={() => change(() => boardApi.add(board.id, capability.id))}
-                >
-                  Agregar
-                </button>
-              </li>
-            ))}
-          </ul>
+        <section className="panel" aria-labelledby="off-board-title">
+          <h3 id="off-board-title">Capacidades del mapa que no están en el tablero</h3>
+          {board.dimensions.map((dimension) => {
+            const items = offBoard.filter((capability) => capability.dimensionId === dimension.id);
+            if (items.length === 0) return null;
+            return (
+              <div key={dimension.id}>
+                <h4>{dimension.name}</h4>
+                <ul className="plain-list" aria-label={dimension.name}>
+                  {items.map((capability) => (
+                    <li key={capability.id} className="board-item">
+                      <span>{capability.statement}</span>
+                      <button
+                        type="button"
+                        className="secondary"
+                        aria-label={`Agregar «${capability.statement}»`}
+                        onClick={() => change(() => boardApi.add(board.id, capability.id))}
+                      >
+                        Agregar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </section>
       )}
     </div>

@@ -163,6 +163,16 @@ describe('the board', () => {
     expect(screen.getByText('Tu panel decide qué capacidades trabajas en este programa.')).toBeTruthy();
   });
 
+  it('shows a panel member the capabilities off the board grouped by their dimension', async () => {
+    await open(leader);
+
+    const offBoard = screen.getByRole('region', { name: 'Capacidades del mapa que no están en el tablero' });
+    const groups = within(offBoard).getAllByRole('list');
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Entender']);
+    expect(within(groups[0]!).getByText('Lee el estado actual del producto')).toBeTruthy();
+    expect(within(offBoard).queryByText('Comunicación')).toBeNull();
+  });
+
   it('lets a panel member add a capability of the map and remove one from the board', async () => {
     const { calls, user } = await open(leader, {
       'POST /api/boards/board-1/capabilities': () => json({ capabilityId: 'capability-2' }, 201),
