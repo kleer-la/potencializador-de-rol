@@ -263,3 +263,74 @@ export const experiments = pgTable('experiments', {
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const evidence = pgTable('evidence', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  experimentId: uuid('experiment_id'),
+  description: text('description').notNull(),
+  link: text('link'),
+  occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+  showsTransfer: boolean('shows_transfer').notNull().default(false),
+  author: uuid('author').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const decisionColumns = {
+  state: text('state', { enum: ['proposed', 'approved', 'rejected'] }).notNull(),
+  proposedBy: uuid('proposed_by').notNull(),
+  proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull(),
+  decidedBy: uuid('decided_by'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decisionNote: text('decision_note').notNull(),
+};
+
+export const levelChangeProposals = pgTable('level_change_proposals', {
+  id: uuid('id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  placementId: uuid('placement_id').notNull(),
+  proposedLevelId: uuid('proposed_level_id').notNull(),
+  ...decisionColumns,
+});
+
+export const proposalEvidence = pgTable('proposal_evidence', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  proposalId: uuid('proposal_id').notNull(),
+  evidenceId: uuid('evidence_id').notNull(),
+});
+
+export const bonusAwards = pgTable('bonus_awards', {
+  id: uuid('id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  placementId: uuid('placement_id').notNull(),
+  bonusRuleId: uuid('bonus_rule_id').notNull(),
+  ...decisionColumns,
+});
+
+export const bonusEvidence = pgTable('bonus_evidence', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  bonusAwardId: uuid('bonus_award_id').notNull(),
+  evidenceId: uuid('evidence_id').notNull(),
+});
+
+export const mentoringSessions = pgTable('mentoring_sessions', {
+  id: uuid('id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  heldOn: date('held_on', { mode: 'string' }).notNull(),
+  notes: text('notes').notNull(),
+  recordedBy: uuid('recorded_by').notNull(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+});
+
+export const mentoringSessionExperiments = pgTable('mentoring_session_experiments', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  mentoringSessionId: uuid('mentoring_session_id').notNull(),
+  experimentId: uuid('experiment_id').notNull(),
+});

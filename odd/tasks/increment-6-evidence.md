@@ -46,7 +46,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: who proposes and decides, proposal validity (above current level, evidence, transfer), bonus uniqueness. Specs: S1–S5, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of evidence, level changes and bonuses` (see L4).
 - [x] T2 — Persistence: evidence, level change proposals, bonus awards, mentoring sessions; decision functions; guards; Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store evidence, level changes, bonuses and mentoring under invariants 4 to 7` (see L5).
-- [ ] T3 — API: read with the board; evidence, proposals, decisions, bonuses, sessions. Specs: S1–S6. Route: inline. Risk: item 2 (permissions).
+- [x] T3 — API: read with the board; evidence, proposals, decisions, bonuses, sessions. Specs: S1–S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: evidence, level changes, bonuses and mentoring through the board API` (see L7).
 - [ ] T4 — Web: evidence, proposals, bonuses and sessions on the board. Specs: S7. Route: inline. Risk: none (interface over the API).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
@@ -72,3 +72,10 @@ L6 (2026-11-13, review of T1 and T2): native review of commits `a4a2176` and `5a
 - `app_board_evidence` returned evidence rows across Row Level Security to anyone who could call it. Only the proposal functions use it now; the API role can no longer call it (test: `permission denied`).
 - The domain accepted a link with spaces that the database refuses; `isEvidenceLink` now refuses it too (unit case added).
 - Added storage cases: evidence from an experiment of the board is accepted; from an experiment of another board it is refused, as is a mentoring session that names it.
+
+L7 (2026-11-13, T3 evidence): RED observed (5 of 6 route tests failing), then GREEN: `npm test` 350 passed in 38 files, `npm run typecheck` clean.
+- `GET /api/boards/:boardId` adds `evidence` (with link, `showsTransfer`, experiment, author), `proposals` and `bonuses` (state, dates, note, cited evidence ids), `bonusRules` of the map, `mentoringSessions` (with the experiments reviewed), and `viewer.canRecordEvidence`, `canProposeChanges`, `canDecideProposals`, `canRecordMentoring`. One existing test compared `viewer` whole and now includes the four fields.
+- `POST /api/boards/:boardId/evidence` {description, link?, occurredOn, showsTransfer?, experimentId?}: `201`; `409 no_baseline`, `400 invalid_request` (link not http or https), `400 unknown_reference`. `DELETE .../evidence/:evidenceId`: `204`; `403` not its author, `409 evidence_cited`.
+- `POST .../level-proposals` {capabilityId, levelId, evidenceIds}: `201`; `403` not the owner, `422 invalid_proposal` with `problems` (`unplaced`, `not_above`, `no_evidence`, `no_transfer_evidence`), `400 unknown_reference` (evidence of another board), `409 proposal_open`. `POST .../level-proposals/:id/decision` {approve, note}: `200`; `403` not on the panel, `409 already_decided`, `409 no_longer_above`.
+- `POST .../bonuses` {capabilityId, bonusRuleId, evidenceIds}: `201`; `422 invalid_bonus` (`no_evidence`), `409 already_awarded`, `400 unknown_reference`. `POST .../bonuses/:id/decision`: as for proposals.
+- `POST .../mentoring-sessions` {heldOn, notes, experimentIds}: `201`; `403` not on the panel, `400 unknown_reference`.

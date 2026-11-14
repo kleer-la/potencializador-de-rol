@@ -126,6 +126,10 @@ describe('boards', () => {
       canPlanCycle: false,
       canStartCycle: false,
       canReviewExperiments: false,
+      canRecordEvidence: false,
+      canProposeChanges: false,
+      canDecideProposals: false,
+      canRecordMentoring: false,
     });
     expect(mentor.json().placements).toHaveLength(2);
   });

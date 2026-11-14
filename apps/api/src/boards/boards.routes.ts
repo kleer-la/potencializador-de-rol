@@ -1,7 +1,14 @@
 import {
   canAdjustSelection,
+  bonusProblems,
   canCalibrate,
+  canDecideProposal,
   canMoveExperiment,
+  canProposeChange,
+  canRecordEvidence,
+  canRecordMentoring,
+  isEvidenceLink,
+  proposalProblems,
   canPlanCycle,
   canRecordInitialLevel,
   canReviewExperiment,
@@ -26,6 +33,14 @@ import { postgresCode, postgresConstraint } from '../infrastructure/postgres-err
 import {
   baselineEntries,
   boards,
+  bonusAwards,
+  bonusEvidence,
+  bonusRules,
+  evidence,
+  levelChangeProposals,
+  mentoringSessionExperiments,
+  mentoringSessions,
+  proposalEvidence,
   calibrationAttendees,
   calibrationLevels,
   calibrationSessions,
@@ -82,6 +97,26 @@ const experimentMove = z.discriminatedUnion('state', [
   z.object({ state: z.literal('in_progress') }),
   z.object({ state: z.literal('reviewed'), result: z.enum(EXPERIMENT_RESULTS), learnings: z.string().trim().max(5000).default('') }),
 ]);
+
+const evidenceInput = z.object({
+  description: z.string().trim().min(1).max(2000),
+  link: z.string().trim().max(2000).refine(isEvidenceLink).optional(),
+  occurredOn: z.iso.date(),
+  showsTransfer: z.boolean().default(false),
+  experimentId: id.optional(),
+});
+const evidenceParams = z.object({ boardId: id, evidenceId: id });
+const evidenceIds = z.array(id).max(50);
+const proposalInput = z.object({ capabilityId: id, levelId: id, evidenceIds });
+const bonusInput = z.object({ capabilityId: id, bonusRuleId: id, evidenceIds });
+const decisionInput = z.object({ approve: z.boolean(), note: z.string().trim().max(2000).default('') });
+const proposalParams = z.object({ boardId: id, proposalId: id });
+const bonusParams = z.object({ boardId: id, bonusId: id });
+const mentoringInput = z.object({
+  heldOn: z.iso.date(),
+  notes: z.string().trim().max(5000).default(''),
+  experimentIds: z.array(id).max(100),
+});
 
 const NOT_FOUND = { error: 'not_found' } as const;
 
@@ -225,6 +260,102 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .map(({ focusId: _focusId, ...experiment }) => experiment),
       })),
     };
+  };
+
+  /** Evidence, level change proposals, bonuses with the map's rules, and mentoring sessions. */
+  const readEvidenceAndDecisions = async (tx: ScopedTransaction, boardId: string, mapId: string) => {
+    const facts = await tx
+      .select({
+        id: evidence.id,
+        description: evidence.description,
+        link: evidence.link,
+        occurredOn: evidence.occurredOn,
+        showsTransfer: evidence.showsTransfer,
+        experimentId: evidence.experimentId,
+        authorId: evidence.author,
+        authorName: persons.name,
+      })
+      .from(evidence)
+      .innerJoin(persons, eq(persons.id, evidence.author))
+      .where(eq(evidence.boardId, boardId))
+      .orderBy(desc(evidence.occurredOn), desc(evidence.createdAt));
+    const citedByProposal = await tx
+      .select({ ownerId: proposalEvidence.proposalId, evidenceId: proposalEvidence.evidenceId })
+      .from(proposalEvidence)
+      .where(eq(proposalEvidence.boardId, boardId));
+    const citedByBonus = await tx
+      .select({ ownerId: bonusEvidence.bonusAwardId, evidenceId: bonusEvidence.evidenceId })
+      .from(bonusEvidence)
+      .where(eq(bonusEvidence.boardId, boardId));
+    const cited = (rows: { ownerId: string; evidenceId: string }[], ownerId: string) =>
+      rows.filter((row) => row.ownerId === ownerId).map((row) => row.evidenceId);
+    const proposals = await tx
+      .select({
+        id: levelChangeProposals.id,
+        capabilityId: placements.capabilityId,
+        proposedLevelId: levelChangeProposals.proposedLevelId,
+        state: levelChangeProposals.state,
+        proposedAt: levelChangeProposals.proposedAt,
+        decidedAt: levelChangeProposals.decidedAt,
+        decisionNote: levelChangeProposals.decisionNote,
+      })
+      .from(levelChangeProposals)
+      .innerJoin(placements, eq(placements.id, levelChangeProposals.placementId))
+      .where(eq(levelChangeProposals.boardId, boardId))
+      .orderBy(desc(levelChangeProposals.proposedAt));
+    const bonuses = await tx
+      .select({
+        id: bonusAwards.id,
+        capabilityId: placements.capabilityId,
+        bonusRuleId: bonusAwards.bonusRuleId,
+        state: bonusAwards.state,
+        proposedAt: bonusAwards.proposedAt,
+        decidedAt: bonusAwards.decidedAt,
+        decisionNote: bonusAwards.decisionNote,
+      })
+      .from(bonusAwards)
+      .innerJoin(placements, eq(placements.id, bonusAwards.placementId))
+      .where(eq(bonusAwards.boardId, boardId))
+      .orderBy(desc(bonusAwards.proposedAt));
+    const rules = await tx
+      .select({ id: bonusRules.id, name: bonusRules.name, extraPoints: bonusRules.extraPoints, condition: bonusRules.condition })
+      .from(bonusRules)
+      .where(eq(bonusRules.mapId, mapId))
+      .orderBy(asc(bonusRules.name));
+    const sessionRows = await tx
+      .select({ id: mentoringSessions.id, heldOn: mentoringSessions.heldOn, notes: mentoringSessions.notes, recordedByName: persons.name })
+      .from(mentoringSessions)
+      .innerJoin(persons, eq(persons.id, mentoringSessions.recordedBy))
+      .where(eq(mentoringSessions.boardId, boardId))
+      .orderBy(desc(mentoringSessions.heldOn), desc(mentoringSessions.recordedAt));
+    const reviewed = await tx
+      .select({ sessionId: mentoringSessionExperiments.mentoringSessionId, experimentId: mentoringSessionExperiments.experimentId })
+      .from(mentoringSessionExperiments)
+      .where(eq(mentoringSessionExperiments.boardId, boardId));
+    return {
+      evidence: facts,
+      proposals: proposals.map((proposal) => ({ ...proposal, evidenceIds: cited(citedByProposal, proposal.id) })),
+      bonuses: bonuses.map((bonus) => ({ ...bonus, evidenceIds: cited(citedByBonus, bonus.id) })),
+      bonusRules: rules.map((rule) => ({ ...rule, extraPoints: Number(rule.extraPoints) })),
+      mentoringSessions: sessionRows.map((session) => ({
+        ...session,
+        experimentIds: reviewed.filter((row) => row.sessionId === session.id).map((row) => row.experimentId),
+      })),
+    };
+  };
+
+  /** Evidence of this board among the given ids; a 400 when any is not of the board. */
+  const boardEvidence = async (tx: ScopedTransaction, boardId: string, ids: string[]) => {
+    const unique = [...new Set(ids)];
+    const rows =
+      unique.length === 0
+        ? []
+        : await tx
+            .select({ id: evidence.id, showsTransfer: evidence.showsTransfer })
+            .from(evidence)
+            .where(and(eq(evidence.boardId, boardId), inArray(evidence.id, unique)));
+    if (rows.length !== unique.length) throw new Refusal(400, { error: 'unknown_reference' });
+    return rows;
   };
 
   /** A cycle of this board, or a 404 as for anything not on it. */
@@ -376,6 +507,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .orderBy(asc(panelAssignments.role), asc(persons.name));
         const calibration = await readCalibration(tx, row.id, byMapOrder);
         const cycle = await readOpenCycle(tx, row.id, program!.maxFocuses, byMapOrder);
+        const history = await readEvidenceAndDecisions(tx, row.id, program!.mapId);
         const baseline =
           row.baselineSetAt === null
             ? null
@@ -426,6 +558,10 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               canPlanCycle: canPlanCycle(personId, access),
               canStartCycle: canStartCycle(personId, access),
               canReviewExperiments: canReviewExperiment(personId, access),
+              canRecordEvidence: canRecordEvidence(personId, access),
+              canProposeChanges: canProposeChange(personId, access),
+              canDecideProposals: canDecideProposal(personId, access),
+              canRecordMentoring: canRecordMentoring(personId, access),
             },
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
@@ -439,6 +575,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             baseline,
             // The cycle that is not closed yet, with its focuses and experiments; null if none.
             cycle,
+            // Facts of the board and what was proposed and decided with them (invariants 4 to 7).
+            ...history,
           },
         };
       }),
@@ -797,6 +935,173 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           throw error;
         }
         return { body: { state: move.state } };
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/evidence', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = evidenceInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!access.hasBaseline) throw new Refusal(409, { error: 'no_baseline' });
+        if (!canRecordEvidence(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        try {
+          const [created] = await tx
+            .insert(evidence)
+            .values({ organizationId: row.organizationId, boardId: row.id, ...body.data, author: personId })
+            .returning({ id: evidence.id });
+          return { status: 201, body: { evidenceId: created!.id } };
+        } catch (error) {
+          if (['23514', '23503'].includes(postgresCode(error) ?? '')) throw new Refusal(400, { error: 'unknown_reference' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.delete('/boards/:boardId/evidence/:evidenceId', async (request, reply) => {
+    const params = evidenceParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { personId, row }) => {
+        const [found] = await tx
+          .select({ author: evidence.author })
+          .from(evidence)
+          .where(and(eq(evidence.id, params.data.evidenceId), eq(evidence.boardId, row.id)));
+        if (found === undefined) throw new Refusal(404, NOT_FOUND);
+        if (found.author !== personId) throw new Refusal(403, { error: 'forbidden' });
+        try {
+          await tx.delete(evidence).where(eq(evidence.id, params.data.evidenceId));
+        } catch (error) {
+          if (postgresCode(error) === '23503') throw new Refusal(409, { error: 'evidence_cited' });
+          throw error;
+        }
+        return { status: 204 };
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/level-proposals', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = proposalInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canProposeChange(personId, access)) throw new Refusal(access.hasBaseline ? 403 : 409, access.hasBaseline ? { error: 'forbidden' } : { error: 'no_baseline' });
+        const program = await programOf(tx, row.programId);
+        const [current] = await tx
+          .select({ position: levels.position })
+          .from(placements)
+          .leftJoin(levels, eq(levels.id, placements.levelId))
+          .where(and(eq(placements.boardId, row.id), eq(placements.capabilityId, body.data.capabilityId)));
+        const [target] = await tx
+          .select({ position: levels.position, requiresTransfer: levels.requiresTransfer })
+          .from(levels)
+          .where(and(eq(levels.id, body.data.levelId), eq(levels.mapId, program.mapId)));
+        if (current === undefined || target === undefined) throw new Refusal(400, { error: 'unknown_reference' });
+        const cited = await boardEvidence(tx, row.id, body.data.evidenceIds);
+        const problems = proposalProblems({
+          current: current.position,
+          target: target.position,
+          targetRequiresTransfer: target.requiresTransfer,
+          evidence: cited,
+        });
+        if (problems.length > 0) throw new Refusal(422, { error: 'invalid_proposal', problems });
+        try {
+          const created = await tx.execute<{ id: string }>(
+            sql`select app_propose_level_change(${row.id}::uuid, ${body.data.capabilityId}::uuid, ${body.data.levelId}::uuid,
+                  ${`{${[...new Set(body.data.evidenceIds)].join(',')}}`}::uuid[]) as id`,
+          );
+          return { status: 201, body: { proposalId: created.rows[0]!.id } };
+        } catch (error) {
+          if (postgresConstraint(error) === 'level_change_proposals_one_open') throw new Refusal(409, { error: 'proposal_open' });
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          // The database repeats the checks: the level or the evidence changed in between.
+          if (['PM004', 'PM006'].includes(postgresCode(error) ?? '')) throw new Refusal(409, { error: 'board_changed' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  /** Approves or rejects a proposal or a bonus through its decision function. */
+  const decision = (route: string, params: typeof proposalParams | typeof bonusParams, run: (id: string, approve: boolean, note: string) => ReturnType<typeof sql>) =>
+    api.post(route, async (request, reply) => {
+      const parsed = params.safeParse(request.params);
+      const body = decisionInput.safeParse(request.body);
+      if (!parsed.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+      const targetId = 'proposalId' in parsed.data ? parsed.data.proposalId : parsed.data.bonusId;
+      return answer(reply, () =>
+        openBoard(request, reply, parsed.data.boardId, async (tx, { access, personId, row }) => {
+          if (!canDecideProposal(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+          const table = 'proposalId' in parsed.data ? levelChangeProposals : bonusAwards;
+          const [found] = await tx
+            .select({ id: table.id })
+            .from(table)
+            .where(and(eq(table.id, targetId), eq(table.boardId, row.id)));
+          if (found === undefined) throw new Refusal(404, NOT_FOUND);
+          try {
+            await tx.execute(run(targetId, body.data.approve, body.data.note));
+          } catch (error) {
+            if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'already_decided' });
+            if (postgresCode(error) === 'PM004') throw new Refusal(409, { error: 'no_longer_above' });
+            throw error;
+          }
+          return { body: { state: body.data.approve ? 'approved' : 'rejected' } };
+        }),
+      );
+    });
+  decision('/boards/:boardId/level-proposals/:proposalId/decision', proposalParams, (target, approve, note) =>
+    sql`select app_decide_level_change(${target}::uuid, ${approve}, ${note})`,
+  );
+  decision('/boards/:boardId/bonuses/:bonusId/decision', bonusParams, (target, approve, note) =>
+    sql`select app_decide_bonus(${target}::uuid, ${approve}, ${note})`,
+  );
+
+  api.post('/boards/:boardId/bonuses', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = bonusInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canProposeChange(personId, access)) throw new Refusal(access.hasBaseline ? 403 : 409, access.hasBaseline ? { error: 'forbidden' } : { error: 'no_baseline' });
+        const cited = await boardEvidence(tx, row.id, body.data.evidenceIds);
+        const problems = bonusProblems({ evidenceCount: cited.length, alreadyAwarded: false });
+        if (problems.length > 0) throw new Refusal(422, { error: 'invalid_bonus', problems });
+        try {
+          const created = await tx.execute<{ id: string }>(
+            sql`select app_propose_bonus(${row.id}::uuid, ${body.data.capabilityId}::uuid, ${body.data.bonusRuleId}::uuid,
+                  ${`{${[...new Set(body.data.evidenceIds)].join(',')}}`}::uuid[]) as id`,
+          );
+          return { status: 201, body: { bonusId: created.rows[0]!.id } };
+        } catch (error) {
+          if (postgresConstraint(error) === 'bonus_awards_one_per_rule') throw new Refusal(409, { error: 'already_awarded' });
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/mentoring-sessions', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = mentoringInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canRecordMentoring(personId, access)) throw new Refusal(access.hasBaseline ? 403 : 409, access.hasBaseline ? { error: 'forbidden' } : { error: 'no_baseline' });
+        try {
+          const created = await tx.execute<{ id: string }>(
+            sql`select app_record_mentoring(${row.id}::uuid, ${body.data.heldOn}::date, ${body.data.notes},
+                  ${`{${[...new Set(body.data.experimentIds)].join(',')}}`}::uuid[]) as id`,
+          );
+          return { status: 201, body: { mentoringSessionId: created.rows[0]!.id } };
+        } catch (error) {
+          if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
+          throw error;
+        }
       }),
     );
   });
