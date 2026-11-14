@@ -45,7 +45,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Domain rules: who proposes and decides, proposal validity (above current level, evidence, transfer), bonus uniqueness. Specs: S1–S5, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of evidence, level changes and bonuses` (see L4).
-- [ ] T2 — Persistence: evidence, level change proposals, bonus awards, mentoring sessions; decision functions; guards; Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules).
+- [x] T2 — Persistence: evidence, level change proposals, bonus awards, mentoring sessions; decision functions; guards; Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store evidence, level changes, bonuses and mentoring under invariants 4 to 7` (see L5).
 - [ ] T3 — API: read with the board; evidence, proposals, decisions, bonuses, sessions. Specs: S1–S6. Route: inline. Risk: item 2 (permissions).
 - [ ] T4 — Web: evidence, proposals, bonuses and sessions on the board. Specs: S7. Route: inline. Risk: none (interface over the API).
 
@@ -61,3 +61,9 @@ L2 (2026-11-13, context): row 6 of the approved build plan: evidence, level chan
 L3 (2026-11-13, assumptions): those marked in S1, S2 and S5 were taken without asking; each can change later without redoing the rest.
 
 L4 (2026-11-13, T1 evidence): RED observed (`evidence.ts` missing), then GREEN: unit project 115 passed, `npm run typecheck` clean. Rules: `canRecordEvidence` (owner or panel after the baseline), `canProposeChange` (owner), `canDecideProposal` and `canRecordMentoring` (panel), `proposalProblems` (`unplaced`, `not_above`, `no_evidence`, `no_transfer_evidence`), `bonusProblems` (`no_evidence`, `already_awarded`), `isEvidenceLink` (http or https).
+
+L5 (2026-11-13, T2 evidence and decisions): RED observed (`relation "evidence" does not exist`), then GREEN: 8 storage tests (titled `INV-4`, `INV-5`, `INV-6`, `INV-7`, `INV-9`, `INV-11`) and the whole suite, 344 passed in 37 files; `npm run typecheck` clean. Mutation check on migration 0008: dropping the transfer check, the panel check of a decision, or the one-bonus-per-rule index each failed its test. All restored.
+- Migration `0008_evidence_level_changes_bonuses.sql`: `evidence` (link only http or https, `shows_transfer`, optional experiment of the same board, author set to the person acting), `level_change_proposals` and `proposal_evidence`, `bonus_awards` (at most one not rejected per rule and capability) and `bonus_evidence`, `mentoring_sessions` and `mentoring_session_experiments`. Every table carries `board_id`, `organization_id` and Row Level Security for owner and panel; no super administrator clause.
+- `level_changes` gains reason `evidence` and `proposal_id`, required together. `bonus_rules` gains the composite key bonus awards need. Migration 0006 is not edited.
+- The API role inserts evidence and deletes its own evidence while nothing cites it; it writes nothing else. `app_propose_level_change`, `app_decide_level_change`, `app_propose_bonus`, `app_decide_bonus` and `app_record_mentoring` write after their checks. A decided proposal or bonus, a citation and a session never change, for every role.
+- SQL states: `PM004`, `PM006`, `PM007` for the invariants, `PM050` for states, `23514` for references outside the board or the map, `42501` for who acts.
