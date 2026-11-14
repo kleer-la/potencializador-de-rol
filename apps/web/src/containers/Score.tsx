@@ -107,6 +107,13 @@ function failureText(error: unknown, board: Board): { text: string; items: strin
       ],
     };
   }
+  if (error instanceof ApiError && error.code === 'incomplete') {
+    const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
+    return {
+      text: 'Falta el nivel acordado de estas capacidades:',
+      items: ((error.details.missing as string[]) ?? []).map((capabilityId) => statement.get(capabilityId) ?? capabilityId),
+    };
+  }
   return { text: (error instanceof ApiError && closingErrors[error.code]) || messages.requestFailed, items: [] };
 }
 

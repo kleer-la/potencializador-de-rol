@@ -241,7 +241,12 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       <InitialLevels board={board} onDone={load} />
       <ScoreSection board={board} />
       <CycleSection board={board} onChanged={load} />
-      <RecalibrationEditor board={board} onDone={load} />
+      {/* Remounted when levels change, so the form starts from the board as it is now. */}
+      <RecalibrationEditor
+        key={board.placements.map((placement) => `${placement.capabilityId}:${placement.levelId}`).join('|')}
+        board={board}
+        onDone={load}
+      />
       <EvidenceSections board={board} onChanged={load} />
       <CloseBoard board={board} onDone={load} />
 

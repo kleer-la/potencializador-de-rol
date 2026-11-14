@@ -87,3 +87,7 @@ L9 (2026-11-13, T4 evidence): RED observed (4 interface tests failing), then GRE
 - "Puntaje de madurez" on a board with a baseline: the total "N de M" with the number of capabilities, an "Evolución" table (moment, date, score, change, capabilities), and "Por dimensión" and "Por dificultad" tables; it says the difficulty is shown and does not weight the score. Nothing of it before the baseline.
 - In "Ciclo de mejora", a panel member sees "Cerrar ciclo" with confirmation that a snapshot is taken. Between cycles, "Recalibración" offers date, attendees, notes and one level per capability, preselected at the current level, with confirmation; a refused attendance lists who must attend. "Cerrar tablero" asks for confirmation that the board will not change afterwards.
 - Existing interface test fixtures gained the new board fields; their assertions did not change.
+
+L10 (2026-11-13, review of T3 and T4): native review of commits `154bbe0` to `bfcfe25` (escalated for item 2, permissions; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit, RED observed (the form kept the levels of page load), then GREEN (`npm test` 379 passed, `npm run typecheck` clean):
+- The recalibration form kept the levels from when the board was first opened, so after an approved change in the same session it could revert it. It now starts again from the current levels whenever they change.
+- A recalibration refused as incomplete showed a generic message; it now names the capabilities without a level.

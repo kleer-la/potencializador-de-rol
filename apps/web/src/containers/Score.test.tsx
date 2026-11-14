@@ -173,6 +173,41 @@ describe('closing and recalibration', () => {
     });
   });
 
+  it('preselects the levels as they are after a reload, and names the capabilities without a level', async () => {
+    let loads = 0;
+    const raised = board(viewer({ canRecalibrate: true, canRecordEvidence: true }), {
+      placements: [
+        { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
+        { capabilityId: 'capability-2', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
+      ],
+    });
+    const calls = fakeBackend({
+      'GET /api/boards/board-1': () => {
+        loads += 1;
+        return json(loads === 1 ? board(viewer({ canRecalibrate: true, canRecordEvidence: true })) : raised);
+      },
+      'POST /api/boards/board-1/evidence': () => json({ evidenceId: 'e-1' }, 201),
+      'POST /api/boards/board-1/recalibration': () => json({ error: 'incomplete', missing: ['capability-2'] }, 422),
+    });
+    const user = userEvent.setup();
+    render(<BoardView boardId="board-1" onBack={() => {}} />);
+    await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
+
+    const facts = screen.getByRole('region', { name: 'Evidencias' });
+    await user.type(within(facts).getByLabelText('Hecho'), 'Algo pasó');
+    await user.click(within(facts).getByRole('button', { name: 'Registrar evidencia' }));
+    await within(screen.getByRole('region', { name: 'Recalibración' })).findByRole('radiogroup', { name: 'Comunica por escrito' });
+    const form = screen.getByRole('region', { name: 'Recalibración' });
+    const second = within(form).getByRole('radiogroup', { name: 'Comunica por escrito' });
+    expect((within(second).getByRole('radio', { name: '1 · Principiante' }) as HTMLInputElement).checked).toBe(true);
+
+    await user.click(within(form).getByRole('button', { name: 'Registrar recalibración' }));
+    await user.click(within(form).getByRole('button', { name: 'Confirmar' }));
+    const alert = await within(form).findByRole('alert');
+    expect(within(alert).getByText('Comunica por escrito')).toBeTruthy();
+    expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2);
+  });
+
   it('lets a panel member close the board after confirming', async () => {
     const { calls, user } = await open(board(viewer({ canCloseBoard: true })), {
       'POST /api/boards/board-1/close': () => json({ status: 'closed' }),
