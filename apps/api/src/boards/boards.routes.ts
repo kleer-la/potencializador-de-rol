@@ -1,7 +1,14 @@
 import {
   canAdjustSelection,
   canCalibrate,
+  canMoveExperiment,
+  canPlanCycle,
   canRecordInitialLevel,
+  canReviewExperiment,
+  canStartCycle,
+  EXPERIMENT_RESULTS,
+  isValidTarget,
+  startBlockers,
   canSeeSelfAssessment,
   isOnPanel,
   missingAttendance,
@@ -11,7 +18,7 @@ import {
   type BoardAccess,
   type PanelRole,
 } from '@potencializador/domain';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { Refusal } from '../maps/map-store.ts';
@@ -23,6 +30,9 @@ import {
   calibrationLevels,
   calibrationSessions,
   capabilities,
+  cycles,
+  experiments,
+  focuses,
   dimensions,
   enrollments,
   levels,
@@ -57,6 +67,21 @@ const calibrationInput = z.object({
   levels: levelsInput,
 });
 const initialLevelInput = z.object({ capabilityId: id, levelId: id });
+const cycleParams = z.object({ boardId: id, cycleId: id });
+const focusParams = z.object({ boardId: id, cycleId: id, focusId: id });
+const experimentParams = z.object({ boardId: id, experimentId: id });
+const cycleInput = z
+  .object({ startsOn: z.iso.date(), endsOn: z.iso.date() })
+  .refine((cycle) => cycle.endsOn >= cycle.startsOn);
+const focusInput = z.object({ capabilityId: id, targetLevelId: id });
+const experimentInput = z.object({
+  description: z.string().trim().min(1).max(2000),
+  expectedResult: z.string().trim().max(2000).default(''),
+});
+const experimentMove = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('in_progress') }),
+  z.object({ state: z.literal('reviewed'), result: z.enum(EXPERIMENT_RESULTS), learnings: z.string().trim().max(5000).default('') }),
+]);
 
 const NOT_FOUND = { error: 'not_found' } as const;
 
@@ -150,6 +175,79 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return { heldOn: session.heldOn, notes: session.notes, attendees, levels: byMapOrder(levelRows) };
   };
 
+  /** The board's cycle that is not closed, with focuses (map order) and experiments (oldest first). */
+  const readOpenCycle = async (
+    tx: ScopedTransaction,
+    boardId: string,
+    maxFocuses: number,
+    byMapOrder: <T extends { capabilityId: string }>(entries: T[]) => T[],
+  ) => {
+    const [cycle] = await tx
+      .select()
+      .from(cycles)
+      .where(and(eq(cycles.boardId, boardId), ne(cycles.state, 'closed')))
+      .orderBy(desc(cycles.number))
+      .limit(1);
+    if (cycle === undefined) return null;
+    const focusRows = await tx
+      .select({ id: focuses.id, capabilityId: focuses.capabilityId, targetLevelId: focuses.targetLevelId })
+      .from(focuses)
+      .where(eq(focuses.cycleId, cycle.id));
+    const experimentRows =
+      focusRows.length === 0
+        ? []
+        : await tx
+            .select({
+              id: experiments.id,
+              focusId: experiments.focusId,
+              description: experiments.description,
+              expectedResult: experiments.expectedResult,
+              state: experiments.state,
+              result: experiments.result,
+              learnings: experiments.learnings,
+              reviewedAt: experiments.reviewedAt,
+            })
+            .from(experiments)
+            .where(inArray(experiments.focusId, focusRows.map((focus) => focus.id)))
+            .orderBy(asc(experiments.createdAt), asc(experiments.id));
+    return {
+      id: cycle.id,
+      number: cycle.number,
+      startsOn: cycle.startsOn,
+      endsOn: cycle.endsOn,
+      state: cycle.state,
+      startedAt: cycle.startedAt,
+      maxFocuses,
+      focuses: byMapOrder(focusRows).map((focus) => ({
+        ...focus,
+        experiments: experimentRows
+          .filter((experiment) => experiment.focusId === focus.id)
+          .map(({ focusId: _focusId, ...experiment }) => experiment),
+      })),
+    };
+  };
+
+  /** A cycle of this board, or a 404 as for anything not on it. */
+  const cycleOfBoard = async (tx: ScopedTransaction, boardId: string, cycleId: string) => {
+    const [cycle] = await tx
+      .select()
+      .from(cycles)
+      .where(and(eq(cycles.id, cycleId), eq(cycles.boardId, boardId)));
+    if (cycle === undefined) throw new Refusal(404, NOT_FOUND);
+    return cycle;
+  };
+
+  /** Invariant 8 as the API sees it: what keeps a planned cycle from starting. */
+  const blockersOf = async (tx: ScopedTransaction, cycleId: string, maxFocuses: number) => {
+    const counted = await tx
+      .select({ capabilityId: focuses.capabilityId, experiments: sql<number>`count(${experiments.id})::int` })
+      .from(focuses)
+      .leftJoin(experiments, eq(experiments.focusId, focuses.id))
+      .where(eq(focuses.cycleId, cycleId))
+      .groupBy(focuses.id, focuses.capabilityId);
+    return startBlockers(counted, maxFocuses);
+  };
+
   /**
    * Serializes the owner's own writes to one board's self-assessment (two first saves at
    * once would both try to create it). A transaction-level advisory lock: boards are not
@@ -227,6 +325,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             name: programs.name,
             mapId: programs.mapId,
             mandatoryPanelRoles: programs.mandatoryPanelRoles,
+            maxFocuses: programs.maxFocuses,
           })
           .from(programs)
           .where(eq(programs.id, row.programId));
@@ -276,6 +375,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .where(eq(panelAssignments.participantEnrollmentId, row.enrollmentId))
           .orderBy(asc(panelAssignments.role), asc(persons.name));
         const calibration = await readCalibration(tx, row.id, byMapOrder);
+        const cycle = await readOpenCycle(tx, row.id, program!.maxFocuses, byMapOrder);
         const baseline =
           row.baselineSetAt === null
             ? null
@@ -323,6 +423,9 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               canSelfAssess: canWriteSelfAssessment(personId, access, submitted) && row.status === 'not_started',
               canCalibrate: canCalibrate(personId, access, row.status),
               canRecordInitialLevel: canRecordInitialLevel(personId, access),
+              canPlanCycle: canPlanCycle(personId, access),
+              canStartCycle: canStartCycle(personId, access),
+              canReviewExperiments: canReviewExperiment(personId, access),
             },
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),
             dimensions: dimensionRows,
@@ -334,6 +437,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             calibration,
             // Invariant 3: the agreed snapshot; its entries never change, later ones are added.
             baseline,
+            // The cycle that is not closed yet, with its focuses and experiments; null if none.
+            cycle,
           },
         };
       }),
@@ -507,6 +612,184 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
           throw error;
         }
+      }),
+    );
+  });
+
+  const programOf = async (tx: ScopedTransaction, programId: string) =>
+    (await tx.select({ maxFocuses: programs.maxFocuses, mapId: programs.mapId }).from(programs).where(eq(programs.id, programId)))[0]!;
+
+  api.post('/boards/:boardId/cycles', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = cycleInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!access.hasBaseline) throw new Refusal(409, { error: 'no_baseline' });
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        try {
+          const [created] = await tx
+            .insert(cycles)
+            .values({ organizationId: row.organizationId, boardId: row.id, ...body.data, createdBy: personId })
+            .returning({ id: cycles.id });
+          return { status: 201, body: { cycleId: created!.id } };
+        } catch (error) {
+          if (postgresConstraint(error) === 'cycles_one_open_per_board') throw new Refusal(409, { error: 'cycle_open' });
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'board_closed' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/cycles/:cycleId/focuses', async (request, reply) => {
+    const params = cycleParams.safeParse(request.params);
+    const body = focusInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        const program = await programOf(tx, row.programId);
+        const [current] = await tx
+          .select({ position: levels.position })
+          .from(placements)
+          .leftJoin(levels, eq(levels.id, placements.levelId))
+          .where(and(eq(placements.boardId, row.id), eq(placements.capabilityId, body.data.capabilityId)));
+        const [target] = await tx
+          .select({ position: levels.position })
+          .from(levels)
+          .where(and(eq(levels.id, body.data.targetLevelId), eq(levels.mapId, program.mapId)));
+        if (current === undefined || target === undefined || !isValidTarget(current.position, target.position)) {
+          throw new Refusal(422, { error: 'invalid_target' });
+        }
+        try {
+          const [created] = await tx
+            .insert(focuses)
+            .values({ organizationId: row.organizationId, cycleId: cycle.id, ...body.data, createdBy: personId })
+            .returning({ id: focuses.id });
+          return { status: 201, body: { focusId: created!.id } };
+        } catch (error) {
+          if (postgresConstraint(error) === 'focuses_one_per_capability') throw new Refusal(409, { error: 'already_focus' });
+          if (postgresCode(error) === 'PM008') throw new Refusal(422, { error: 'too_many_focuses', maxFocuses: program.maxFocuses });
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
+          if (postgresCode(error) === '23514') throw new Refusal(422, { error: 'invalid_target' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.delete('/boards/:boardId/cycles/:cycleId/focuses/:focusId', async (request, reply) => {
+    const params = focusParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        let removed;
+        try {
+          removed = await tx
+            .delete(focuses)
+            .where(and(eq(focuses.id, params.data.focusId), eq(focuses.cycleId, cycle.id)))
+            .returning({ id: focuses.id });
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
+          throw error;
+        }
+        if (removed.length === 0) throw new Refusal(404, NOT_FOUND);
+        return { status: 204 };
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/cycles/:cycleId/focuses/:focusId/experiments', async (request, reply) => {
+    const params = focusParams.safeParse(request.params);
+    const body = experimentInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        const [focus] = await tx
+          .select({ id: focuses.id })
+          .from(focuses)
+          .where(and(eq(focuses.id, params.data.focusId), eq(focuses.cycleId, cycle.id)));
+        if (focus === undefined) throw new Refusal(404, NOT_FOUND);
+        if (cycle.state === 'closed') throw new Refusal(409, { error: 'cycle_closed' });
+        try {
+          const [created] = await tx
+            .insert(experiments)
+            .values({ organizationId: row.organizationId, focusId: focus.id, ...body.data, createdBy: personId })
+            .returning({ id: experiments.id });
+          return { status: 201, body: { experimentId: created!.id } };
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_closed' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.post('/boards/:boardId/cycles/:cycleId/start', async (request, reply) => {
+    const params = cycleParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canStartCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        const { maxFocuses } = await programOf(tx, row.programId);
+        const blockers = await blockersOf(tx, cycle.id, maxFocuses);
+        if (blockers.noFocus || blockers.tooMany || blockers.withoutExperiment.length > 0) {
+          throw new Refusal(422, { error: 'cannot_start', ...blockers });
+        }
+        try {
+          const started = await tx.execute<{ started_at: string }>(sql`select app_start_cycle(${cycle.id}::uuid) as started_at`);
+          return { body: { startedAt: started.rows[0]!.started_at } };
+        } catch (error) {
+          // The database repeats the checks under a lock: the cycle changed in between.
+          if (postgresCode(error) === 'PM008') throw new Refusal(409, { error: 'cycle_changed' });
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
+          throw error;
+        }
+      }),
+    );
+  });
+
+  api.patch('/boards/:boardId/experiments/:experimentId', async (request, reply) => {
+    const params = experimentParams.safeParse(request.params);
+    const body = experimentMove.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        const [found] = await tx
+          .select({ id: experiments.id, state: experiments.state, cycleState: cycles.state })
+          .from(experiments)
+          .innerJoin(focuses, eq(focuses.id, experiments.focusId))
+          .innerJoin(cycles, eq(cycles.id, focuses.cycleId))
+          .where(and(eq(experiments.id, params.data.experimentId), eq(cycles.boardId, row.id)));
+        if (found === undefined) throw new Refusal(404, NOT_FOUND);
+        const move = body.data;
+        const allowed = move.state === 'reviewed' ? canReviewExperiment(personId, access) : canPlanCycle(personId, access);
+        if (!allowed) throw new Refusal(403, { error: 'forbidden' });
+        const result = move.state === 'reviewed' ? move.result : undefined;
+        if (!canMoveExperiment(found.state, move.state, found.cycleState, result)) {
+          throw new Refusal(409, { error: 'invalid_transition' });
+        }
+        try {
+          await tx
+            .update(experiments)
+            .set(move.state === 'reviewed' ? { state: 'reviewed', result: move.result, learnings: move.learnings } : { state: 'in_progress' })
+            .where(eq(experiments.id, found.id));
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'invalid_transition' });
+          if (postgresCode(error) === '42501') throw new Refusal(403, { error: 'forbidden' });
+          throw error;
+        }
+        return { body: { state: move.state } };
       }),
     );
   });

@@ -225,3 +225,41 @@ export const baselineEntries = pgTable('baseline_entries', {
   origin: text('origin', { enum: ['calibration', 'initial_leveling'] }).notNull(),
   setAt: timestamp('set_at', { withTimezone: true }).notNull(),
 });
+
+export const cycles = pgTable('cycles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  number: integer('number').notNull().default(0),
+  startsOn: date('starts_on', { mode: 'string' }).notNull(),
+  endsOn: date('ends_on', { mode: 'string' }).notNull(),
+  state: text('state', { enum: ['planned', 'active', 'closed'] }).notNull().default('planned'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const focuses = pgTable('focuses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  cycleId: uuid('cycle_id').notNull(),
+  capabilityId: uuid('capability_id').notNull(),
+  targetLevelId: uuid('target_level_id').notNull(),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const experiments = pgTable('experiments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  focusId: uuid('focus_id').notNull(),
+  description: text('description').notNull(),
+  expectedResult: text('expected_result').notNull().default(''),
+  state: text('state', { enum: ['planned', 'in_progress', 'reviewed'] }).notNull().default('planned'),
+  result: text('result', { enum: ['consolidated', 'not_consolidated', 'discarded'] }),
+  learnings: text('learnings').notNull().default(''),
+  reviewedBy: uuid('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

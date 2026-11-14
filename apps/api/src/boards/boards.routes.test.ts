@@ -123,6 +123,9 @@ describe('boards', () => {
       canSelfAssess: false,
       canCalibrate: false,
       canRecordInitialLevel: false,
+      canPlanCycle: false,
+      canStartCycle: false,
+      canReviewExperiments: false,
     });
     expect(mentor.json().placements).toHaveLength(2);
   });

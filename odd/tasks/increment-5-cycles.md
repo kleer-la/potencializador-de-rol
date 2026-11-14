@@ -44,7 +44,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 
 - [x] T1 — Domain rules: who plans and who starts a cycle, focus limit and target level, what blocks the start, experiment transitions. Specs: S1–S4, S6, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of cycles, focuses and experiments` (see L4).
 - [x] T2 — Persistence: cycles, focuses, experiments; start function; guards (invariant 8, transitions, one open cycle); Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store cycles, focuses and experiments under invariant 8` (see L5).
-- [ ] T3 — API: cycle with the board, create cycle, focuses, experiments, start, experiment progress and review. Specs: S1–S6. Route: inline. Risk: item 2 (permissions).
+- [x] T3 — API: cycle with the board, create cycle, focuses, experiments, start, experiment progress and review. Specs: S1–S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: cycles, focuses and experiments through the board API` (see L7).
 - [ ] T4 — Web: current cycle on the board. Specs: S7. Route: inline. Risk: none (interface over the API).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
@@ -69,3 +69,12 @@ L6 (2026-11-13, review of T1 and T2): native review of commits `4515943` and `a6
 - The experiment guard read the cycle without locking it, so deleting a focus's only experiment could interleave with the start and leave an active cycle with a focus without experiment (invariant 8). It now locks the cycle, as the focus guard and the start function do. A race; no deterministic test.
 - The lookups `app_board_of_cycle` and `app_board_of_focus` answered for any organization; they now answer only inside the organization in scope.
 - Added storage cases for two guards no test reached: an experiment does not move in a planned cycle, and the dates of an active cycle do not change. Mutation check: removing either guard fails its case.
+
+L7 (2026-11-13, T3 evidence): RED observed (4 of 6 route tests failing), then GREEN: `npm test` 318 passed in 34 files, `npm run typecheck` clean.
+- `GET /api/boards/:boardId` adds `cycle` (the cycle not closed: number, dates, state, `startedAt`, `maxFocuses`, focuses in map order with their experiments; `null` if none) and `viewer.canPlanCycle`, `viewer.canStartCycle`, `viewer.canReviewExperiments`. One existing test compared `viewer` whole and now includes the three fields.
+- `POST /api/boards/:boardId/cycles` {startsOn, endsOn}: `201`; `409 no_baseline`, `409 cycle_open`, `400 invalid_request` (end before start).
+- `POST .../cycles/:cycleId/focuses` {capabilityId, targetLevelId}: `201`; `422 invalid_target` (not above the current level, capability unplaced or off the board, level of another map), `409 already_focus`, `422 too_many_focuses` with `maxFocuses`, `409 cycle_not_planned`. `DELETE .../focuses/:focusId`: `204`; `409 cycle_not_planned`.
+- `POST .../focuses/:focusId/experiments` {description, expectedResult}: `201`; `409 cycle_closed`.
+- `POST .../cycles/:cycleId/start` (panel): `200`; `403 forbidden`, `409 cycle_not_planned`, `422 cannot_start` with `noFocus`, `tooMany` and `withoutExperiment`; `409 cycle_changed` if the database check fails after the API's.
+- `PATCH /api/boards/:boardId/experiments/:experimentId` {state: "in_progress"} (owner or panel) or {state: "reviewed", result, learnings} (panel): `200`; `403 forbidden`, `409 invalid_transition`, `400 invalid_request`.
+- Anything of another board answers `404`.
