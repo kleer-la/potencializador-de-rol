@@ -26,7 +26,7 @@ L1 (2026-11-13, user, original request): "Al invitar a una persona, no es posibl
 L2 (2026-11-13, user decision): see S2.
 
 L3 (2026-11-13, T1 evidence): RED observed (3 route tests failing), then GREEN.
-- `POST /api/organizations/:id/programs/:programId/enrollments` takes an optional `name`. Unknown email with a name: the person is created in the organization without organization role and enrolled (`201`); without a name, `404 person_not_found` as before; an email of another organization or of Kleer: `409 invitation_not_possible`, nothing stored. An existing person keeps their name.
+- `POST /api/organizations/:id/programs/:programId/enrollments` takes an optional `name`. Unknown email with a name: the person is created in the organization without organization role and enrolled (`201`); without a name, `404 person_not_found` as before; an email of another organization: `409 invitation_not_possible`, nothing stored. An existing person (of the organization or of Kleer) is enrolled as before and keeps their name.
 - `POST /api/organizations/:id/members` takes `role` as optional; without it the person joins with no organization role (`roles: []`). The find-or-create step is shared by both routes (`organizations/invite-person.ts`).
 - A person invited this way signs in and `/api/me` lists no memberships.
 
