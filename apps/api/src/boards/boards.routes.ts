@@ -747,6 +747,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         if (!canStartCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
         const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
         if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        if (row.status !== 'calibrated' && row.status !== 'between_cycles') throw new Refusal(409, { error: 'board_not_ready' });
         const { maxFocuses } = await programOf(tx, row.programId);
         const blockers = await blockersOf(tx, cycle.id, maxFocuses);
         if (blockers.noFocus || blockers.tooMany || blockers.withoutExperiment.length > 0) {

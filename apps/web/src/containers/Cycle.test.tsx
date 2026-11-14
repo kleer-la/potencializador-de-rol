@@ -155,6 +155,24 @@ describe('cycle', () => {
     expect(within(section()).queryByRole('button', { name: 'Iniciar ciclo' })).toBeNull();
   });
 
+  it('says why a focus was refused and reloads the board after a change', async () => {
+    const { calls, user, section } = await open(board(planned), {
+      'POST /api/boards/board-1/cycles/cycle-1/focuses': () => json({ error: 'too_many_focuses', maxFocuses: 3 }, 422),
+      'POST /api/boards/board-1/cycles/cycle-1/focuses/focus-1/experiments': () => json({ experimentId: 'experiment-1' }, 201),
+    });
+
+    await user.selectOptions(within(section()).getByLabelText('Capacidad'), 'capability-2');
+    await user.selectOptions(within(section()).getByLabelText('Nivel objetivo'), 'level-1');
+    await user.click(within(section()).getByRole('button', { name: 'Agregar foco' }));
+    expect(await within(section()).findByText('El ciclo ya tiene el máximo de focos del programa.')).toBeTruthy();
+
+    const focus = within(section()).getByRole('article', { name: 'Identifica a quién sirve el producto' });
+    await user.type(within(focus).getByLabelText('Experimento'), 'Entrevistar a tres usuarios');
+    await user.click(within(focus).getByRole('button', { name: 'Agregar experimento' }));
+    await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
+    expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2);
+  });
+
   it('lets a panel member start the cycle after confirming, naming the focuses without an experiment', async () => {
     const { user, section } = await open(board(planned, leader), {
       'POST /api/boards/board-1/cycles/cycle-1/start': () =>

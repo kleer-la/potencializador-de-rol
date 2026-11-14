@@ -193,6 +193,28 @@ describe('cycles, focuses and experiments', () => {
     const other = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
     await ownerPool.query('update placements set level_id = $1 where board_id = $2', [program.levelIds[0], other.boardId]);
     await giveBaseline(ownerPool, other.boardId, 'calibrated');
+    // A board that closes while its cycle is still planned cannot start it.
+    const closing = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    await ownerPool.query('update placements set level_id = $1 where board_id = $2', [program.levelIds[0], closing.boardId]);
+    await giveBaseline(ownerPool, closing.boardId, 'calibrated');
+    const closingCycle = (
+      await ownerPool.query<{ id: string }>(
+        "insert into cycles (organization_id, board_id, starts_on, ends_on, created_by) values ($1, $2, date '2027-01-01', date '2027-02-01', $3) returning id",
+        [program.organizationId, closing.boardId, closing.owner],
+      )
+    ).rows[0]!.id;
+    await ownerPool.query("update boards set status = 'closed' where id = $1", [closing.boardId]);
+    const closingLeader = await createSignedInApp(appPool).signInAs(
+      (await ownerPool.query<{ email: string }>('select email from persons where id = $1', [closing.leader])).rows[0]!.email,
+    );
+    const refused = await app.inject({
+      method: 'POST',
+      url: `/api/boards/${closing.boardId}/cycles/${closingCycle}/start`,
+      cookies: { session: closingLeader },
+      headers: { origin: TEST_PUBLIC_URL.origin },
+    });
+    expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'board_not_ready' }]);
+
     const foreignCycle = (
       await ownerPool.query<{ id: string }>(
         "insert into cycles (organization_id, board_id, starts_on, ends_on, created_by) values ($1, $2, date '2027-01-01', date '2027-02-01', $3) returning id",

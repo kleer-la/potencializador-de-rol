@@ -92,3 +92,7 @@ L10 (2026-11-13, review of T3 and T4; consent granted by the user): native revie
 - `app_board_of_cycle` and `app_board_of_focus` now answer only to people who see the board.
 - Added route cases: a target level of another map (`422 invalid_target`), deleting a focus that is not of the cycle (`404`).
 - The review warned that migration 0007 was edited after its first commit. It exists only on this branch and has run only in throwaway test databases; no shared or user database has applied it. Once merged it is never edited again.
+
+L11 (2026-11-13, review of the whole increment; consent granted by the user): native review ended `approved` and was acknowledged. Handled, RED observed for the start on a closed board (answered `cycle_not_planned`), then GREEN (`npm test` 324 passed, `npm run typecheck` clean):
+- Starting a cycle on a board that is not "calibrado" or "entre ciclos" answers `409 board_not_ready` instead of a cycle-state error.
+- Added an interface test: a refused focus shows its message, and a successful change reloads the board.
