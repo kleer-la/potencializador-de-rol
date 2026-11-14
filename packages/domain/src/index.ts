@@ -57,4 +57,17 @@ export {
   type ExperimentResult,
   type ExperimentState,
 } from './cycle.ts';
+export {
+  PROPOSAL_STATES,
+  bonusProblems,
+  canDecideProposal,
+  canProposeChange,
+  canRecordEvidence,
+  canRecordMentoring,
+  isEvidenceLink,
+  proposalProblems,
+  type BonusProblem,
+  type ProposalProblem,
+  type ProposalState,
+} from './evidence.ts';
 export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';
