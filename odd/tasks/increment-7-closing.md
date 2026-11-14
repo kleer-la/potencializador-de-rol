@@ -69,3 +69,9 @@ L6 (2026-11-13, T2 evidence and decisions): RED observed (`function app_close_cy
 - `level_changes` gains reason `recalibration`. Migration 0008 is not edited.
 - `app_close_cycle(cycle)`: a panel member closes the active cycle; the board goes `between_cycles`; a `cycle_close` snapshot is taken. `app_recalibrate_board(board, date, notes, attendees, levels)`: between cycles only, once per gap, with the calibration's attendance (`PM031`) and an agreed level for every capability; each level that moves (also downwards) gets a level change with reason `recalibration`; a `recalibration` snapshot is taken; the baseline is untouched. `app_close_board(board)`: a panel member closes a board that is calibrated or between cycles with no cycle open.
 - A closed board refuses changes to placements, evidence, proposals and decisions, bonuses and sessions (and new cycles, already refused by migration 0007); "cerrado" is final for every role.
+
+L7 (2026-11-13, review of T1 and T2): native review of commits `f057c5a` and `06a1a0b` (escalated for item 2, access rules; lenses risk, reliability; consent granted by the user) ended `approved` and was acknowledged. Handled in a follow-up commit (`npm test` 368 passed, `npm run typecheck` clean):
+- The INV-3 case proved nothing: the board had no baseline entries. It now records them, captures them with the baseline date before the recalibration, and compares them afterwards.
+- "One recalibration between cycles" compared timestamps, which tie inside one transaction. Each recalibration now names the cycle it follows (`after_cycle_id`, unique).
+- Added closed-board cases for proposing a level change and a bonus.
+- Recorded, not changed: the storage tests of this increment share one board and run in order, as in earlier increments.

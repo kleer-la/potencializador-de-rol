@@ -18,6 +18,15 @@ describe('closing, recalibration and snapshots storage', () => {
   let cycleId: string;
   let evidenceId: string;
   let openProposal: string;
+  let baselineBefore: unknown;
+  const baselineRows = async () => ({
+    entries: (
+      await ownerPool.query('select capability_id, level_id, origin, set_at from baseline_entries where board_id = $1 order by capability_id', [
+        board.boardId,
+      ])
+    ).rows,
+    setAt: (await ownerPool.query('select baseline_set_at from boards where id = $1', [board.boardId])).rows[0].baseline_set_at,
+  });
 
   const as = async (personId: string, statements: [string, unknown[]?][], organizationId = program.organizationId) => {
     const client = await appPool.connect();
@@ -65,6 +74,12 @@ describe('closing, recalibration and snapshots storage', () => {
     board = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
     await ownerPool.query('update placements set level_id = $1 where board_id = $2', [program.levelIds[0], board.boardId]);
     await giveBaseline(ownerPool, board.boardId, 'calibrated');
+    // The baseline entries a calibration would have recorded, to prove a recalibration keeps them.
+    await ownerPool.query(
+      "insert into baseline_entries (organization_id, board_id, capability_id, level_id, origin) select organization_id, board_id, capability_id, level_id, 'calibration' from placements where board_id = $1",
+      [board.boardId],
+    );
+    baselineBefore = await baselineRows();
     administrator = await seed.person(organization);
     await seed.membership(organization, administrator, 'administrator');
 
@@ -162,10 +177,8 @@ describe('closing, recalibration and snapshots storage', () => {
   });
 
   it('INV-3 a recalibration does not replace the baseline, and snapshots never change', async () => {
-    const entries = await ownerPool.query('select count(*)::int as n from baseline_entries where board_id = $1', [board.boardId]);
-    expect(entries.rows[0].n).toBe(0); // giveBaseline records no entries; none were added since
-    const baseline = await ownerPool.query('select baseline_set_at is not null as set from boards where id = $1', [board.boardId]);
-    expect(baseline.rows[0].set).toBe(true);
+    expect(await baselineRows()).toEqual(baselineBefore);
+    expect((baselineBefore as { entries: unknown[] }).entries).toHaveLength(2);
     for (const table of ['snapshots', 'snapshot_entries', 'recalibration_sessions', 'recalibration_attendees']) {
       await expectRefused(one(board.leader, `update ${table} set organization_id = organization_id`), /permission denied/);
       await expectRefused(ownerPool.query(`update ${table} set organization_id = organization_id`), /never/);
@@ -196,6 +209,20 @@ describe('closing, recalibration and snapshots storage', () => {
 
     expect(await boardStatus()).toBe('closed');
     await expectRefused(one(board.leader, "select app_decide_level_change($1, true, '')", [openProposal]), /board is closed/);
+    await expectRefused(
+      one(board.owner, 'select app_propose_level_change($1, $2, $3, $4::uuid[])', [
+        board.boardId,
+        program.capabilityIds[0],
+        program.levelIds[1],
+        [evidenceId],
+      ]),
+      /board is closed/,
+    );
+    const rule = (await ownerPool.query('select id from bonus_rules where map_id = $1', [program.mapId])).rows[0].id;
+    await expectRefused(
+      one(board.owner, 'select app_propose_bonus($1, $2, $3, $4::uuid[])', [board.boardId, program.capabilityIds[1], rule, [evidenceId]]),
+      /board is closed/,
+    );
     await expectRefused(
       one(board.owner, "insert into evidence (organization_id, board_id, description, occurred_on) values ($1, $2, 'x', current_date)", [
         program.organizationId,

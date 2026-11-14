@@ -57,11 +57,15 @@ CREATE TABLE recalibration_sessions (
   held_on date NOT NULL,
   notes text NOT NULL DEFAULT '',
   snapshot_id uuid NOT NULL,
+  -- The cycle it follows: one recalibration between two cycles.
+  after_cycle_id uuid NOT NULL,
   recorded_by uuid NOT NULL REFERENCES persons (id),
   recorded_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recalibration_sessions_one_per_gap UNIQUE (after_cycle_id),
   UNIQUE (id, organization_id),
   FOREIGN KEY (board_id, organization_id) REFERENCES boards (id, organization_id),
-  FOREIGN KEY (snapshot_id, organization_id) REFERENCES snapshots (id, organization_id)
+  FOREIGN KEY (snapshot_id, organization_id) REFERENCES snapshots (id, organization_id),
+  FOREIGN KEY (after_cycle_id, organization_id) REFERENCES cycles (id, organization_id)
 );
 
 CREATE TABLE recalibration_attendees (
@@ -189,6 +193,7 @@ CREATE FUNCTION app_recalibrate_board(
     v_now timestamptz := now();
     v_snapshot uuid;
     v_session uuid;
+    v_after_cycle uuid;
   BEGIN
     SELECT * INTO v_board FROM boards WHERE id = p_board_id FOR UPDATE;
     IF v_board.id IS NULL OR v_board.organization_id IS DISTINCT FROM app_current_organization_id()
@@ -198,11 +203,9 @@ CREATE FUNCTION app_recalibrate_board(
     IF v_board.status <> 'between_cycles' THEN
       RAISE EXCEPTION 'a recalibration happens between cycles' USING ERRCODE = 'PM050';
     END IF;
-    IF EXISTS (
-      SELECT 1 FROM snapshots
-       WHERE board_id = p_board_id AND kind = 'recalibration'
-         AND taken_at > (SELECT max(taken_at) FROM snapshots WHERE board_id = p_board_id AND kind = 'cycle_close')
-    ) THEN
+    SELECT id INTO v_after_cycle FROM cycles
+     WHERE board_id = p_board_id AND state = 'closed' ORDER BY number DESC LIMIT 1;
+    IF EXISTS (SELECT 1 FROM recalibration_sessions WHERE after_cycle_id = v_after_cycle) THEN
       RAISE EXCEPTION 'there is already one recalibration between these cycles' USING ERRCODE = 'PM050';
     END IF;
 
@@ -260,8 +263,10 @@ CREATE FUNCTION app_recalibrate_board(
      WHERE p.board_id = p_board_id AND p.capability_id = a.capability_id AND p.level_id IS DISTINCT FROM a.level_id;
 
     v_snapshot := app_record_snapshot(p_board_id, 'recalibration', NULL);
-    INSERT INTO recalibration_sessions (organization_id, board_id, held_on, notes, snapshot_id, recorded_by, recorded_at)
-      VALUES (v_board.organization_id, p_board_id, p_held_on, coalesce(p_notes, ''), v_snapshot, app_current_person_id(), v_now)
+    INSERT INTO recalibration_sessions
+      (organization_id, board_id, held_on, notes, snapshot_id, after_cycle_id, recorded_by, recorded_at)
+      VALUES (v_board.organization_id, p_board_id, p_held_on, coalesce(p_notes, ''), v_snapshot, v_after_cycle,
+              app_current_person_id(), v_now)
       RETURNING id INTO v_session;
     INSERT INTO recalibration_attendees (organization_id, board_id, recalibration_session_id, person_id)
       SELECT DISTINCT v_board.organization_id, p_board_id, v_session, x FROM unnest(p_attendee_ids) AS x;
