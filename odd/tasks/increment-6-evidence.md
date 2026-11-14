@@ -10,7 +10,7 @@ Conceptual base: `docs/Potencializador de rol — Base conceptual del sistema.md
 S1. Evidence. Document §4.2: "`Evidence` | descripción del hecho, enlace opcional, fecha, autor | sustenta un experimento, un cambio de nivel o una bonificación otorgada". Document §7: the participant "registra experimentos y evidencias".
 - Owner and panel record evidence on a board: the fact, an optional link (http or https), the date it happened, its author (the person acting). It may name the experiment it comes from.
 - Assumption: evidence can say that it shows transfer (the person taught others), for invariant 6.
-- Assumption: evidence is never edited; it can be deleted by its author only while nothing decided cites it.
+- Assumption: evidence is never edited; it can be deleted by its author only while nothing cites it (L10).
 
 S2. Level changes with evidence. Document §5.1 invariant 4: "**Después de la línea base, ningún nivel cambia sin evidencia.** Todo cambio queda como `LevelChange` con al menos una evidencia y quién lo aprobó." Invariant 5: "**El participante no aprueba sus propios cambios.** Propone; basta la aprobación de un solo integrante de su panel." Document §6.3: "Cambio de nivel | propuesto → aprobado o rechazado". Document §9.1: "Un nivel puede bajar, pero solo en una recalibración".
 - The owner proposes a new level for a capability on a board with a baseline, citing at least one evidence of that board.
@@ -90,3 +90,8 @@ L9 (2026-11-13, review of T3 and T4): native review of commits `45bc2ec` to `f8b
 - The default "Fecha del hecho" and "Fecha de la sesión" took the UTC date, a day ahead in the evening in Colombia. They now take the local date (unit case at 21:30 local time).
 - The review warned that migration 0008 was edited after its first commit (the `app_board_evidence` revoke). It exists only on this branch and has run only in throwaway test databases; no shared or user database has applied it. Once merged it is never edited again.
 - Recorded, not changed: the route tests of this increment share state and run in order, as in earlier increments.
+
+L10 (2026-11-13, independent verification at `f8b489c`, baseline `a6e629a`): S1–S8 PASS, no blockers; `npm test` 355 passed, `npm run typecheck` and `npm run build` clean in a scratch copy. The baseline's API tests run against the candidate code: 220 of 221 pass, the other compares `viewer` whole (the four fields of L7). A scripted flow through both versions answered alike apart from timestamps and the fields of L7. Probes confirmed invariants 4 to 7, 9 and 11 through the API and SQL, including concurrent proposals, approvals and bonuses; refused commands left the data unchanged. Handled in a follow-up commit:
+- A proposal created while an approval of the same capability was running could stay open with a level no longer above the current one, blocking new proposals until rejected. `app_propose_level_change` now locks the placement, as the decision does. A race; no deterministic test.
+- S1 said evidence can be deleted while nothing decided cites it; the behavior (and L5, L7) refuse while anything cites it, open proposals included. S1 now says so.
+Advisories recorded, not changed: future dates are accepted for evidence and sessions; the schema owner (not the API role) can still edit an open proposal's level directly.

@@ -230,7 +230,9 @@ CREATE FUNCTION app_propose_level_change(
     IF v_board.baseline_set_at IS NULL THEN
       RAISE EXCEPTION 'invariant 4: before the baseline, levels are agreed in the calibration' USING ERRCODE = 'PM004';
     END IF;
-    SELECT * INTO v_placement FROM placements WHERE board_id = p_board_id AND capability_id = p_capability_id;
+    -- Locks the placement, as the decision does: a proposal never checks a level that an
+    -- approval in progress is about to change.
+    SELECT * INTO v_placement FROM placements WHERE board_id = p_board_id AND capability_id = p_capability_id FOR UPDATE;
     IF v_placement.id IS NULL THEN
       RAISE EXCEPTION 'the capability is not on the board' USING ERRCODE = '23514';
     END IF;
