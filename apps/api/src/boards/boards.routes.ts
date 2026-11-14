@@ -457,6 +457,22 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     };
   };
 
+  /** Whether the gap after the last closed cycle already had its one recalibration. */
+  const recalibratedSinceLastCycle = async (tx: ScopedTransaction, boardId: string) => {
+    const [last] = await tx
+      .select({ id: cycles.id })
+      .from(cycles)
+      .where(and(eq(cycles.boardId, boardId), eq(cycles.state, 'closed')))
+      .orderBy(desc(cycles.number))
+      .limit(1);
+    if (last === undefined) return false;
+    const [done] = await tx
+      .select({ id: recalibrationSessions.id })
+      .from(recalibrationSessions)
+      .where(eq(recalibrationSessions.afterCycleId, last.id));
+    return done !== undefined;
+  };
+
   /** A cycle of this board, or a 404 as for anything not on it. */
   const cycleOfBoard = async (tx: ScopedTransaction, boardId: string, cycleId: string) => {
     const [cycle] = await tx
@@ -667,7 +683,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               canDecideProposals: canDecideProposal(personId, access),
               canRecordMentoring: canRecordMentoring(personId, access),
               canCloseCycle: cycle !== null && canCloseCycle(personId, access, cycle.state),
-              canRecalibrate: canRecalibrate(personId, access, row.status),
+              canRecalibrate: canRecalibrate(personId, access, row.status) && !(await recalibratedSinceLastCycle(tx, row.id)),
               canCloseBoard: canCloseBoard(personId, access, row.status) && (cycle === null || cycle.state === 'closed'),
             }),
             levels: scale.map((level) => ({ ...level, multiplier: Number(level.multiplier) })),

@@ -112,6 +112,24 @@ CREATE TRIGGER bonus_awards_open_board BEFORE INSERT OR UPDATE ON bonus_awards
 CREATE TRIGGER mentoring_sessions_open_board BEFORE INSERT ON mentoring_sessions
   FOR EACH ROW EXECUTE FUNCTION guard_open_board();
 
+-- A closed cycle no longer changes: the experiment guard of migration 0007 freezes states
+-- outside an active cycle, and this freezes their text too. A closed board has only closed
+-- cycles, so this covers it as well.
+CREATE FUNCTION guard_experiment_closed_cycle() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM focuses f JOIN cycles c ON c.id = f.cycle_id WHERE f.id = OLD.focus_id AND c.state = 'closed'
+    ) THEN
+      RAISE EXCEPTION 'a closed cycle no longer changes' USING ERRCODE = 'PM050';
+    END IF;
+    RETURN NEW;
+  END
+  $$;
+CREATE TRIGGER experiments_closed_cycle BEFORE UPDATE ON experiments
+  FOR EACH ROW EXECUTE FUNCTION guard_experiment_closed_cycle();
+
 -- "Cerrado" is the last state of a board, for every role.
 CREATE FUNCTION guard_board_closed() RETURNS trigger
   LANGUAGE plpgsql

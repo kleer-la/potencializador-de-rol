@@ -132,6 +132,7 @@ describe('score, evolution, closing and recalibration', () => {
 
     expect((await recalibrate(sessions.leader, [board.owner, board.leader])).statusCode).toBe(201);
     expect((await recalibrate(sessions.leader, [board.owner, board.leader])).json()).toEqual({ error: 'already_recalibrated' });
+    expect((await view(sessions.leader)).viewer.canRecalibrate).toBe(false);
 
     const owned = await view(sessions.owner);
     expect(owned.recalibrations).toEqual([

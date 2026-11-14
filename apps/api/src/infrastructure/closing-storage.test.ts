@@ -151,6 +151,13 @@ describe('closing, recalibration and snapshots storage', () => {
       { capability_id: program.capabilityIds[1], level_id: program.levelIds[0], multiplier: 0, bonus_points: 0 },
     ]);
     await expectRefused(one(board.leader, 'select app_close_cycle($1)', [cycleId]), /active/);
+    // A closed cycle no longer changes: not even the text of its experiments.
+    for (const person of [board.owner, board.leader]) {
+      await expectRefused(
+        one(person, "update experiments set description = 'tras el cierre' where focus_id in (select id from focuses where cycle_id = $1)", [cycleId]),
+        /closed cycle/,
+      );
+    }
   });
 
   it('INV-4 recalibrates between cycles with the attendance of the calibration; levels may go down, once', async () => {
