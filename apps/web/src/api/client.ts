@@ -9,6 +9,8 @@ import type {
 } from '@potencializador/domain';
 
 export type ProviderId = 'google' | 'microsoft';
+/** How people can sign in: external providers, and email with password when mail is configured. */
+export type SignInOptions = { providers: ProviderId[]; password: boolean };
 
 export type CurrentPerson = {
   person: { id: string; name: string; email: string };
@@ -101,7 +103,16 @@ export const api = {
       throw error;
     }
   },
-  providers: async () => (await request<{ providers: ProviderId[] }>('/auth/providers')).providers,
+  signInOptions: async (): Promise<SignInOptions> => {
+    const options = await request<{ providers: ProviderId[]; password?: boolean }>('/auth/providers');
+    return { providers: options.providers, password: options.password === true };
+  },
+  /** Answers the same whether the email was invited or not. */
+  registerPassword: (email: string, password: string) =>
+    request<void>('/auth/password/register', 'POST', { email, password }),
+  confirmPassword: (token: string) => request<void>('/auth/password/confirm', 'POST', { token }),
+  passwordSignIn: (email: string, password: string) =>
+    request<void>('/auth/password/login', 'POST', { email, password }),
   signOut: () => request<void>('/auth/logout', 'POST'),
   organizations: async () => (await request<{ organizations: Organization[] }>('/organizations')).organizations,
   createOrganization: (name: string) => request<Organization>('/organizations', 'POST', { name }),

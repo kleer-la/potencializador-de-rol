@@ -295,6 +295,12 @@ fieldset {
   width: 100%;
 }
 
+.sign-in .inline-form {
+  max-width: none;
+  margin-top: 0;
+  text-align: left;
+}
+
 /* Lists of organizations and roles ----------------------------------------------------- */
 
 .link-button {
