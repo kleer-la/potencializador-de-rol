@@ -45,7 +45,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 ## Tasks
 
 - [x] T1 — Domain rules: score, maximum, breakdowns, evolution; who closes and recalibrates. Specs: S1, S2, S4–S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the score, closing and recalibration` (see L5).
-- [ ] T2 — Persistence: snapshots and their entries; close cycle, recalibrate and close board functions; closed-board guards; Row Level Security. Specs: S3–S7, S9. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules).
+- [x] T2 — Persistence: snapshots and their entries; close cycle, recalibrate and close board functions; closed-board guards; Row Level Security. Specs: S3–S7, S9. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store snapshots, recalibrations and closed boards` (see L6).
 - [ ] T3 — API: score and evolution with the board; close cycle, recalibrate, close board. Specs: S1–S7. Route: inline. Risk: item 2 (permissions).
 - [ ] T4 — Web: score, evolution, breakdowns; close cycle, recalibration, close board. Specs: S8. Route: inline. Risk: none (interface over the API).
 
@@ -63,3 +63,9 @@ L3 (2026-11-13, context): row 7 of the approved build plan. Migrations up to 000
 L4 (2026-11-13, assumptions): those marked in S2 and S4–S6 were taken without asking; each can change later without redoing the rest.
 
 L5 (2026-11-13, T1 evidence): RED observed (`score.ts` missing), then GREEN: unit project 128 passed, `npm run typecheck` clean. `computeScore` reproduces the example of §5.2 (17 of 40 for 10 capabilities) and breaks the score down by dimension and by difficulty without weighting; `withChanges` adds the change from the previous point; `canCloseCycle`, `canRecalibrate` (between cycles) and `canCloseBoard` (calibrated or between cycles) are for a panel member.
+
+L6 (2026-11-13, T2 evidence and decisions): RED observed (`function app_close_cycle ... does not exist`), then GREEN: 5 storage tests (titled `INV-3`, `INV-4`, `INV-9`, `INV-11`) and the whole suite, 368 passed in 41 files; `npm run typecheck` clean. Mutation check on migration 0009: dropping the closed-board guard, the "a closed board stays closed" guard, or the one-recalibration check each failed its test. All restored.
+- Migration `0009_closing_recalibration_snapshots.sql`: `snapshots` (kind `recalibration` or `cycle_close`, the cycle it closes, number of capabilities, score) and `snapshot_entries` (level, multiplier, approved bonus points per capability), `recalibration_sessions` and `recalibration_attendees`. All with `board_id`, `organization_id` and Row Level Security for owner and panel; never edited or deleted.
+- `level_changes` gains reason `recalibration`. Migration 0008 is not edited.
+- `app_close_cycle(cycle)`: a panel member closes the active cycle; the board goes `between_cycles`; a `cycle_close` snapshot is taken. `app_recalibrate_board(board, date, notes, attendees, levels)`: between cycles only, once per gap, with the calibration's attendance (`PM031`) and an agreed level for every capability; each level that moves (also downwards) gets a level change with reason `recalibration`; a `recalibration` snapshot is taken; the baseline is untouched. `app_close_board(board)`: a panel member closes a board that is calibrated or between cycles with no cycle open.
+- A closed board refuses changes to placements, evidence, proposals and decisions, bonuses and sessions (and new cycles, already refused by migration 0007); "cerrado" is final for every role.
