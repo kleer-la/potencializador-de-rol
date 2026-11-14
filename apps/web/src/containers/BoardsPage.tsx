@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { ApiError, boardApi, type Board, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineSummary, CalibrationEditor, InitialLevels } from './Calibration.tsx';
+import { CycleSection } from './Cycle.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
 /** The boards a person owns and the ones they accompany, and the board they open. */
@@ -236,6 +237,7 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       {board.viewer.canCalibrate && <CalibrationEditor board={board} onDone={load} />}
       <BaselineSummary board={board} />
       <InitialLevels board={board} onDone={load} />
+      <CycleSection board={board} onChanged={load} />
 
       {board.viewer.canAdd && offBoard.length > 0 && (
         <section className="panel">

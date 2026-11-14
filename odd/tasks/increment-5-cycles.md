@@ -45,7 +45,7 @@ S8. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Domain rules: who plans and who starts a cycle, focus limit and target level, what blocks the start, experiment transitions. Specs: S1–S4, S6, S8. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of cycles, focuses and experiments` (see L4).
 - [x] T2 — Persistence: cycles, focuses, experiments; start function; guards (invariant 8, transitions, one open cycle); Row Level Security. Specs: S1–S6, S8. Route: inline. Risk: item 1 (schema), item 2 (access rules). Commit: `feat: store cycles, focuses and experiments under invariant 8` (see L5).
 - [x] T3 — API: cycle with the board, create cycle, focuses, experiments, start, experiment progress and review. Specs: S1–S6. Route: inline. Risk: item 2 (permissions). Commit: `feat: cycles, focuses and experiments through the board API` (see L7).
-- [ ] T4 — Web: current cycle on the board. Specs: S7. Route: inline. Risk: none (interface over the API).
+- [x] T4 — Web: current cycle on the board. Specs: S7. Route: inline. Risk: none (interface over the API). Commit: `feat: cycles, focuses and experiments in the web interface` (see L8).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 2,200 authored changed lines.
@@ -78,3 +78,9 @@ L7 (2026-11-13, T3 evidence): RED observed (4 of 6 route tests failing), then GR
 - `POST .../cycles/:cycleId/start` (panel): `200`; `403 forbidden`, `409 cycle_not_planned`, `422 cannot_start` with `noFocus`, `tooMany` and `withoutExperiment`; `409 cycle_changed` if the database check fails after the API's.
 - `PATCH /api/boards/:boardId/experiments/:experimentId` {state: "in_progress"} (owner or panel) or {state: "reviewed", result, learnings} (panel): `200`; `403 forbidden`, `409 invalid_transition`, `400 invalid_request`.
 - Anything of another board answers `404`.
+
+L8 (2026-11-13, T4 evidence): RED observed (5 interface tests failing), then GREEN: `npm test` 323 passed in 35 files, `npm run typecheck` and `npm run build` clean.
+- On a board with a baseline, owner and panel see "Ciclo de mejora". Without a cycle: "Inicio", "Fin" and "Crear ciclo". With one: "Ciclo N · Planeado/Activo", its dates, "N de M focos", and a card per focus (current level and target level) with its experiments (state, result, expected result, learnings).
+- While planned: "Nuevo foco" offers only placed capabilities that can still rise and only levels above the current one; "Quitar" a focus with confirmation; "Agregar experimento" per focus. A panel member sees "Iniciar ciclo" with confirmation; a refused start lists what is missing (no focus, too many, the focuses without experiment).
+- While active: focuses stay; experiments can be added; owner or panel "Marcar en curso"; a panel member "Registrar revisión" with result (only "Descartado" for one that never ran) and learnings.
+- Existing interface test fixtures gained the new board fields; their assertions did not change.

@@ -47,6 +47,7 @@ const board = (viewer: Board['viewer']): Board => ({
   selfAssessment: null,
   calibration: null,
   baseline: null,
+  cycle: null,
 });
 
 const owner = {
@@ -57,6 +58,9 @@ const owner = {
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
+  canPlanCycle: false,
+  canStartCycle: false,
+  canReviewExperiments: false,
 };
 const leader = { ...owner, isOwner: false, panelRoles: ['leader' as const], canAdd: true, canRemove: true };
 const selfAssessing = { ...owner, canSelfAssess: true };

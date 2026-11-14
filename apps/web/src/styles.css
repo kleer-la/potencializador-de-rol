@@ -671,3 +671,15 @@ fieldset {
 .notes {
   white-space: pre-wrap;
 }
+
+/* A focus of the cycle and its experiments. */
+.focus-card {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+
+.experiment {
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--line);
+}

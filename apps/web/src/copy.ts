@@ -104,6 +104,29 @@ export const boardStatusLabels: Record<BoardStatus, string> = {
   closed: 'Cerrado',
 };
 
+export const cycleStateLabels = { planned: 'Planeado', active: 'Activo', closed: 'Cerrado' } as const;
+export const experimentStateLabels = { planned: 'Planteado', in_progress: 'En curso', reviewed: 'Revisado' } as const;
+export const experimentResultLabels = {
+  consolidated: 'Consolidó',
+  not_consolidated: 'No consolidó',
+  discarded: 'Descartado',
+} as const;
+
+/** Messages for the `error` code of a refused cycle, focus or experiment change. */
+export const cycleErrors: Record<string, string> = {
+  no_baseline: 'El ciclo empieza después de fijar la línea base.',
+  cycle_open: 'Ya hay un ciclo abierto en este tablero.',
+  board_closed: 'Este tablero está cerrado.',
+  invalid_target: 'El nivel objetivo debe estar por encima del nivel actual de la capacidad.',
+  already_focus: 'Esa capacidad ya es un foco de este ciclo.',
+  too_many_focuses: 'El ciclo ya tiene el máximo de focos del programa.',
+  cycle_not_planned: 'Los focos solo cambian mientras el ciclo está planeado.',
+  cycle_closed: 'El ciclo está cerrado.',
+  cycle_changed: 'El ciclo cambió mientras se iniciaba. Vuelve a abrir el tablero.',
+  invalid_transition: 'Ese experimento no puede pasar a ese estado.',
+  invalid_request: 'Revisa los datos: hay un valor que no es válido.',
+};
+
 /** Messages for the `error` code of a refused calibration or initial level. */
 export const calibrationErrors: Record<string, string> = {
   baseline_set: 'El tablero ya tiene línea base: la calibración no se repite.',

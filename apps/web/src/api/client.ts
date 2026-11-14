@@ -247,6 +247,9 @@ export type Board = {
     canSelfAssess: boolean;
     canCalibrate: boolean;
     canRecordInitialLevel: boolean;
+    canPlanCycle: boolean;
+    canStartCycle: boolean;
+    canReviewExperiments: boolean;
   };
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
@@ -258,7 +261,35 @@ export type Board = {
   calibration: Calibration | null;
   /** Invariant 3: entries never change; capabilities added later join with their initial level. */
   baseline: Baseline | null;
+  /** The cycle that is not closed, with its focuses and experiments; `null` if none. */
+  cycle: Cycle | null;
 };
+export type CycleState = 'planned' | 'active' | 'closed';
+export type ExperimentState = 'planned' | 'in_progress' | 'reviewed';
+export type ExperimentResult = 'consolidated' | 'not_consolidated' | 'discarded';
+export type Experiment = {
+  id: string;
+  description: string;
+  expectedResult: string;
+  state: ExperimentState;
+  result: ExperimentResult | null;
+  learnings: string;
+  reviewedAt: string | null;
+};
+export type Focus = { id: string; capabilityId: string; targetLevelId: string; experiments: Experiment[] };
+export type Cycle = {
+  id: string;
+  number: number;
+  startsOn: string;
+  endsOn: string;
+  state: CycleState;
+  startedAt: string | null;
+  maxFocuses: number;
+  focuses: Focus[];
+};
+export type ExperimentMove =
+  | { state: 'in_progress' }
+  | { state: 'reviewed'; result: ExperimentResult; learnings: string };
 export type Calibration = {
   heldOn: string;
   notes: string;
@@ -286,6 +317,18 @@ export const boardApi = {
     request<{ submittedAt: string }>(`/boards/${boardId}/self-assessment/submit`, 'POST'),
   calibrate: (boardId: string, calibration: CalibrationRecord) =>
     request<{ calibrationId: string }>(`/boards/${boardId}/calibration`, 'POST', calibration),
+  createCycle: (boardId: string, dates: { startsOn: string; endsOn: string }) =>
+    request<{ cycleId: string }>(`/boards/${boardId}/cycles`, 'POST', dates),
+  addFocus: (boardId: string, cycleId: string, focus: { capabilityId: string; targetLevelId: string }) =>
+    request<{ focusId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses`, 'POST', focus),
+  removeFocus: (boardId: string, cycleId: string, focusId: string) =>
+    request<void>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}`, 'DELETE'),
+  addExperiment: (boardId: string, cycleId: string, focusId: string, experiment: { description: string; expectedResult: string }) =>
+    request<{ experimentId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}/experiments`, 'POST', experiment),
+  startCycle: (boardId: string, cycleId: string) =>
+    request<{ startedAt: string }>(`/boards/${boardId}/cycles/${cycleId}/start`, 'POST'),
+  moveExperiment: (boardId: string, experimentId: string, move: ExperimentMove) =>
+    request<unknown>(`/boards/${boardId}/experiments/${experimentId}`, 'PATCH', move),
   recordInitialLevel: (boardId: string, level: ProposedLevel) =>
     request<{ levelChangeId: string }>(`/boards/${boardId}/initial-levels`, 'POST', level),
 };

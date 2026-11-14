@@ -14,6 +14,9 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
+  canPlanCycle: false,
+  canStartCycle: false,
+  canReviewExperiments: false,
   ...overrides,
 });
 
@@ -48,6 +51,7 @@ const base: Board = {
   selfAssessment: { submittedAt: '2026-11-14T10:00:00Z', levels: [{ capabilityId: 'capability-1', levelId: 'level-2' }] },
   calibration: null,
   baseline: null,
+  cycle: null,
 };
 
 const calibrated: Board = {
