@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { seedMap } from '../../test-support/seed-map.ts';
 import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProgram } from '../../test-support/seed-program.ts';
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
@@ -112,6 +113,14 @@ describe('cycles, focuses and experiments', () => {
     await call(sessions.leader, 'POST', '/initial-levels', { capabilityId: program.capabilityIds[2], levelId: program.levelIds[0] });
     const third = await focus(sessions.leader, 2, 1);
     expect([third.statusCode, third.json()]).toEqual([422, { error: 'too_many_focuses', maxFocuses: 2 }]);
+    expect((await focus(sessions.leader, 0, 1)).json()).toEqual({ error: 'already_focus' });
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+    const foreignLevel = await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses`, {
+      capabilityId: program.capabilityIds[2],
+      targetLevelId: other.levelId,
+    });
+    expect(foreignLevel.json()).toEqual({ error: 'invalid_target' });
+    expect((await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${cycleId}`)).statusCode).toBe(404);
 
     expect((await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${focusOf[1]}`)).statusCode).toBe(204);
     focusOf[1] = (await focus(sessions.owner, 1, 1)).json().focusId;

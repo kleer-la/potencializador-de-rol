@@ -664,6 +664,12 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         if (current === undefined || target === undefined || !isValidTarget(current.position, target.position)) {
           throw new Refusal(422, { error: 'invalid_target' });
         }
+        // Checked before the maximum, so a repeated focus on a full cycle is named as such.
+        const [repeated] = await tx
+          .select({ id: focuses.id })
+          .from(focuses)
+          .where(and(eq(focuses.cycleId, cycle.id), eq(focuses.capabilityId, body.data.capabilityId)));
+        if (repeated !== undefined) throw new Refusal(409, { error: 'already_focus' });
         try {
           const [created] = await tx
             .insert(focuses)

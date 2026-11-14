@@ -66,13 +66,16 @@ CREATE INDEX experiments_focus_index ON experiments (focus_id);
 
 CREATE FUNCTION app_board_of_cycle(p_cycle_id uuid) RETURNS uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
-  AS $$ SELECT board_id FROM cycles WHERE id = p_cycle_id AND organization_id = app_current_organization_id() $$;
+  AS $$
+    SELECT board_id FROM cycles
+     WHERE id = p_cycle_id AND organization_id = app_current_organization_id() AND app_sees_board(board_id)
+  $$;
 
 CREATE FUNCTION app_board_of_focus(p_focus_id uuid) RETURNS uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
   AS $$
     SELECT c.board_id FROM focuses f JOIN cycles c ON c.id = f.cycle_id
-     WHERE f.id = p_focus_id AND f.organization_id = app_current_organization_id()
+     WHERE f.id = p_focus_id AND f.organization_id = app_current_organization_id() AND app_sees_board(c.board_id)
   $$;
 
 -- Guards -------------------------------------------------------------------------------
