@@ -66,11 +66,14 @@ CREATE INDEX experiments_focus_index ON experiments (focus_id);
 
 CREATE FUNCTION app_board_of_cycle(p_cycle_id uuid) RETURNS uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
-  AS $$ SELECT board_id FROM cycles WHERE id = p_cycle_id $$;
+  AS $$ SELECT board_id FROM cycles WHERE id = p_cycle_id AND organization_id = app_current_organization_id() $$;
 
 CREATE FUNCTION app_board_of_focus(p_focus_id uuid) RETURNS uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
-  AS $$ SELECT c.board_id FROM focuses f JOIN cycles c ON c.id = f.cycle_id WHERE f.id = p_focus_id $$;
+  AS $$
+    SELECT c.board_id FROM focuses f JOIN cycles c ON c.id = f.cycle_id
+     WHERE f.id = p_focus_id AND f.organization_id = app_current_organization_id()
+  $$;
 
 -- Guards -------------------------------------------------------------------------------
 
@@ -183,7 +186,10 @@ CREATE FUNCTION guard_experiment() RETURNS trigger
     v_cycle cycles%ROWTYPE;
   BEGIN
     v_row := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-    SELECT c.* INTO v_cycle FROM focuses f JOIN cycles c ON c.id = f.cycle_id WHERE f.id = v_row.focus_id;
+    -- Locks the cycle, as the focus guard and app_start_cycle do: removing an experiment and
+    -- starting the cycle never interleave (invariant 8).
+    SELECT c.* INTO v_cycle FROM focuses f JOIN cycles c ON c.id = f.cycle_id WHERE f.id = v_row.focus_id
+      FOR UPDATE OF c;
     IF TG_OP = 'DELETE' THEN
       IF v_cycle.id IS NOT NULL AND v_cycle.state <> 'planned' THEN
         RAISE EXCEPTION 'invariant 8: experiments of a cycle that started are not deleted; discard them'

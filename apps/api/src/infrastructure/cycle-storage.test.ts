@@ -123,6 +123,10 @@ describe('cycle storage', () => {
     await expectRefused(start(board.owner), /only a panel member/);
     await expectRefused(start(administrator), /only a panel member/);
     experimentIds = [(await addExperiment(board.owner, focusIds[0]!)).rows[0].id];
+    await expectRefused(
+      one(board.owner, "update experiments set state = 'in_progress' where id = $1", [experimentIds[0]]),
+      /only in an active cycle/,
+    );
     await expectRefused(start(board.leader), /invariant 8: .*experiment/);
     expect(await state()).toEqual({ cycle: 'planned', board: 'calibrated' });
 
@@ -138,6 +142,10 @@ describe('cycle storage', () => {
     await expectRefused(one(board.owner, 'delete from focuses where id = $1', [focusIds[0]]), /only while it is planned/);
     await expectRefused(one(board.owner, 'delete from experiments where id = $1', [experimentIds[0]]), /invariant 8/);
     await expectRefused(one(board.leader, 'delete from cycles where id = $1', [cycleId]), /planned/);
+    await expectRefused(
+      one(board.owner, "update cycles set ends_on = date '2027-03-31' where id = $1", [cycleId]),
+      /dates of a cycle change only while it is planned/,
+    );
     experimentIds.push((await addExperiment(board.owner, focusIds[0]!)).rows[0].id);
   });
 
