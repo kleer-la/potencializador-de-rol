@@ -130,6 +130,25 @@ export const cycleErrors: Record<string, string> = {
 
 export const decisionStateLabels = { proposed: 'Propuesto', approved: 'Aprobado', rejected: 'Rechazado' } as const;
 
+export const evolutionKindLabels = {
+  baseline: 'Línea base',
+  cycle_close: 'Cierre de ciclo',
+  recalibration: 'Recalibración',
+  today: 'Hoy',
+} as const;
+
+/** Messages for the `error` code of refused closings and recalibrations. */
+export const closingErrors: Record<string, string> = {
+  cycle_not_active: 'Ese ciclo ya no está activo.',
+  not_between_cycles: 'La recalibración se hace entre ciclos.',
+  already_recalibrated: 'Ya hubo una recalibración después del último ciclo.',
+  panel_changed: 'El panel cambió mientras se registraba. Vuelve a abrir el tablero.',
+  cycle_open: 'Cierra o quita el ciclo abierto antes de cerrar el tablero.',
+  board_closed: 'El tablero está cerrado y ya no admite cambios.',
+  unknown_reference: 'Hay un asistente, una capacidad o un nivel que no corresponde a este tablero.',
+  invalid_request: 'Revisa los datos: hay un valor que no es válido.',
+};
+
 /** Why a level change proposal does not stand, by problem code. */
 export const proposalProblemLabels: Record<string, string> = {
   unplaced: 'La capacidad todavía no tiene nivel.',

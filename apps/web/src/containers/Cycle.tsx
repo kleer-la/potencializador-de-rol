@@ -141,6 +141,16 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
       {planned && board.viewer.canPlanCycle && cycle.focuses.length < cycle.maxFocuses && (
         <NewFocus board={board} cycle={cycle} change={change} />
       )}
+      {cycle.state === 'active' && board.viewer.canCloseCycle && (
+        <div className="actions">
+          <ConfirmAction
+            label="Cerrar ciclo"
+            prompt="¿Cerrar el ciclo? Al cerrarlo se toma una fotografía del tablero y el ciclo ya no cambia."
+            confirmLabel="Confirmar cierre"
+            onConfirm={() => change(() => boardApi.closeCycle(board.id, cycle.id))}
+          />
+        </div>
+      )}
       {planned && board.viewer.canStartCycle && (
         <div className="actions">
           <ConfirmAction

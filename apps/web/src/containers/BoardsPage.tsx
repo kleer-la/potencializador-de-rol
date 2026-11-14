@@ -4,6 +4,7 @@ import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineSummary, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
 import { EvidenceSections } from './Evidence.tsx';
+import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
 /** The boards a person owns and the ones they accompany, and the board they open. */
@@ -238,8 +239,11 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       {board.viewer.canCalibrate && <CalibrationEditor board={board} onDone={load} />}
       <BaselineSummary board={board} />
       <InitialLevels board={board} onDone={load} />
+      <ScoreSection board={board} />
       <CycleSection board={board} onChanged={load} />
+      <RecalibrationEditor board={board} onDone={load} />
       <EvidenceSections board={board} onChanged={load} />
+      <CloseBoard board={board} onDone={load} />
 
       {board.viewer.canAdd && offBoard.length > 0 && (
         <section className="panel">

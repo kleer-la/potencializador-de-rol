@@ -683,3 +683,8 @@ fieldset {
   padding-left: var(--space-3);
   border-left: 3px solid var(--line);
 }
+
+/* The maturity score total of a board. */
+.score-total {
+  font-size: 1.5rem;
+}

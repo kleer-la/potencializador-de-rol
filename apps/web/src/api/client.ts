@@ -256,6 +256,9 @@ export type Board = {
     canProposeChanges: boolean;
     canDecideProposals: boolean;
     canRecordMentoring: boolean;
+    canCloseCycle: boolean;
+    canRecalibrate: boolean;
+    canCloseBoard: boolean;
   };
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
@@ -274,6 +277,20 @@ export type Board = {
   bonuses: BonusAward[];
   bonusRules: { id: string; name: string; extraPoints: number; condition: string }[];
   mentoringSessions: MentoringSession[];
+  /** This board's maturity score; `null` before the baseline. Never shown beside other people's. */
+  score: Score | null;
+  evolution: EvolutionPoint[];
+  recalibrations: { id: string; heldOn: string; notes: string; attendees: { personId: string; name: string }[] }[];
+};
+type ScorePart = { total: number; maximum: number; capabilities: number };
+export type Score = ScorePart & {
+  byDimension: (ScorePart & { dimensionId: string })[];
+  byDifficulty: (ScorePart & { difficulty: Difficulty | null })[];
+};
+export type EvolutionPoint = ScorePart & {
+  kind: 'baseline' | 'cycle_close' | 'recalibration' | 'today';
+  date: string;
+  change: number | null;
 };
 export type Evidence = {
   id: string;
@@ -368,6 +385,10 @@ export const boardApi = {
     request<unknown>(`/boards/${boardId}/bonuses/${bonusId}/decision`, 'POST', { approve, note }),
   recordMentoring: (boardId: string, session: { heldOn: string; notes: string; experimentIds: string[] }) =>
     request<{ mentoringSessionId: string }>(`/boards/${boardId}/mentoring-sessions`, 'POST', session),
+  closeCycle: (boardId: string, cycleId: string) => request<unknown>(`/boards/${boardId}/cycles/${cycleId}/close`, 'POST'),
+  recalibrate: (boardId: string, recalibration: CalibrationRecord) =>
+    request<{ recalibrationId: string }>(`/boards/${boardId}/recalibration`, 'POST', recalibration),
+  closeBoard: (boardId: string) => request<unknown>(`/boards/${boardId}/close`, 'POST'),
   recordInitialLevel: (boardId: string, level: ProposedLevel) =>
     request<{ levelChangeId: string }>(`/boards/${boardId}/initial-levels`, 'POST', level),
 };

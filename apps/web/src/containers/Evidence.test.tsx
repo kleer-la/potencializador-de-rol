@@ -22,6 +22,9 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   canProposeChanges: true,
   canDecideProposals: false,
   canRecordMentoring: false,
+  canCloseCycle: false,
+  canRecalibrate: false,
+  canCloseBoard: false,
   ...overrides,
 });
 const owner = viewer({});
@@ -122,6 +125,9 @@ const board = (who: Board['viewer']): Board => ({
   bonuses: [],
   bonusRules: [{ id: 'rule-1', name: 'Uso de IA', extraPoints: 1, condition: 'Usó IA y la transfirió' }],
   mentoringSessions: [],
+  score: null,
+  evolution: [],
+  recalibrations: [],
 });
 
 afterEach(() => {

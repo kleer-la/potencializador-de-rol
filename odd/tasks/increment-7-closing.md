@@ -47,7 +47,7 @@ S9. Automated coverage. User: "Las invariantes de la sección 5.1 deben quedar c
 - [x] T1 — Domain rules: score, maximum, breakdowns, evolution; who closes and recalibrates. Specs: S1, S2, S4–S6, S9. Route: inline. Risk: none (new pure code). Commit: `feat: domain rules of the score, closing and recalibration` (see L5).
 - [x] T2 — Persistence: snapshots and their entries; close cycle, recalibrate and close board functions; closed-board guards; Row Level Security. Specs: S3–S7, S9. Route: inline. Risk: item 1 (schema, level_changes reason), item 2 (access rules). Commit: `feat: store snapshots, recalibrations and closed boards` (see L6).
 - [x] T3 — API: score and evolution with the board; close cycle, recalibrate, close board. Specs: S1–S7. Route: inline. Risk: item 2 (permissions). Commit: `feat: score, evolution, closing and recalibration through the board API` (see L8).
-- [ ] T4 — Web: score, evolution, breakdowns; close cycle, recalibration, close board. Specs: S8. Route: inline. Risk: none (interface over the API).
+- [x] T4 — Web: score, evolution, breakdowns; close cycle, recalibration, close board. Specs: S8. Route: inline. Risk: none (interface over the API). Commit: `feat: score, evolution, closing and recalibration in the web interface` (see L9).
 
 Route evidence: each task builds on the previous one; no parallel writer applies.
 Forecast: about 3,000 authored changed lines.
@@ -82,3 +82,8 @@ L8 (2026-11-13, T3 evidence): RED observed (4 of 5 route tests failing), then GR
 - Any change to a closed board answers `409 board_closed` before anything else. Changed existing answers, by this rule: starting a planned cycle on a closed board answered `409 board_not_ready` and now answers `409 board_closed` (its test updated).
 - Existing tests adjusted: the whole-`viewer` comparison gains three fields; the INV-2 case that searched the body for "score" now asserts `score: null` and an empty evolution before the baseline (stronger).
 - INV-9: `GET /api/boards` and the program detail carry no score or evolution (route test).
+
+L9 (2026-11-13, T4 evidence): RED observed (4 interface tests failing), then GREEN: `npm test` 378 passed in 43 files, `npm run typecheck` and `npm run build` clean.
+- "Puntaje de madurez" on a board with a baseline: the total "N de M" with the number of capabilities, an "Evolución" table (moment, date, score, change, capabilities), and "Por dimensión" and "Por dificultad" tables; it says the difficulty is shown and does not weight the score. Nothing of it before the baseline.
+- In "Ciclo de mejora", a panel member sees "Cerrar ciclo" with confirmation that a snapshot is taken. Between cycles, "Recalibración" offers date, attendees, notes and one level per capability, preselected at the current level, with confirmation; a refused attendance lists who must attend. "Cerrar tablero" asks for confirmation that the board will not change afterwards.
+- Existing interface test fixtures gained the new board fields; their assertions did not change.
