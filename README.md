@@ -5,7 +5,7 @@ System to diagnose and develop the capabilities of people in a role. The concept
 
 ## Run with Docker
 
-Create a `.env` file at the repository root:
+Copy `.env.example` to `.env` at the repository root and fill it in (`cp .env.example .env`). The variables:
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
