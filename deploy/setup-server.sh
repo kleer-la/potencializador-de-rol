@@ -30,13 +30,15 @@ else
 fi
 set -a; . ./.env; set +a
 
-psql() { docker exec -i postgres psql -U postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
+# Without -i: this script arrives on stdin, and `docker exec -i` would swallow the rest of it.
+psql() { docker exec postgres psql -U postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
 
 if [ "$(psql -c "select count(*) from pg_roles where rolname = 'potencializador'")" = 1 ]; then
   echo 'role potencializador: exists, left as is'
 else
   # printf is a builtin: the password goes through stdin, never through a command line.
-  printf "create role potencializador login createrole password '%s';\n" "$OWNER_DB_PASSWORD" | psql
+  printf "create role potencializador login createrole password '%s';\n" "$OWNER_DB_PASSWORD" \
+    | docker exec -i postgres psql -U postgres -v ON_ERROR_STOP=1 -qAt
   echo 'role potencializador: created'
 fi
 
