@@ -68,6 +68,40 @@ The `migrate` service applies pending migrations from `apps/api/migrations` befo
 A migration that was applied is never edited: the runner stores a checksum and stops if a file
 changed. Add a new file instead.
 
+## Deploy
+
+Production runs at `https://potencializador-de-rol.lab.kleer.la`, on the shared Kleer server
+(`appuser@5.78.92.152`, with crm, fugazzeta, eventer and website17), from `~/potencializador`. The
+files are in `deploy/`:
+
+- `compose.yml` — migrate, api and web, with hard limits (api 256 MB / 0.5 CPU, web 64 MB / 0.25 CPU,
+  migrate 256 MB / 0.5 CPU) so the application never takes resources from the others. No port is
+  published: kamal-proxy, which serves every application of the server, terminates TLS and
+  forwards to web. The database is `potencializador_production` in the shared `postgres` container;
+  its owner `potencializador` is not superuser.
+- `setup-server.sh` — first deploy only. Creates `~/potencializador/.env` with both database
+  passwords generated on the server, the owner role and the database, and adds the database to the
+  nightly backup (`~/backups/databases.conf`, local and S3). Running it again changes nothing.
+- `deploy.sh` — deploys the committed `HEAD`. Builds both images on your machine (never on the
+  server: a build there once took production down), pushes them to the local registry
+  `127.0.0.1:5555` (the container `kamal-docker-registry`, which kamal also uses), and the server
+  pulls them through an SSH reverse tunnel. Then it migrates, starts api and web, and points
+  kamal-proxy at web, which waits for `/api/health` before sending traffic.
+
+First deploy:
+
+1. DNS: an `A` record `potencializador-de-rol.lab.kleer.la` → `5.78.92.152`. kamal-proxy gets the
+   certificate from Let's Encrypt on the first request, so the name must resolve first.
+2. `deploy/setup-server.sh`
+3. On the server, fill in `~/potencializador/.env`: `SUPER_ADMIN_EMAILS` and at least one way to
+   sign in (see "Sign-in"; the redirect URIs use the production address).
+4. `deploy/deploy.sh`
+
+Later deploys: `deploy/deploy.sh`. On the server, `cd ~/potencializador` and plain `docker compose`
+works on the running release (`logs -f`, `ps`, `restart`). The last 3 releases stay on the server;
+to go back to one, `TAG=<commit> docker compose up -d`, without migrating down. `DEPLOY_SERVER`
+overrides the SSH destination of both scripts.
+
 ## Sign-in
 
 People sign in with a Google or a Microsoft account, or with their email and a password. Access is

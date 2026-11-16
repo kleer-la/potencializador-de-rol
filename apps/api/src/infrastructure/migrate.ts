@@ -81,7 +81,11 @@ export async function migrate(options: MigrateOptions): Promise<string[]> {
   }
 }
 
-/** Migrations grant privileges to the role, so it must exist before they run. */
+/**
+ * Migrations grant privileges to the role, so it must exist before they run. A new role starts
+ * without privileges. Existing ones are checked, not reset: PostgreSQL 16+ lets only a superuser
+ * change SUPERUSER or BYPASSRLS, and on a shared server the owner is not one.
+ */
 async function ensureAppRole(client: pg.Client, password: string): Promise<void> {
   await client.query(
     `do $$ begin
@@ -90,8 +94,15 @@ async function ensureAppRole(client: pg.Client, password: string): Promise<void>
        end if;
      end $$`,
   );
-  await client.query(
-    `alter role ${APP_ROLE} with login nosuperuser nobypassrls nocreatedb nocreaterole
-       password ${client.escapeLiteral(password)}`,
+  const role = await client.query<{ privileged: boolean }>(
+    `select rolsuper or rolbypassrls or rolcreatedb or rolcreaterole as privileged
+       from pg_roles where rolname = $1`,
+    [APP_ROLE],
   );
+  if (role.rows[0]?.privileged !== false) {
+    throw new Error(
+      `role ${APP_ROLE} must not be superuser, bypass Row Level Security, create databases or create roles`,
+    );
+  }
+  await client.query(`alter role ${APP_ROLE} with login password ${client.escapeLiteral(password)}`);
 }
