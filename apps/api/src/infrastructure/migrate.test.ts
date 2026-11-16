@@ -3,10 +3,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { APP_ROLE_PASSWORD } from '../../test-support/postgres.global-setup.ts';
-import { migrate } from './migrate.ts';
+import { APP_ROLE, migrate } from './migrate.ts';
 
 describe('migration runner', () => {
   let ownerPool: pg.Pool;
@@ -131,4 +132,60 @@ describe('migration runner', () => {
     await writeFile(join(directory, '0001_first.sql'), 'create table first (id int);');
     expect(await run()).toEqual([]);
   });
+});
+
+// On a shared server the owner is not superuser, and PostgreSQL 16+ lets only a superuser touch
+// SUPERUSER or BYPASSRLS. A cluster of its own: the application role is per cluster, and the one of
+// the other tests was created by a superuser.
+describe('migration runner with an owner that is not superuser', () => {
+  let container: StartedPostgreSqlContainer;
+  let superuserPool: pg.Pool;
+  let ownerDatabaseUrl: string;
+
+  beforeAll(async () => {
+    container = await new PostgreSqlContainer('postgres:17-alpine').start();
+    superuserPool = new pg.Pool({ connectionString: container.getConnectionUri() });
+    await superuserPool.query("create role shared_owner login createrole password 'owner-password'");
+    await superuserPool.query('create database shared_app owner shared_owner');
+    const url = new URL(container.getConnectionUri());
+    url.username = 'shared_owner';
+    url.password = 'owner-password';
+    url.pathname = '/shared_app';
+    ownerDatabaseUrl = url.toString();
+  });
+
+  afterAll(async () => {
+    await superuserPool?.end();
+    await container?.stop();
+  });
+
+  it('applies every migration and leaves the application role unable to bypass Row Level Security', async () => {
+    const applied = await migrate({ ownerDatabaseUrl, appRolePassword: APP_ROLE_PASSWORD });
+
+    expect(applied.length).toBeGreaterThan(0);
+    const role = await superuserPool.query(
+      'select rolcanlogin, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole from pg_roles where rolname = $1',
+      [APP_ROLE],
+    );
+    expect(role.rows).toEqual([
+      { rolcanlogin: true, rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false },
+    ]);
+    const appUrl = new URL(ownerDatabaseUrl);
+    appUrl.username = APP_ROLE;
+    appUrl.password = APP_ROLE_PASSWORD;
+    const appClient = new pg.Client({ connectionString: appUrl.toString() });
+    await appClient.connect();
+    await appClient.end();
+  }, 60_000);
+
+  it('refuses to run when the application role was given a privilege it must not have', async () => {
+    await superuserPool.query(`alter role ${APP_ROLE} bypassrls`);
+    try {
+      await expect(migrate({ ownerDatabaseUrl, appRolePassword: APP_ROLE_PASSWORD })).rejects.toThrow(
+        `role ${APP_ROLE} must not be superuser, bypass Row Level Security, create databases or create roles`,
+      );
+    } finally {
+      await superuserPool.query(`alter role ${APP_ROLE} nobypassrls`);
+    }
+  }, 60_000);
 });
