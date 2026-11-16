@@ -1,0 +1,81 @@
+# Production on the shared server (crm, fugazzeta, eventer, website17). Lives in ~/potencializador
+# next to its .env; deploy/deploy.sh copies it there. See README, "Deploy".
+#
+# - The database is a database of the shared `postgres` container, reached on the network `kamal`.
+# - kamal-proxy owns ports 80 and 443 and forwards to `potencializador-web`: no port is published.
+# - Hard limits, so this application can never take memory or CPU from the others.
+# - Images come from the developer's registry through an SSH tunnel; nothing is built here.
+#   `current` is the tag deploy.sh moves on each deploy; TAG=<commit> selects another one.
+name: potencializador
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  # One-shot, run by deploy.sh before the API: applies pending migrations as the schema owner.
+  potencializador-migrate:
+    image: localhost:5555/potencializador-api:${TAG:-current}
+    container_name: potencializador-migrate
+    profiles: [migrate]
+    command: ['node', 'apps/api/src/infrastructure/migrate-cli.ts']
+    environment:
+      MIGRATION_DATABASE_URL: postgres://potencializador:${OWNER_DB_PASSWORD:?Set OWNER_DB_PASSWORD in .env}@postgres:5432/potencializador_production
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-}
+      NODE_OPTIONS: --max-old-space-size=192
+    networks: [kamal]
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+  potencializador-api:
+    image: localhost:5555/potencializador-api:${TAG:-current}
+    container_name: potencializador-api
+    restart: unless-stopped
+    environment:
+      # The API connects as the restricted role, never as the schema owner.
+      DATABASE_URL: postgres://potencializador_app:${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}@postgres:5432/potencializador_production
+      PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in .env}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT: ${MICROSOFT_TENANT:-common}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Keeps the V8 heap under the container limit, so Node collects garbage before the kernel kills it.
+      NODE_OPTIONS: --max-old-space-size=192
+    networks:
+      # nginx.conf proxies to `api`. The alias lives only on the private network: on `kamal`,
+      # shared with every other application, the container answers only to its own name.
+      private:
+        aliases: [api]
+      kamal: {}
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+  potencializador-web:
+    image: localhost:5555/potencializador-web:${TAG:-current}
+    container_name: potencializador-web
+    restart: unless-stopped
+    depends_on: [potencializador-api]
+    networks: [private, kamal]
+    mem_limit: 64m
+    memswap_limit: 64m
+    cpus: 0.25
+    logging: *logging
+
+networks:
+  private: {}
+  kamal:
+    external: true
