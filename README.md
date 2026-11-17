@@ -137,16 +137,24 @@ that. Passwords are stored as scrypt hashes.
 
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
-| `SMTP_HOST` | with the others | — | SMTP server, for example `smtp.gmail.com` |
+| `SMTP_HOST` | with `SMTP_FROM` | — | SMTP server, for example `smtp-relay.gmail.com` |
 | `SMTP_PORT` | no | `465` | 465 uses TLS from the start; any other port must offer STARTTLS |
-| `SMTP_USER` | with the others | — | Account that sends |
-| `SMTP_PASSWORD` | with the others | — | Its password; with Google, an app password |
-| `SMTP_FROM` | with the others | — | Sender, for example `Potencializador de rol <no-reply@example.com>` |
+| `SMTP_USER` | with `SMTP_PASSWORD` | — | Account that sends; leave empty for a relay that accepts the server by its address |
+| `SMTP_PASSWORD` | with `SMTP_USER` | — | Its password; with Google, an app password |
+| `SMTP_FROM` | with `SMTP_HOST` | — | Sender, for example `Potencializador de rol <no-reply@example.com>` |
 
-With Google Workspace: turn on 2-Step Verification for the sending account, create an app password
-at <https://myaccount.google.com/apppasswords>, and use `smtp.gmail.com`, port 465, the account's
-address as `SMTP_USER` and the app password as `SMTP_PASSWORD`. `SMTP_FROM` must be that address
-or an alias the account may send as.
+The server greets the SMTP server (EHLO) with the host of `PUBLIC_URL`.
+
+With Google Workspace there are two ways:
+
+- **SMTP relay**, what Kleer's applications use: `smtp-relay.gmail.com`, port 587, no user or
+  password. The server's public address must be allowed in the Admin console (Apps → Google
+  Workspace → Gmail → Routing → SMTP relay service), and `SMTP_FROM` must be an address of the
+  domain.
+- **One account**: turn on 2-Step Verification for it, create an app password at
+  <https://myaccount.google.com/apppasswords>, and use `smtp.gmail.com`, port 465, the account's
+  address as `SMTP_USER` and the app password as `SMTP_PASSWORD`. `SMTP_FROM` must be that address
+  or an alias the account may send as.
 
 ## Roles
 

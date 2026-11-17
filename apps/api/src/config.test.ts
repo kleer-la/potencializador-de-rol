@@ -74,16 +74,41 @@ describe('loadConfig', () => {
     expect(config.smtp).toEqual({
       host: 'smtp.gmail.com',
       port: 465,
-      user: 'no-reply@example.com',
-      password: 'app-password',
+      auth: { user: 'no-reply@example.com', password: 'app-password' },
       from: 'Potencializador <no-reply@example.com>',
+      clientName: 'localhost',
     });
     expect(loadConfig({ ...required, SMTP_HOST: 'h', SMTP_PORT: '587', SMTP_USER: 'u', SMTP_PASSWORD: 'p', SMTP_FROM: 'f' }).smtp?.port).toBe(587);
   });
 
+  it('reads a relay that accepts the server by its address, with no user or password', () => {
+    const config = loadConfig({
+      ...required,
+      PUBLIC_URL: 'https://potencializador.example.com',
+      SMTP_HOST: 'smtp-relay.gmail.com',
+      SMTP_PORT: '587',
+      SMTP_USER: '',
+      SMTP_PASSWORD: '',
+      SMTP_FROM: 'Potencializador <no-reply@example.com>',
+    });
+
+    expect(config.smtp).toEqual({
+      host: 'smtp-relay.gmail.com',
+      port: 587,
+      from: 'Potencializador <no-reply@example.com>',
+      clientName: 'potencializador.example.com',
+    });
+  });
+
   it('rejects mail settings that are only partly set', () => {
     expect(() => loadConfig({ ...required, SMTP_HOST: 'smtp.gmail.com' })).toThrow(
-      'SMTP_HOST, SMTP_USER, SMTP_PASSWORD and SMTP_FROM must be set together',
+      'SMTP_HOST and SMTP_FROM must be set together',
+    );
+    expect(() =>
+      loadConfig({ ...required, SMTP_HOST: 'h', SMTP_FROM: 'f', SMTP_USER: 'no-reply@example.com' }),
+    ).toThrow('SMTP_USER and SMTP_PASSWORD must be set together, and only with SMTP_HOST');
+    expect(() => loadConfig({ ...required, SMTP_USER: 'u', SMTP_PASSWORD: 'p' })).toThrow(
+      'SMTP_USER and SMTP_PASSWORD must be set together, and only with SMTP_HOST',
     );
   });
 
