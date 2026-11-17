@@ -34,12 +34,15 @@ const environmentSchema = z
   .refine((env) => (env.MICROSOFT_CLIENT_ID === undefined) === (env.MICROSOFT_CLIENT_SECRET === undefined), {
     message: 'MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET must be set together',
   })
+  .refine((env) => (env.SMTP_HOST === undefined) === (env.SMTP_FROM === undefined), {
+    message: 'SMTP_HOST and SMTP_FROM must be set together',
+  })
+  // A relay that accepts the server by its address needs no credentials.
   .refine(
-    (env) => {
-      const set = [env.SMTP_HOST, env.SMTP_USER, env.SMTP_PASSWORD, env.SMTP_FROM].filter((value) => value !== undefined);
-      return set.length === 0 || set.length === 4;
-    },
-    { message: 'SMTP_HOST, SMTP_USER, SMTP_PASSWORD and SMTP_FROM must be set together' },
+    (env) =>
+      (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined) &&
+      (env.SMTP_USER === undefined || env.SMTP_HOST !== undefined),
+    { message: 'SMTP_USER and SMTP_PASSWORD must be set together, and only with SMTP_HOST' },
   );
 
 export type Config = {
@@ -75,17 +78,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv): Config {
           },
         }
       : {}),
-    ...(env.SMTP_HOST !== undefined &&
-    env.SMTP_USER !== undefined &&
-    env.SMTP_PASSWORD !== undefined &&
-    env.SMTP_FROM !== undefined
+    ...(env.SMTP_HOST !== undefined && env.SMTP_FROM !== undefined
       ? {
           smtp: {
             host: env.SMTP_HOST,
             port: env.SMTP_PORT,
-            user: env.SMTP_USER,
-            password: env.SMTP_PASSWORD,
+            ...(env.SMTP_USER !== undefined && env.SMTP_PASSWORD !== undefined
+              ? { auth: { user: env.SMTP_USER, password: env.SMTP_PASSWORD } }
+              : {}),
             from: env.SMTP_FROM,
+            clientName: new URL(env.PUBLIC_URL).hostname,
           },
         }
       : {}),

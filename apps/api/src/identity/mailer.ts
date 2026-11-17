@@ -10,25 +10,34 @@ export interface Mailer {
 export type SmtpSettings = {
   host: string;
   port: number;
-  user: string;
-  password: string;
+  /** Absent for a relay that accepts the server by its address, such as Google Workspace's. */
+  auth?: { user: string; password: string };
   /** Sender, for example `Potencializador de rol <no-reply@example.com>`. */
   from: string;
+  /** Name the server greets with (EHLO): the public host, never a container id. */
+  clientName: string;
 };
 
 /**
- * SMTP adapter. With Google Workspace: host `smtp.gmail.com`, port 465, the account's
- * address as user and an app password. Port 465 uses TLS from the start; other ports
- * must upgrade with STARTTLS.
+ * Port 465 uses TLS from the start; other ports must upgrade with STARTTLS. Two Google Workspace
+ * setups work: the SMTP relay (`smtp-relay.gmail.com`, port 587, no credentials, the server's
+ * address allowed in the Admin console), or one account (`smtp.gmail.com`, port 465, its address
+ * and an app password).
  */
-export function createSmtpMailer(settings: SmtpSettings): Mailer {
-  const transport = nodemailer.createTransport({
+export function smtpTransportOptions(settings: SmtpSettings) {
+  return {
     host: settings.host,
     port: settings.port,
     secure: settings.port === 465,
     requireTLS: settings.port !== 465,
-    auth: { user: settings.user, pass: settings.password },
-  });
+    name: settings.clientName,
+    ...(settings.auth ? { auth: { user: settings.auth.user, pass: settings.auth.password } } : {}),
+  };
+}
+
+/** SMTP adapter. */
+export function createSmtpMailer(settings: SmtpSettings): Mailer {
+  const transport = nodemailer.createTransport(smtpTransportOptions(settings));
   return {
     async send(message) {
       await transport.sendMail({ from: settings.from, ...message });
