@@ -18,7 +18,7 @@ S3. Changes (assumptions, not stated by the user):
 ## Tasks
 
 - [x] T1 — API: optional SMTP credentials, EHLO name from `PUBLIC_URL`, tests, README and both `.env.example`. Specs: S2, S3. Route: inline. Risk: item 2 (authentication: password links depend on mail).
-- [ ] T2 — Production: SMTP variables in the server's `.env`, deploy, and one real link received. Specs: S1. Route: inline. Risk: touches the shared server.
+- [x] T2 — Production: SMTP variables in the server's `.env`, deploy, and one real link received. Specs: S1. Route: inline. Risk: touches the shared server.
 
 ## Log
 
@@ -27,3 +27,8 @@ L1 (2026-11-17, user, original request): see S1.
 L2 (2026-11-17, T1 evidence): RED observed first (5 failing: 3 in `config.test.ts`, 2 in the new `mailer.test.ts`), then GREEN. `npm test` 418 passed in 45 files, typecheck clean.
 - `SmtpSettings` now has `auth?` and `clientName`; `smtpTransportOptions` is exported so the options handed to nodemailer are tested without a server.
 - Error messages changed: "SMTP_HOST and SMTP_FROM must be set together" and "SMTP_USER and SMTP_PASSWORD must be set together, and only with SMTP_HOST".
+
+L3 (2026-11-17, review): Leonardo Agudelo added `b694a1e` before merging #1: `deploy/.env.example` had `SMTP_HOST` set and `SMTP_FROM` empty, which makes the API refuse to start; now both are empty with a note to set them together.
+
+L4 (2026-11-17, T2 evidence): server `.env` with `SMTP_HOST=smtp-relay.gmail.com`, `SMTP_PORT=587`, `SMTP_FROM` of the domain, no user or password, and `SUPER_ADMIN_EMAILS` (two people). Deployed `e5adca4`; `/api/auth/providers` answers `{"providers":["google"],"password":true}`. The user and Leonardo tested a real link: the mail arrived.
+- The `.env` had briefly held one account's app password (`smtp.gmail.com:465`); the user chose the relay instead, and the `.env` backup holding that password was deleted from the server. Revoking the app password is up to its owner.
