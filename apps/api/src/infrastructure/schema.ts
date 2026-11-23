@@ -178,6 +178,16 @@ export const placements = pgTable('placements', {
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Marks on a capability of a board (`candidate`, `wip`); see migration 0019. */
+export const placementMarks = pgTable('placement_marks', {
+  organizationId: uuid('organization_id').notNull(),
+  boardId: uuid('board_id').notNull(),
+  capabilityId: uuid('capability_id').notNull(),
+  mark: text('mark').notNull(),
+  markedBy: uuid('marked_by').notNull(),
+  markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const selfAssessments = pgTable('self_assessments', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull(),

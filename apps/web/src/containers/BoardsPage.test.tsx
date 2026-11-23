@@ -41,8 +41,8 @@ const board = (viewer: Board['viewer']): Board => ({
     { id: 'capability-3', dimensionId: 'dimension-2', statement: 'Comunica por escrito de forma clara', difficulty: 'low', position: 0 },
   ],
   placements: [
-    { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-3', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-3', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
   ],
   selfAssessment: null,
   calibration: null,
@@ -65,6 +65,7 @@ const owner = {
   panelRoles: [],
   canAdd: false,
   canRemove: false,
+  canMark: false,
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
@@ -212,6 +213,84 @@ describe('the board', () => {
       capabilityId: 'capability-2',
     });
     expect(calls.some((call) => call.route === 'DELETE /api/boards/board-1/capabilities/capability-3')).toBe(true);
+  });
+
+  const marked = (viewer: Board['viewer'], cycle: Board['cycle'] = null): Board => ({
+    ...board(viewer),
+    placements: [
+      { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z', marks: ['candidate', 'wip'] },
+      { capabilityId: 'capability-3', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: ['wip'] },
+    ],
+    cycle,
+  });
+  const rowOf = (statement: RegExp) => within(screen.getByRole('table', { name: 'Tablero' })).getByRole('row', { name: statement });
+
+  it('shows the marks of each capability as tags to whoever only reads the board', async () => {
+    await open(owner, { 'GET /api/boards/board-1': () => json(marked(owner)) });
+
+    const first = rowOf(/Identifica a quién sirve el producto/);
+    expect(within(first).getByText('★ Candidata')).toBeTruthy();
+    expect(within(first).getByText('WIP')).toBeTruthy();
+    expect(within(rowOf(/Comunica por escrito/)).queryByText('★ Candidata')).toBeNull();
+    expect(screen.queryByRole('button', { name: /★ Candidata|WIP/ })).toBeNull();
+  });
+
+  it('lets the owner and the panel put and take off the marks of a capability', async () => {
+    const markingOwner = { ...owner, canMark: true };
+    const { calls, user } = await open(markingOwner, {
+      'GET /api/boards/board-1': () => json(marked(markingOwner)),
+      'PUT /api/boards/board-1/capabilities/capability-3/marks/candidate': () => ({ status: 204 }),
+      'DELETE /api/boards/board-1/capabilities/capability-3/marks/wip': () => ({ status: 204 }),
+    });
+
+    const candidate = screen.getByRole('button', { name: '★ Candidata «Comunica por escrito de forma clara»' });
+    const wip = screen.getByRole('button', { name: 'WIP «Comunica por escrito de forma clara»' });
+    expect(candidate.getAttribute('aria-pressed')).toBe('false');
+    expect(wip.getAttribute('aria-pressed')).toBe('true');
+    await user.click(candidate);
+    await user.click(wip);
+
+    expect(calls.map((call) => call.route)).toContain('PUT /api/boards/board-1/capabilities/capability-3/marks/candidate');
+    expect(calls.map((call) => call.route)).toContain('DELETE /api/boards/board-1/capabilities/capability-3/marks/wip');
+  });
+
+  it('keeps WIP while an experiment on the capability is in progress, and says why', async () => {
+    const experiment = {
+      id: 'experiment-1',
+      description: 'Escribir el resumen semanal',
+      hypothesis: '',
+      expectedResult: '',
+      state: 'in_progress' as const,
+      result: null,
+      observedResult: '',
+      learnings: '',
+      reviewedAt: null,
+    };
+    const cycle: Board['cycle'] = {
+      id: 'cycle-1',
+      number: 1,
+      startsOn: '2026-12-01',
+      endsOn: '2027-02-28',
+      state: 'active',
+      startedAt: '2026-12-01T10:00:00Z',
+      maxFocuses: 3,
+      focuses: [{ id: 'focus-1', capabilityId: 'capability-3', targetLevelId: 'level-1', experiments: [experiment] }],
+    };
+    const panelMember = { ...leader, canMark: true };
+    const { user } = await open(panelMember, {
+      'GET /api/boards/board-1': () => json(marked(panelMember, cycle)),
+      'DELETE /api/boards/board-1/capabilities/capability-1/marks/wip': () => json({ error: 'wip_in_progress' }, 409),
+    });
+
+    const locked = screen.getByRole('button', { name: 'WIP «Comunica por escrito de forma clara»' });
+    expect(locked.hasAttribute('disabled')).toBe(true);
+    expect(locked.getAttribute('title')).toBe('Hay un experimento en curso para esta capacidad');
+
+    // When the board is behind the server, the refusal says the same.
+    await user.click(screen.getByRole('button', { name: 'WIP «Identifica a quién sirve el producto»' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Hay un experimento en curso para esta capacidad: la marca WIP se mantiene hasta revisarlo.',
+    );
   });
 
   it('lets the owner propose a level per capability, save a draft and submit after confirming', async () => {

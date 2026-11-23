@@ -12,6 +12,7 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   panelRoles: [],
   canAdd: false,
   canRemove: false,
+  canMark: false,
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
@@ -50,8 +51,8 @@ const board = (cycle: Cycle | null, who = viewer({})): Board => ({
     { id: 'capability-2', dimensionId: 'dimension-1', statement: 'Lee el estado actual del producto', difficulty: null, position: 1 },
   ],
   placements: [
-    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z', marks: [] },
   ],
   selfAssessment: null,
   calibration: null,

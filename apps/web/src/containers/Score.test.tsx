@@ -11,6 +11,7 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   panelRoles: ['leader'],
   canAdd: true,
   canRemove: false,
+  canMark: false,
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
@@ -61,8 +62,8 @@ const board = (who: Board['viewer'], overrides: Partial<Board> = {}): Board => (
     { id: 'capability-2', dimensionId: 'dimension-2', statement: 'Comunica por escrito', difficulty: 'low', position: 0 },
   ],
   placements: [
-    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z', marks: [] },
   ],
   selfAssessment: null,
   calibration: null,
@@ -179,8 +180,8 @@ describe('closing and recalibration', () => {
     let loads = 0;
     const raised = board(viewer({ canRecalibrate: true, canRecordEvidence: true }), {
       placements: [
-        { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
-        { capabilityId: 'capability-2', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
+        { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+        { capabilityId: 'capability-2', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
       ],
     });
     const calls = fakeBackend({

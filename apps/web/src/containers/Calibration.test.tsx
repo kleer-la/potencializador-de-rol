@@ -11,6 +11,7 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   panelRoles: ['leader'],
   canAdd: true,
   canRemove: true,
+  canMark: false,
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
@@ -52,8 +53,8 @@ const base: Board = {
     { id: 'capability-3', dimensionId: 'dimension-1', statement: 'Mantiene un backlog ordenado', difficulty: null, position: 2 },
   ],
   placements: [
-    { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-2', levelId: null, addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: null, addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-2', levelId: null, addedAt: '2026-11-13T10:00:00Z', marks: [] },
   ],
   selfAssessment: { submittedAt: '2026-11-14T10:00:00Z', levels: [{ capabilityId: 'capability-1', levelId: 'level-2' }] },
   calibration: null,
@@ -77,9 +78,9 @@ const calibrated: Board = {
   hasBaseline: true,
   viewer: viewer({ canRemove: false, canRecordInitialLevel: true }),
   placements: [
-    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-3', levelId: null, addedAt: '2026-11-21T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: 'level-1', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-3', levelId: null, addedAt: '2026-11-21T10:00:00Z', marks: [] },
   ],
   calibration: {
     heldOn: '2026-11-20',
@@ -108,8 +109,8 @@ const movedOn: Board = {
   ...calibrated,
   viewer: viewer({ canRemove: false }),
   placements: [
-    { capabilityId: 'capability-1', levelId: 'level-2', addedAt: '2026-11-13T10:00:00Z' },
-    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-1', levelId: 'level-2', addedAt: '2026-11-13T10:00:00Z', marks: [] },
+    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z', marks: [] },
   ],
 };
 

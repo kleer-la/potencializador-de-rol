@@ -1,5 +1,8 @@
 import {
+  BOARD_MARKS,
   canAdjustSelection,
+  canMarkCapability,
+  canTakeOffMark,
   bonusProblems,
   baselineAttendanceMet,
   canCalibrate,
@@ -63,6 +66,7 @@ import {
   levels,
   panelAssignments,
   persons,
+  placementMarks,
   placements,
   programs,
   selfAssessmentLevels,
@@ -73,6 +77,7 @@ import { withScope, type Database, type ScopedTransaction } from '../infrastruct
 const id = z.uuid().toLowerCase();
 const boardParams = z.object({ boardId: id });
 const capabilityParams = z.object({ boardId: id, capabilityId: id });
+const markParams = z.object({ boardId: id, capabilityId: id, mark: z.enum(BOARD_MARKS) });
 const addInput = z.object({ capabilityId: id });
 const selfAssessmentInput = z.object({
   levels: z
@@ -667,10 +672,22 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .innerJoin(dimensions, eq(dimensions.id, capabilities.dimensionId))
           .where(eq(dimensions.mapId, program!.mapId))
           .orderBy(asc(dimensions.position), asc(capabilities.position));
-        const placed = await tx
-          .select({ capabilityId: placements.capabilityId, levelId: placements.levelId, addedAt: placements.addedAt })
-          .from(placements)
-          .where(eq(placements.boardId, row.id));
+        const markRows = await tx
+          .select({ capabilityId: placementMarks.capabilityId, mark: placementMarks.mark })
+          .from(placementMarks)
+          .where(eq(placementMarks.boardId, row.id));
+        const placed = (
+          await tx
+            .select({ capabilityId: placements.capabilityId, levelId: placements.levelId, addedAt: placements.addedAt })
+            .from(placements)
+            .where(eq(placements.boardId, row.id))
+        ).map((placement) => ({
+          ...placement,
+          // In catalog order, whatever order they were put in.
+          marks: BOARD_MARKS.filter((mark) =>
+            markRows.some((entry) => entry.capabilityId === placement.capabilityId && entry.mark === mark),
+          ),
+        }));
         const assessment = await readSelfAssessment(tx, row.id);
         const submitted = assessment?.row.submittedAt != null;
         const order = new Map(capabilityRows.map((capability, index) => [capability.id, index]));
@@ -750,6 +767,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               panelRoles: access.panel.filter((member) => member.personId === personId).map((member) => member.role).sort(),
               canAdd: canAdjustSelection(personId, access, 'add'),
               canRemove: canAdjustSelection(personId, access, 'remove'),
+              canMark: canMarkCapability(personId, access),
               canSelfAssess: canWriteSelfAssessment(personId, access, submitted) && row.status === 'not_started',
               canCalibrate: canCalibrate(personId, access, row.status),
               canRecordInitialLevel: canRecordInitialLevel(personId, access),
@@ -837,6 +855,91 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       }),
     );
   });
+
+  /** Experiments in progress, in a cycle of the board not closed yet, on one capability. */
+  const experimentsInProgress = async (tx: ScopedTransaction, boardId: string, capabilityId: string) =>
+    (
+      await tx
+        .select({ id: experiments.id })
+        .from(experiments)
+        .innerJoin(focuses, eq(focuses.id, experiments.focusId))
+        .innerJoin(cycles, eq(cycles.id, focuses.cycleId))
+        .where(
+          and(
+            eq(cycles.boardId, boardId),
+            ne(cycles.state, 'closed'),
+            eq(focuses.capabilityId, capabilityId),
+            eq(experiments.state, 'in_progress'),
+          ),
+        )
+    ).length;
+
+  /** Marks on a capability of the board: the owner and their panel put them and take them off. */
+  const openMark = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    work: (tx: ScopedTransaction, params: z.infer<typeof markParams>, organizationId: string, personId: string) => Promise<void>,
+  ) => {
+    const params = markParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canMarkCapability(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const [placed] = await tx
+          .select({ id: placements.id })
+          .from(placements)
+          .where(and(eq(placements.boardId, row.id), eq(placements.capabilityId, params.data.capabilityId)));
+        if (placed === undefined) throw new Refusal(404, NOT_FOUND);
+        await work(tx, params.data, row.organizationId, personId);
+        return { status: 204 };
+      }),
+    );
+  };
+
+  api.put('/boards/:boardId/capabilities/:capabilityId/marks/:mark', async (request, reply) =>
+    openMark(request, reply, async (tx, { boardId, capabilityId, mark }, organizationId, personId) => {
+      try {
+        await tx
+          .insert(placementMarks)
+          .values({ organizationId, boardId, capabilityId, mark, markedBy: personId })
+          .onConflictDoNothing();
+      } catch (error) {
+        if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'board_closed' });
+        throw error;
+      }
+    }),
+  );
+
+  api.delete('/boards/:boardId/capabilities/:capabilityId/marks/:mark', async (request, reply) =>
+    openMark(request, reply, async (tx, { boardId, capabilityId, mark }) => {
+      const [present] = await tx
+        .select({ mark: placementMarks.mark })
+        .from(placementMarks)
+        .where(
+          and(eq(placementMarks.boardId, boardId), eq(placementMarks.capabilityId, capabilityId), eq(placementMarks.mark, mark)),
+        );
+      // Taking off a mark that is not there changes nothing.
+      if (present === undefined) return;
+      const inProgress = await experimentsInProgress(tx, boardId, capabilityId);
+      if (!canTakeOffMark(mark, { experimentsInProgress: inProgress })) {
+        throw new Refusal(409, { error: 'wip_in_progress' });
+      }
+      try {
+        await tx
+          .delete(placementMarks)
+          .where(
+            and(
+              eq(placementMarks.boardId, boardId),
+              eq(placementMarks.capabilityId, capabilityId),
+              eq(placementMarks.mark, mark),
+            ),
+          );
+      } catch (error) {
+        if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'wip_in_progress' });
+        throw error;
+      }
+    }),
+  );
 
   api.put('/boards/:boardId/self-assessment', async (request, reply) => {
     const params = boardParams.safeParse(request.params);

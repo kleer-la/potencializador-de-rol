@@ -601,6 +601,50 @@ fieldset {
   justify-content: space-between;
 }
 
+.kanban-capability {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.capability-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tag.mark.candidate,
+.mark-toggle.candidate.on {
+  border-color: var(--action);
+  color: var(--action);
+}
+
+.tag.mark.wip,
+.mark-toggle.wip.on {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.mark-toggle {
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--line-strong);
+  font: 500 12px/18px var(--font-sans);
+  cursor: pointer;
+}
+
+.mark-toggle.on {
+  border-style: solid;
+  font-weight: 600;
+}
+
+.mark-toggle:disabled {
+  cursor: not-allowed;
+}
+
 .kanban-cell {
   text-align: center;
   border-left: 1px dashed var(--line);
