@@ -14,8 +14,8 @@ export function canCalibrate(personId: string, board: BoardAccess, status: strin
 }
 
 /**
- * Invariant 3: the baseline is fixed only if the participant and the mandatory roles of
- * the panel attended. A role counts through a person who plays it on this board's panel.
+ * Invariant 3: who of the participant and the mandatory roles of the panel did not attend.
+ * A role counts through a person who plays it on this board's panel.
  */
 export function missingAttendance(
   attendeePersonIds: readonly string[],
@@ -29,6 +29,18 @@ export function missingAttendance(
       (role) => !board.panel.some((member) => member.role === role && present.has(member.personId)),
     ),
   };
+}
+
+/**
+ * Amendment of invariant 3 (user decision of 2026-11-23): the participant always attends;
+ * a mandatory panel role may be missing only when the panel says so explicitly, and the
+ * calibration records which roles were missing.
+ */
+export function baselineAttendanceMet(
+  absent: { participant: boolean; roles: readonly PanelRole[] },
+  allowMissingRoles: boolean,
+): boolean {
+  return !absent.participant && (absent.roles.length === 0 || allowMissingRoles);
 }
 
 /** Capabilities on the board, in board order, without an agreed level. */

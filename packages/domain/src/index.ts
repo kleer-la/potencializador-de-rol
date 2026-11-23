@@ -36,6 +36,7 @@ export {
   type PanelRole,
 } from './program.ts';
 export {
+  baselineAttendanceMet,
   calibrationDifference,
   canCalibrate,
   canRecordInitialLevel,

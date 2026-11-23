@@ -15,11 +15,14 @@ describe('calibration and baseline', () => {
   let program: SeededProgram;
   let board: SeededBoard;
   let sessions: Record<'owner' | 'leader' | 'otherParticipant', string>;
+  let seed: ReturnType<typeof createSeeder>;
+  let signedIn: ReturnType<typeof createSignedInApp>;
+  let emailOf: (personId: string) => Promise<string>;
 
-  const call = (session: string, method: Method, url: string, body?: unknown) =>
+  const call = (session: string, method: Method, url: string, body?: unknown, boardId = board.boardId) =>
     app.inject({
       method,
-      url: `/api/boards/${board.boardId}${url}`,
+      url: `/api/boards/${boardId}${url}`,
       cookies: { session },
       headers: method === 'GET' ? {} : { origin: TEST_PUBLIC_URL.origin },
       ...(body === undefined ? {} : { payload: body as Record<string, unknown> }),
@@ -39,13 +42,13 @@ describe('calibration and baseline', () => {
   beforeAll(async () => {
     ownerPool = new pg.Pool({ connectionString: inject('ownerDatabaseUrl') });
     appPool = new pg.Pool({ connectionString: inject('appDatabaseUrl') });
-    const signedIn = createSignedInApp(appPool);
+    signedIn = createSignedInApp(appPool);
     app = signedIn.app;
-    const seed = createSeeder(ownerPool);
+    seed = createSeeder(ownerPool);
     program = await seedProgram(ownerPool, await seed.organization());
     await ownerPool.query("update programs set mandatory_panel_roles = '{leader}' where id = $1", [program.programId]);
     board = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
-    const emailOf = async (personId: string) =>
+    emailOf = async (personId: string) =>
       (await ownerPool.query<{ email: string }>('select email from persons where id = $1', [personId])).rows[0]!.email;
     sessions = {
       owner: await signedIn.signInAs(await emailOf(board.owner)),
@@ -67,6 +70,9 @@ describe('calibration and baseline', () => {
     expect(before.baseline).toBeNull();
     expect((await calibrate(sessions.leader, {})).json()).toEqual({ error: 'not_self_assessed' });
     expect((await call(sessions.leader, 'POST', '/initial-levels', agreed([[0, 0]])[0])).json()).toEqual({ error: 'no_baseline' });
+    const early = await call(sessions.leader, 'PUT', '/calibration/draft', { heldOn: '2026-11-19', notes: '', attendees: [], levels: [] });
+    expect(early.statusCode).toBe(409);
+    expect(early.json()).toEqual({ error: 'not_self_assessed' });
 
     // The owner proposes the first capability one level higher than it will be agreed.
     await call(sessions.owner, 'PUT', '/self-assessment', { levels: agreed([[0, 1], [1, 1]]) });
@@ -117,6 +123,44 @@ describe('calibration and baseline', () => {
     }
   });
 
+  it('lets the panel save a partial calibration draft, without the whole panel, and read it back', async () => {
+    const draft = { heldOn: '2026-11-19', notes: 'Falta el especialista', attendees: [board.owner], levels: agreed([[0, 1]]) };
+    expect((await view(sessions.leader)).calibrationDraft).toBeNull();
+
+    const saved = await call(sessions.leader, 'PUT', '/calibration/draft', draft);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ savedAt: expect.any(String) });
+    expect((await view(sessions.leader)).calibrationDraft).toEqual({ ...draft, savedAt: expect.any(String) });
+
+    // Saving again replaces the draft.
+    const replaced = { ...draft, notes: '', attendees: [board.owner, board.leader], levels: agreed([[0, 0], [1, 1]]) };
+    expect((await call(sessions.leader, 'PUT', '/calibration/draft', replaced)).statusCode).toBe(200);
+    expect((await view(sessions.leader)).calibrationDraft).toEqual({ ...replaced, savedAt: expect.any(String) });
+
+    // Only the panel reads and writes it.
+    expect((await view(sessions.owner)).calibrationDraft).toBeNull();
+    expect((await call(sessions.owner, 'PUT', '/calibration/draft', draft)).statusCode).toBe(403);
+    expect((await call(sessions.otherParticipant, 'PUT', '/calibration/draft', draft)).statusCode).toBe(404);
+  });
+
+  it('refuses a calibration draft with foreign references or a malformed body', async () => {
+    const draft = { heldOn: '2026-11-19', notes: '', attendees: [board.owner], levels: agreed([[0, 1]]) };
+    const stranger = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, attendees: [board.otherParticipant] });
+    const offBoard = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, levels: agreed([[2, 0]]) });
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+    const foreignLevel = await call(sessions.leader, 'PUT', '/calibration/draft', {
+      ...draft,
+      levels: [{ capabilityId: program.capabilityIds[0], levelId: other.levelId }],
+    });
+    expect([stranger.statusCode, offBoard.statusCode, foreignLevel.statusCode]).toEqual([400, 400, 400]);
+    expect(foreignLevel.json()).toEqual({ error: 'unknown_reference' });
+    expect(stranger.json()).toEqual({ error: 'unknown_reference' });
+    expect(offBoard.json()).toEqual({ error: 'unknown_reference' });
+    for (const body of [{ ...draft, heldOn: '19-11-2026' }, { ...draft, attendees: 'all' }, { ...draft, levels: agreed([[0, 0], [0, 1]]) }]) {
+      expect((await call(sessions.leader, 'PUT', '/calibration/draft', body)).json()).toEqual({ error: 'invalid_request' });
+    }
+  });
+
   it('INV-3 records the calibration and fixes the baseline once, even when two arrive together', async () => {
     const responses = await Promise.all([calibrate(sessions.leader, {}), calibrate(sessions.leader, {})]);
     expect(responses.map((response) => response.statusCode).sort()).toEqual([201, 409]);
@@ -134,6 +178,7 @@ describe('calibration and baseline', () => {
         { personId: board.owner, name: expect.any(String) },
         { personId: board.leader, name: expect.any(String) },
       ]),
+      missingPanelRoles: [],
       levels: [
         { capabilityId: program.capabilityIds[0], selfAssessedLevelId: program.levelIds[1], agreedLevelId: program.levelIds[0] },
         { capabilityId: program.capabilityIds[1], selfAssessedLevelId: program.levelIds[1], agreedLevelId: program.levelIds[1] },
@@ -149,6 +194,13 @@ describe('calibration and baseline', () => {
     );
     expect((await view(sessions.leader)).viewer.canCalibrate).toBe(false);
     expect((await calibrate(sessions.leader, {})).json()).toEqual({ error: 'baseline_set' });
+
+    // Fixing the baseline discards the draft; no new draft afterwards.
+    expect((await view(sessions.leader)).calibrationDraft).toBeNull();
+    const drafts = await ownerPool.query('select count(*)::int as n from calibration_drafts where board_id = $1', [board.boardId]);
+    expect(drafts.rows[0].n).toBe(0);
+    const late = await call(sessions.leader, 'PUT', '/calibration/draft', { heldOn: '2026-11-21', notes: '', attendees: [], levels: [] });
+    expect(late.json()).toEqual({ error: 'baseline_set' });
   });
 
   it('INV-3 a capability added after the baseline gets its initial level from the panel, once', async () => {
@@ -196,5 +248,29 @@ describe('calibration and baseline', () => {
       levelId: program.levelIds[0],
     });
     expect(response.statusCode).toBe(404);
+  });
+  it('INV-3 fixes the baseline without a mandatory role only when asked, recording the missing roles', async () => {
+    const second = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    const owner = await signedIn.signInAs(await emailOf(second.owner));
+    const leader = await signedIn.signInAs(await emailOf(second.leader));
+    await call(owner, 'PUT', '/self-assessment', { levels: agreed([[0, 0], [1, 0]]) }, second.boardId);
+    expect((await call(owner, 'POST', '/self-assessment/submit', undefined, second.boardId)).statusCode).toBe(200);
+    const body = { heldOn: '2026-11-21', notes: '', attendees: [second.owner], levels: agreed([[0, 0], [1, 1]]) };
+
+    const notAsked = await call(leader, 'POST', '/calibration', body, second.boardId);
+    expect(notAsked.statusCode).toBe(422);
+    expect(notAsked.json()).toEqual({ error: 'attendance', participantMissing: false, missingRoles: ['leader'] });
+    const withoutOwner = await call(leader, 'POST', '/calibration', { ...body, attendees: [], allowMissingRoles: true }, second.boardId);
+    expect(withoutOwner.json()).toEqual({ error: 'attendance', participantMissing: true, missingRoles: ['leader'] });
+    expect((await call(leader, 'POST', '/calibration', { ...body, allowMissingRoles: 'yes' }, second.boardId)).json()).toEqual({
+      error: 'invalid_request',
+    });
+
+    const fixed = await call(leader, 'POST', '/calibration', { ...body, allowMissingRoles: true }, second.boardId);
+    expect(fixed.statusCode).toBe(201);
+    const seen = (await call(owner, 'GET', '', undefined, second.boardId)).json();
+    expect(seen.hasBaseline).toBe(true);
+    expect(seen.calibration.attendees).toEqual([{ personId: second.owner, name: expect.any(String) }]);
+    expect(seen.calibration.missingPanelRoles).toEqual(['leader']);
   });
 });

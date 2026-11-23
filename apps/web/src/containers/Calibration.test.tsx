@@ -57,6 +57,7 @@ const base: Board = {
   ],
   selfAssessment: { submittedAt: '2026-11-14T10:00:00Z', levels: [{ capabilityId: 'capability-1', levelId: 'level-2' }] },
   calibration: null,
+  calibrationDraft: null,
   baseline: null,
   cycle: null,
   evidence: [],
@@ -86,6 +87,7 @@ const calibrated: Board = {
       { personId: 'ana', name: 'Ana Gómez' },
       { personId: 'luis', name: 'Luis Mora' },
     ],
+    missingPanelRoles: [],
     levels: [
       { capabilityId: 'capability-1', selfAssessedLevelId: 'level-2', agreedLevelId: 'level-1' },
       { capabilityId: 'capability-2', selfAssessedLevelId: null, agreedLevelId: 'level-0' },
@@ -161,6 +163,91 @@ describe('calibration', () => {
     expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2);
   });
 
+  it('saves a partial draft without the whole panel, and keeps the form as it was', async () => {
+    const { calls, user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ savedAt: '2026-11-19T10:00:00Z' }),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.clear(within(form).getByLabelText('Fecha de la sesión'));
+    await user.type(within(form).getByLabelText('Fecha de la sesión'), '2026-11-19');
+    await user.click(within(form).getByRole('checkbox', { name: 'Ana Gómez (Participante)' }));
+    await user.type(within(form).getByLabelText('Notas'), 'Falta el mentor');
+    const first = within(form).getByRole('radiogroup', { name: 'Identifica a quién sirve el producto' });
+    await user.click(within(first).getByRole('radio', { name: '1 · Principiante' }));
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+
+    expect(await within(form).findByText('Borrador guardado.')).toBeTruthy();
+    expect(calls.find((call) => call.route === 'PUT /api/boards/board-1/calibration/draft')?.body).toEqual({
+      heldOn: '2026-11-19',
+      notes: 'Falta el mentor',
+      attendees: ['ana'],
+      levels: [{ capabilityId: 'capability-1', levelId: 'level-1' }],
+    });
+    // Saving a draft does not reload the board.
+    expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(1);
+
+    await user.click(within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }));
+    expect(within(form).queryByText('Borrador guardado.')).toBeNull();
+  });
+
+  it('does not say the draft is saved when the form changed while saving', async () => {
+    const { user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ savedAt: '2026-11-19T10:00:00Z' }),
+    });
+    // Hold the save until the form has changed.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const backend = globalThis.fetch;
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PUT') await held;
+      return backend(input, init);
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+    await user.click(within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }));
+    release();
+
+    expect(await within(form).findByText(/Borrador guardado el 19 de noviembre de 2026/)).toBeTruthy();
+    expect(within(form).queryByText('Borrador guardado.')).toBeNull();
+  });
+
+  it('opens the calibration from the saved draft', async () => {
+    await open({
+      ...base,
+      calibrationDraft: {
+        heldOn: '2026-11-19',
+        notes: 'Falta el mentor',
+        attendees: ['ana'],
+        levels: [{ capabilityId: 'capability-1', levelId: 'level-1' }],
+        savedAt: '2026-11-19T10:00:00Z',
+      },
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    expect((within(form).getByLabelText('Fecha de la sesión') as HTMLInputElement).value).toBe('2026-11-19');
+    expect((within(form).getByLabelText('Notas') as HTMLTextAreaElement).value).toBe('Falta el mentor');
+    expect((within(form).getByRole('checkbox', { name: 'Ana Gómez (Participante)' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }) as HTMLInputElement).checked).toBe(false);
+    const first = within(form).getByRole('radiogroup', { name: 'Identifica a quién sirve el producto' });
+    expect((within(first).getByRole('radio', { name: '1 · Principiante' }) as HTMLInputElement).checked).toBe(true);
+    expect(within(form).getByText('1 de 2 capacidades acordadas')).toBeTruthy();
+    expect(within(form).getByText(/Borrador guardado el 19 de noviembre de 2026/)).toBeTruthy();
+  });
+
+  it('says why a draft was not saved', async () => {
+    const { user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ error: 'baseline_set' }, 409),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(/ya tiene línea base/)).toBeTruthy();
+  });
+
   it('says who is missing when the attendance does not allow a baseline', async () => {
     const { user } = await open(base, {
       'POST /api/boards/board-1/calibration': () =>
@@ -175,6 +262,47 @@ describe('calibration', () => {
     expect(within(alert).getByText(/Para fijar la línea base deben asistir/)).toBeTruthy();
     expect(within(alert).getByText('Ana Gómez (Participante)')).toBeTruthy();
     expect(within(alert).getByText('Alguien con el rol Mentor')).toBeTruthy();
+  });
+
+  it('offers to fix the baseline without a mandatory role, after confirming, when only panel roles are missing', async () => {
+    const { user, calls } = await open(base, {
+      'POST /api/boards/board-1/calibration': (body) =>
+        (body as { allowMissingRoles?: boolean }).allowMissingRoles === true
+          ? json({ calibrationId: 'calibration-1' }, 201)
+          : json({ error: 'attendance', participantMissing: false, missingRoles: ['mentor'] }, 422),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Fijar línea base' }));
+    await user.click(within(form).getByRole('button', { name: 'Confirmar' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(/Faltan roles obligatorios del panel/)).toBeTruthy();
+    expect(within(alert).getByText('Alguien con el rol Mentor')).toBeTruthy();
+    await user.click(within(alert).getByRole('button', { name: 'Fijar sin el panel completo' }));
+    await user.click(within(alert).getByRole('button', { name: 'Confirmar' }));
+
+    await vi.waitFor(() =>
+      expect(calls.filter((call) => call.route === 'POST /api/boards/board-1/calibration').map((call) => call.body)).toEqual([
+        expect.not.objectContaining({ allowMissingRoles: true }),
+        expect.objectContaining({ allowMissingRoles: true }),
+      ]),
+    );
+    await vi.waitFor(() => expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2));
+  });
+
+  it('does not offer to fix the baseline without the participant', async () => {
+    const { user } = await open(base, {
+      'POST /api/boards/board-1/calibration': () =>
+        json({ error: 'attendance', participantMissing: true, missingRoles: ['mentor'] }, 422),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Fijar línea base' }));
+    await user.click(within(form).getByRole('button', { name: 'Confirmar' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).queryByRole('button', { name: 'Fijar sin el panel completo' })).toBeNull();
   });
 
   it('names the capabilities without an agreed level', async () => {
@@ -221,6 +349,13 @@ describe('baseline', () => {
     expect(within(note).getByText(/Mantiene un backlog ordenado: 2 · Practicante \(nivelación inicial del 21 de noviembre de 2026\)/)).toBeTruthy();
     expect(screen.queryByRole('table', { name: 'Línea base y estado actual' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Línea base vs estado actual' })).toBeNull();
+  });
+
+  it('notes the mandatory roles that did not attend the calibration', async () => {
+    await open({ ...movedOn, calibration: { ...movedOn.calibration!, missingPanelRoles: ['mentor', 'specialist'] } });
+
+    const note = screen.getByRole('group', { name: 'Contexto de la línea base' });
+    expect(within(note).getByText(/Roles obligatorios ausentes: Mentor, Especialista/)).toBeTruthy();
   });
 
   it('leaves out the notes and the later additions when there are none', async () => {

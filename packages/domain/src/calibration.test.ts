@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  baselineAttendanceMet,
   calibrationDifference,
   canCalibrate,
   canRecordInitialLevel,
@@ -34,6 +35,13 @@ describe('who records a calibration', () => {
 });
 
 describe('INV-3 attendance', () => {
+  it('INV-3 amended: the participant always attends; a missing mandatory role needs explicit consent', () => {
+    expect(baselineAttendanceMet({ participant: false, roles: [] }, false)).toBe(true);
+    expect(baselineAttendanceMet({ participant: false, roles: ['mentor'] }, false)).toBe(false);
+    expect(baselineAttendanceMet({ participant: false, roles: ['mentor'] }, true)).toBe(true);
+    expect(baselineAttendanceMet({ participant: true, roles: [] }, true)).toBe(false);
+  });
+
   it('INV-3 needs the participant and a person of each mandatory role of the panel', () => {
     expect(missingAttendance(['ana', 'luis', 'eva'], board, ['leader', 'mentor'])).toEqual({
       participant: false,

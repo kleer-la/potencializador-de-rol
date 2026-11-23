@@ -1,9 +1,10 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { ApiError, boardApi, type Board, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { calibrationErrors, enrollmentRoleLabels, messages } from '../copy.ts';
 
-type Failure = { text: string; items: string[] };
+/** `canSkipRoles`: only mandatory panel roles are missing, so the panel may fix the baseline anyway. */
+type Failure = { text: string; items: string[]; canSkipRoles?: boolean };
 
 const today = () => {
   const now = new Date();
@@ -28,8 +29,9 @@ const onBoard = (board: Board) => {
 
 /**
  * The calibration: the panel and the participant agree, with real cases, one level per
- * capability. Fixing the baseline needs the participant and the program's mandatory panel
- * roles among the attendees (invariant 3).
+ * capability. Fixing the baseline needs the participant among the attendees; without a
+ * mandatory panel role it needs an explicit confirmation, and the role is recorded as
+ * missing (invariant 3 as amended).
  */
 export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () => Promise<void> }) {
   const headingId = useId();
@@ -39,33 +41,67 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
     { personId: board.owner.personId, label: `${board.owner.name} (${enrollmentRoleLabels.participant})` },
     ...board.panel.map((member) => ({ personId: member.personId, label: `${member.name} (${enrollmentRoleLabels[member.role]})` })),
   ];
-  const [heldOn, setHeldOn] = useState(today);
-  const [notes, setNotes] = useState('');
-  const [attendees, setAttendees] = useState<string[]>([]);
-  const [agreed, setAgreed] = useState(() => new Map<string, string>());
+  const draft = board.calibrationDraft;
+  const [heldOn, setHeldOn] = useState(() => draft?.heldOn ?? today());
+  const [notes, setNotes] = useState(draft?.notes ?? '');
+  const [attendees, setAttendees] = useState<string[]>(draft?.attendees ?? []);
+  const [agreed, setAgreed] = useState(() => new Map((draft?.levels ?? []).map((level) => [level.capabilityId, level.levelId])));
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt ?? null);
+  const [justSaved, setJustSaved] = useState(false);
+  // Counts edits, so a save that resolves after an edit does not claim the form is saved.
+  const edits = useRef(0);
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
   const settled = capabilities.filter((capability) => agreed.has(capability.id)).length;
 
+  /** Any change makes the saved draft older than the form. */
+  const edit = (change: () => void) => {
+    change();
+    edits.current += 1;
+    setJustSaved(false);
+  };
+
   const toggle = (personId: string) =>
-    setAttendees(
-      attendees.includes(personId) ? attendees.filter((candidate) => candidate !== personId) : [...attendees, personId],
+    edit(() =>
+      setAttendees(
+        attendees.includes(personId) ? attendees.filter((candidate) => candidate !== personId) : [...attendees, personId],
+      ),
     );
 
-  const record = async () => {
-    setFailure(null);
-    const levels: ProposedLevel[] = capabilities.flatMap((capability) => {
+  const agreedLevels = (): ProposedLevel[] =>
+    capabilities.flatMap((capability) => {
       const levelId = agreed.get(capability.id);
       return levelId === undefined ? [] : [{ capabilityId: capability.id, levelId }];
     });
+
+  const saveDraft = async () => {
+    setFailure(null);
+    setJustSaved(false);
+    const editsAtSave = edits.current;
     try {
-      await boardApi.calibrate(board.id, { heldOn, notes, attendees, levels });
+      const saved = await boardApi.saveCalibrationDraft(board.id, { heldOn, notes, attendees, levels: agreedLevels() });
+      setSavedAt(saved.savedAt);
+      setJustSaved(edits.current === editsAtSave);
+    } catch (error) {
+      setFailure({ text: (error instanceof ApiError && calibrationErrors[error.code]) || messages.requestFailed, items: [] });
+    }
+  };
+
+  const record = async (allowMissingRoles = false) => {
+    setFailure(null);
+    const levels = agreedLevels();
+    try {
+      await boardApi.calibrate(board.id, { heldOn, notes, attendees, levels, ...(allowMissingRoles ? { allowMissingRoles } : {}) });
       await onDone();
     } catch (error) {
       if (error instanceof ApiError && error.code === 'attendance') {
         const missingRoles = (error.details.missingRoles as Board['program']['mandatoryPanelRoles']) ?? [];
+        const onlyRoles = !error.details.participantMissing && missingRoles.length > 0;
         setFailure({
-          text: 'Para fijar la línea base deben asistir:',
+          text: onlyRoles
+            ? 'Faltan roles obligatorios del panel. Pueden fijar la línea base igual; quedará registrado qué roles faltaron.'
+            : 'Para fijar la línea base deben asistir:',
+          canSkipRoles: onlyRoles,
           items: [
             ...(error.details.participantMissing ? [`${board.owner.name} (${enrollmentRoleLabels.participant})`] : []),
             ...missingRoles.map((role) => `Alguien con el rol ${enrollmentRoleLabels[role]}`),
@@ -86,8 +122,8 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
     <section className="panel stack" aria-labelledby={headingId}>
       <h3 id={headingId}>Calibración</h3>
       <p className="ds-notice">
-        Contrasten cada capacidad con casos reales y acuerden su nivel. Al fijar la línea base, el sistema guarda la diferencia
-        con la autoevaluación.
+        Contrasten cada capacidad con casos reales y acuerden su nivel. Pueden guardar un borrador y seguir en otra sesión. Al
+        fijar la línea base, el sistema guarda la diferencia con la autoevaluación.
       </p>
       {failure !== null && (
         <div role="alert" className="alert">
@@ -99,11 +135,19 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
               ))}
             </ul>
           )}
+          {failure.canSkipRoles && (
+            <ConfirmAction
+              label="Fijar sin el panel completo"
+              prompt="¿Fijar la línea base sin todos los roles obligatorios? Después no se podrá cambiar y quedará registrado qué roles faltaron."
+              confirmLabel="Confirmar"
+              onConfirm={() => record(true)}
+            />
+          )}
         </div>
       )}
       <label>
         Fecha de la sesión
-        <input type="date" value={heldOn} onChange={(event) => setHeldOn(event.target.value)} />
+        <input type="date" value={heldOn} onChange={(event) => edit(() => setHeldOn(event.target.value))} />
       </label>
       <fieldset>
         <legend>Asistentes</legend>
@@ -120,7 +164,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
       </fieldset>
       <label>
         Notas
-        <textarea value={notes} maxLength={5000} onChange={(event) => setNotes(event.target.value)} />
+        <textarea value={notes} maxLength={5000} onChange={(event) => edit(() => setNotes(event.target.value))} />
       </label>
 
       <div className="self-assessment">
@@ -146,7 +190,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
                           type="radio"
                           name={`agreed-${capability.id}`}
                           checked={agreed.get(capability.id) === level.id}
-                          onChange={() => setAgreed(new Map(agreed).set(capability.id, level.id))}
+                          onChange={() => edit(() => setAgreed(new Map(agreed).set(capability.id, level.id)))}
                         />
                         {level.position} · {level.name}
                       </label>
@@ -163,12 +207,20 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
         <span className="muted">
           {settled} de {capabilities.length} capacidades acordadas
         </span>
+        <button type="button" onClick={saveDraft}>
+          Guardar borrador
+        </button>
+        {justSaved ? (
+          <span className="muted">Borrador guardado.</span>
+        ) : (
+          savedAt !== null && <span className="muted">Borrador guardado el {longDate(savedAt)}</span>
+        )}
         <ConfirmAction
           label="Fijar línea base"
           prompt="¿Fijar la línea base? Después no se podrá cambiar; las capacidades que se agreguen luego se nivelan una por una."
           confirmLabel="Confirmar"
           variant="primary"
-          onConfirm={record}
+          onConfirm={() => record()}
         />
       </div>
     </section>
@@ -177,7 +229,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
 
 /**
  * A short note under the board legend: when the baseline was fixed, who attended the
- * calibration, its notes and the capabilities that joined the baseline later (invariant 3).
+ * calibration, the mandatory roles that did not, its notes and the capabilities that joined the baseline later (invariant 3).
  * The board itself sets the baseline beside the current level.
  */
 export function BaselineNote({ board }: { board: Board }) {
@@ -194,6 +246,9 @@ export function BaselineNote({ board }: { board: Board }) {
               .map((person) => person.name)
               .join(', ')}`
           : `Línea base fijada el ${longDate(baseline.setAt)}`}
+        {calibration !== null &&
+          calibration.missingPanelRoles.length > 0 &&
+          ` · Roles obligatorios ausentes: ${calibration.missingPanelRoles.map((role) => enrollmentRoleLabels[role]).join(', ')}`}
       </p>
       {calibration !== null && calibration.notes !== '' && (
         <details>

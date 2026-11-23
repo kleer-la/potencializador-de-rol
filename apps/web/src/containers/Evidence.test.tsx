@@ -60,6 +60,7 @@ const board = (who: Board['viewer']): Board => ({
   placements: [{ capabilityId: 'capability-1', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' }],
   selfAssessment: null,
   calibration: null,
+  calibrationDraft: null,
   baseline: { setAt: '2026-11-20T15:00:00Z', entries: [] },
   cycle: {
     id: 'cycle-1',

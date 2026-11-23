@@ -46,6 +46,7 @@ const board = (viewer: Board['viewer']): Board => ({
   ],
   selfAssessment: null,
   calibration: null,
+  calibrationDraft: null,
   baseline: null,
   cycle: null,
   evidence: [],

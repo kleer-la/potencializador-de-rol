@@ -66,6 +66,7 @@ const board = (who: Board['viewer'], overrides: Partial<Board> = {}): Board => (
   ],
   selfAssessment: null,
   calibration: null,
+  calibrationDraft: null,
   baseline: { setAt: '2026-11-20T15:00:00Z', entries: [] },
   cycle: null,
   evidence: [],
