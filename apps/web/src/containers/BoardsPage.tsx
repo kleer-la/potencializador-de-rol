@@ -1,11 +1,11 @@
 import { useEffect, useId, useState } from 'react';
-import { ApiError, boardApi, type Board, type BoardLists, type BoardSummary, type ProposedLevel } from '../api/client.ts';
+import { ApiError, boardApi, type Board, type BoardLists, type BoardMark, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineNote, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
 import { BonusesSection, EvidenceSection, LevelChangesSection, MentoringSection } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
-import { boardStatusLabels, created, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
+import { boardStatusLabels, created, enrollmentRoleLabels, markHints, markLabels, messages, programErrors } from '../copy.ts';
 import { notifyCreated } from '../feedback.ts';
 
 /** The boards a person owns, accompanies or reads as leader of their program, and the board they open. */
@@ -137,6 +137,13 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
   }
 
   const levelOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
+  const marksOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.marks]));
+  // WIP stays while an experiment of the open cycle works on the capability.
+  const wipLocked = new Set(
+    (board.cycle?.focuses ?? [])
+      .filter((focus) => focus.experiments.some((experiment) => experiment.state === 'in_progress'))
+      .map((focus) => focus.capabilityId),
+  );
   // Before the baseline the board sets the agreed level beside the self-assessment; once the
   // baseline exists, it sets the current level beside the baseline (invariant 3).
   const baselineLevels = board.baseline
@@ -223,7 +230,16 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
                 ...rows.map((capability) => (
                   <tr key={capability.id}>
                     <td className="kanban-statement">
-                      <span>{capability.statement}</span>
+                      <div className="kanban-capability">
+                        <span>{capability.statement}</span>
+                        <CapabilityMarks
+                          statement={capability.statement}
+                          marks={marksOf.get(capability.id) ?? []}
+                          canMark={board.viewer.canMark}
+                          wipLocked={wipLocked.has(capability.id)}
+                          onToggle={(mark, on) => change(() => boardApi.mark(board.id, capability.id, mark, on))}
+                        />
+                      </div>
                       {board.viewer.canRemove && (
                         <ConfirmAction
                           label="Quitar"
@@ -303,6 +319,57 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
         </section>
       )}
     </div>
+  );
+}
+
+const MARKS = Object.keys(markLabels) as BoardMark[];
+const WIP_LOCKED = 'Hay un experimento en curso para esta capacidad';
+
+/**
+ * The marks of one capability of the board: toggles for the owner and their panel, tags for
+ * anyone else who reads the board.
+ */
+function CapabilityMarks(props: {
+  statement: string;
+  marks: BoardMark[];
+  canMark: boolean;
+  wipLocked: boolean;
+  onToggle: (mark: BoardMark, on: boolean) => void;
+}) {
+  const { statement, marks, canMark, wipLocked, onToggle } = props;
+  if (!canMark) {
+    if (marks.length === 0) return null;
+    return (
+      <span className="capability-marks">
+        {marks.map((mark) => (
+          <span key={mark} className={`tag mark ${mark}`} title={markHints[mark]}>
+            {markLabels[mark]}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className="capability-marks">
+      {MARKS.map((mark) => {
+        const on = marks.includes(mark);
+        const locked = mark === 'wip' && on && wipLocked;
+        return (
+          <button
+            key={mark}
+            type="button"
+            className={`mark-toggle ${mark}${on ? ' on' : ''}`}
+            aria-pressed={on}
+            aria-label={`${markLabels[mark]} «${statement}»`}
+            title={locked ? WIP_LOCKED : markHints[mark]}
+            disabled={locked}
+            onClick={() => onToggle(mark, !on)}
+          >
+            {markLabels[mark]}
+          </button>
+        );
+      })}
+    </span>
   );
 }
 

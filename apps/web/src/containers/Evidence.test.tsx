@@ -13,6 +13,7 @@ const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
   panelRoles: [],
   canAdd: false,
   canRemove: false,
+  canMark: false,
   canSelfAssess: false,
   canCalibrate: false,
   canRecordInitialLevel: false,
@@ -58,7 +59,7 @@ const board = (who: Board['viewer']): Board => ({
   capabilities: [
     { id: 'capability-1', dimensionId: 'dimension-1', statement: 'Identifica a quién sirve el producto', difficulty: null, position: 0 },
   ],
-  placements: [{ capabilityId: 'capability-1', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' }],
+  placements: [{ capabilityId: 'capability-1', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z', marks: [] }],
   selfAssessment: null,
   calibration: null,
   calibrationDraft: null,

@@ -246,6 +246,9 @@ export type BoardSummary = {
 };
 /** `program`: boards read only as leader of their program, never owned nor accompanied. */
 export type BoardLists = { mine: BoardSummary[]; accompanied: BoardSummary[]; program: BoardSummary[] };
+/** Marks on a capability of a board, in catalog order (see the domain catalog). */
+export type BoardMark = 'candidate' | 'wip';
+
 export type Board = {
   id: string;
   organizationId: string;
@@ -260,6 +263,7 @@ export type Board = {
     panelRoles: PanelRole[];
     canAdd: boolean;
     canRemove: boolean;
+    canMark: boolean;
     canSelfAssess: boolean;
     canCalibrate: boolean;
     canRecordInitialLevel: boolean;
@@ -277,7 +281,7 @@ export type Board = {
   levels: { id: string; position: number; name: string; multiplier: number; requiresTransfer: boolean }[];
   dimensions: { id: string; name: string; kind: DimensionKind; position: number }[];
   capabilities: { id: string; dimensionId: string; statement: string; difficulty: Difficulty | null; position: number }[];
-  placements: { capabilityId: string; levelId: string | null; addedAt: string }[];
+  placements: { capabilityId: string; levelId: string | null; addedAt: string; marks: BoardMark[] }[];
   /** The owner's proposal; `null` when the viewer may not see it (the panel, before submission). */
   selfAssessment: SelfAssessment | null;
   /** What the panel and the participant agreed; `null` before the calibration. */
@@ -386,6 +390,9 @@ export const boardApi = {
     request<unknown>(`/boards/${boardId}/capabilities`, 'POST', { capabilityId }),
   remove: (boardId: string, capabilityId: string) =>
     request<void>(`/boards/${boardId}/capabilities/${capabilityId}`, 'DELETE'),
+  /** Puts the mark on the capability, or takes it off. */
+  mark: (boardId: string, capabilityId: string, mark: BoardMark, on: boolean) =>
+    request<void>(`/boards/${boardId}/capabilities/${capabilityId}/marks/${mark}`, on ? 'PUT' : 'DELETE'),
   saveSelfAssessment: (boardId: string, levels: ProposedLevel[]) =>
     request<unknown>(`/boards/${boardId}/self-assessment`, 'PUT', { levels }),
   submitSelfAssessment: (boardId: string) =>

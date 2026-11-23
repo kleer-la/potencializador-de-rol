@@ -124,6 +124,7 @@ describe('boards', () => {
       panelRoles: ['leader'],
       canAdd: true,
       canRemove: true,
+      canMark: true,
       canSelfAssess: false,
       canCalibrate: false,
       canRecordInitialLevel: false,
