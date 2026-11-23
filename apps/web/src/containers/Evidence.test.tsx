@@ -82,6 +82,7 @@ const board = (who: Board['viewer']): Board => ({
             expectedResult: '',
             state: 'in_progress',
             result: null,
+            observedResult: '',
             learnings: '',
             reviewedAt: null,
           },

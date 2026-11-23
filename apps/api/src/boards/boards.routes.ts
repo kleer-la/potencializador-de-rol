@@ -114,7 +114,12 @@ const experimentInput = z.object({
 });
 const experimentMove = z.discriminatedUnion('state', [
   z.object({ state: z.literal('in_progress') }),
-  z.object({ state: z.literal('reviewed'), result: z.enum(EXPERIMENT_RESULTS), learnings: z.string().trim().max(5000).default('') }),
+  z.object({
+    state: z.literal('reviewed'),
+    result: z.enum(EXPERIMENT_RESULTS),
+    observedResult: z.string().trim().max(5000).default(''),
+    learnings: z.string().trim().max(5000).default(''),
+  }),
 ]);
 
 const evidenceInput = z.object({
@@ -285,6 +290,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               expectedResult: experiments.expectedResult,
               state: experiments.state,
               result: experiments.result,
+              observedResult: experiments.observedResult,
               learnings: experiments.learnings,
               reviewedAt: experiments.reviewedAt,
             })
@@ -1139,7 +1145,11 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         try {
           await tx
             .update(experiments)
-            .set(move.state === 'reviewed' ? { state: 'reviewed', result: move.result, learnings: move.learnings } : { state: 'in_progress' })
+            .set(
+              move.state === 'reviewed'
+                ? { state: 'reviewed', result: move.result, observedResult: move.observedResult, learnings: move.learnings }
+                : { state: 'in_progress' },
+            )
             .where(eq(experiments.id, found.id));
         } catch (error) {
           if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'invalid_transition' });

@@ -115,7 +115,7 @@ El modelo tiene tres zonas: la **definición** (qué se espera del rol), la **op
 | `CalibrationSession` | fecha, asistentes, notas, niveles acordados | pertenece a un tablero; produce una línea base |
 | `Cycle` | número, fechas, estado | pertenece a un tablero; tiene focos |
 | `Focus` | nivel objetivo | une un ciclo con una capacidad; tiene experimentos |
-| `Experiment` | descripción, resultado esperado, estado, aprendizajes | pertenece a un foco |
+| `Experiment` | descripción, resultado esperado, estado, conclusión, resultado (qué pasó), aprendizajes | pertenece a un foco |
 | `MentoringSession` | fecha, notas | pertenece a un tablero; revisa experimentos |
 | `Evidence` | descripción del hecho, enlace opcional, fecha, autor | sustenta un experimento, un cambio de nivel o una bonificación otorgada |
 

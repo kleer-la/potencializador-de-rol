@@ -333,6 +333,7 @@ export type Experiment = {
   expectedResult: string;
   state: ExperimentState;
   result: ExperimentResult | null;
+  observedResult: string;
   learnings: string;
   reviewedAt: string | null;
 };
@@ -349,7 +350,7 @@ export type Cycle = {
 };
 export type ExperimentMove =
   | { state: 'in_progress' }
-  | { state: 'reviewed'; result: ExperimentResult; learnings: string };
+  | { state: 'reviewed'; result: ExperimentResult; observedResult: string; learnings: string };
 export type Calibration = {
   heldOn: string;
   notes: string;

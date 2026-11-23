@@ -160,6 +160,7 @@ describe('cycles, focuses and experiments', () => {
     const reviewed = await move(sessions.leader, experiments[0]!, {
       state: 'reviewed',
       result: 'consolidated',
+      observedResult: 'El equipo eligió dos de tres historias con los datos de uso',
       learnings: 'Mostrar datos antes de opinar cambió la conversación',
     });
     expect(reviewed.statusCode).toBe(200);
@@ -177,6 +178,7 @@ describe('cycles, focuses and experiments', () => {
       expectedResult: 'El equipo decide qué sigue con evidencia',
       state: 'reviewed',
       result: 'consolidated',
+      observedResult: 'El equipo eligió dos de tres historias con los datos de uso',
       learnings: 'Mostrar datos antes de opinar cambió la conversación',
       reviewedAt: expect.any(String),
     });

@@ -94,6 +94,7 @@ const active: Cycle = {
           expectedResult: 'Un mapa de usuarios validado',
           state: 'in_progress',
           result: null,
+          observedResult: '',
           learnings: '',
           reviewedAt: null,
         },
@@ -103,6 +104,7 @@ const active: Cycle = {
           expectedResult: '',
           state: 'planned',
           result: null,
+          observedResult: '',
           learnings: '',
           reviewedAt: null,
         },
@@ -221,13 +223,15 @@ describe('cycle', () => {
     });
 
     const experiment = within(section()).getByRole('listitem', { name: 'Entrevistar a tres usuarios' });
-    await user.selectOptions(within(experiment).getByLabelText('Resultado'), 'consolidated');
+    await user.selectOptions(within(experiment).getByLabelText('Conclusión'), 'consolidated');
+    await user.type(within(experiment).getByLabelText(/^Resultado/), 'Dos usuarios pidieron exportar');
     await user.type(within(experiment).getByLabelText('Aprendizajes'), 'Escuchar antes de proponer');
     await user.click(within(experiment).getByRole('button', { name: 'Registrar revisión «Entrevistar a tres usuarios»' }));
 
     expect(calls.find((call) => call.route.startsWith('PATCH'))?.body).toEqual({
       state: 'reviewed',
       result: 'consolidated',
+      observedResult: 'Dos usuarios pidieron exportar',
       learnings: 'Escuchar antes de proponer',
     });
   });
