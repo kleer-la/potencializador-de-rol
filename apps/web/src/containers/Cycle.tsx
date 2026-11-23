@@ -301,6 +301,7 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
 function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experiment; change: Change }) {
   const { board, cycle, experiment, change } = props;
   const [result, setResult] = useState<ExperimentResult | ''>('');
+  const [observedResult, setObservedResult] = useState('');
   const [learnings, setLearnings] = useState('');
   const active = cycle.state === 'active';
   const reviewable = active && board.viewer.canReviewExperiments && experiment.state !== 'reviewed';
@@ -319,6 +320,7 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
         </span>
       </div>
       {experiment.expectedResult !== '' && <div className="muted">Resultado esperado: {experiment.expectedResult}</div>}
+      {experiment.observedResult !== '' && <div className="notes">Resultado: {experiment.observedResult}</div>}
       {experiment.learnings !== '' && <div className="notes">Aprendizajes: {experiment.learnings}</div>}
       {active && board.viewer.canPlanCycle && experiment.state === 'planned' && (
         <div className="actions">
@@ -338,14 +340,14 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
           onSubmit={(event) => {
             event.preventDefault();
             if (result === '') return;
-            void change(() => boardApi.moveExperiment(board.id, experiment.id, { state: 'reviewed', result, learnings }));
+            void change(() => boardApi.moveExperiment(board.id, experiment.id, { state: 'reviewed', result, observedResult, learnings }));
           }}
         >
           <label>
-            Resultado
+            Conclusión
             <select required value={result} onChange={(event) => setResult(event.target.value as ExperimentResult)}>
               <option value="" disabled>
-                Elige un resultado
+                Elige una conclusión
               </option>
               {results.map((candidate) => (
                 <option key={candidate} value={candidate}>
@@ -353,6 +355,10 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Resultado (qué pasó: hechos y datos)
+            <textarea maxLength={5000} value={observedResult} onChange={(event) => setObservedResult(event.target.value)} />
           </label>
           <label>
             Aprendizajes

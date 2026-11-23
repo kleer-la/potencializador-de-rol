@@ -155,18 +155,18 @@ describe('cycle storage', () => {
     await move(board.owner, experimentIds[0]!, "state = 'in_progress'");
     await expectRefused(move(board.owner, experimentIds[0]!, "state = 'reviewed', result = 'consolidated'"), /only a panel member/);
     await expectRefused(move(board.leader, experimentIds[0]!, "state = 'reviewed'"), /result/);
-    await move(board.leader, experimentIds[0]!, "state = 'reviewed', result = 'consolidated', learnings = 'Datos antes de opinar'");
+    await move(board.leader, experimentIds[0]!, "state = 'reviewed', result = 'consolidated', observed_result = 'Dos de tres decisiones con datos', learnings = 'Datos antes de opinar'");
     await expectRefused(move(board.leader, experimentIds[0]!, "learnings = 'otra'"), /reviewed experiment is final/);
     await expectRefused(move(board.leader, experimentIds[1]!, "state = 'reviewed', result = 'consolidated'"), /discarded/);
     await move(board.leader, experimentIds[1]!, "state = 'reviewed', result = 'discarded'");
     await expectRefused(move(board.owner, experimentIds[2]!, "state = 'reviewed', result = 'discarded'"), /only a panel member/);
 
     const reviewed = await ownerPool.query(
-      'select state, result, learnings, reviewed_by, reviewed_at is not null as dated from experiments where id = $1',
+      'select state, result, observed_result, learnings, reviewed_by, reviewed_at is not null as dated from experiments where id = $1',
       [experimentIds[0]],
     );
     expect(reviewed.rows).toEqual([
-      { state: 'reviewed', result: 'consolidated', learnings: 'Datos antes de opinar', reviewed_by: board.leader, dated: true },
+      { state: 'reviewed', result: 'consolidated', observed_result: 'Dos de tres decisiones con datos', learnings: 'Datos antes de opinar', reviewed_by: board.leader, dated: true },
     ]);
   });
 

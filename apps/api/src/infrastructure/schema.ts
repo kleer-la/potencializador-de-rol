@@ -271,6 +271,7 @@ export const experiments = pgTable('experiments', {
   expectedResult: text('expected_result').notNull().default(''),
   state: text('state', { enum: ['planned', 'in_progress', 'reviewed'] }).notNull().default('planned'),
   result: text('result', { enum: ['consolidated', 'not_consolidated', 'discarded'] }),
+  observedResult: text('observed_result').notNull().default(''),
   learnings: text('learnings').notNull().default(''),
   reviewedBy: uuid('reviewed_by'),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
