@@ -397,10 +397,14 @@ export const boardApi = {
     request<{ focusId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses`, 'POST', focus),
   removeFocus: (boardId: string, cycleId: string, focusId: string) =>
     request<void>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}`, 'DELETE'),
+  changeFocusTarget: (boardId: string, cycleId: string, focusId: string, targetLevelId: string) =>
+    request<{ targetLevelId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}`, 'PATCH', { targetLevelId }),
   addExperiment: (boardId: string, cycleId: string, focusId: string, experiment: { description: string; expectedResult: string }) =>
     request<{ experimentId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}/experiments`, 'POST', experiment),
   startCycle: (boardId: string, cycleId: string) =>
     request<{ startedAt: string }>(`/boards/${boardId}/cycles/${cycleId}/start`, 'POST'),
+  editExperiment: (boardId: string, experimentId: string, experiment: { description: string; expectedResult: string }) =>
+    request<{ description: string; expectedResult: string }>(`/boards/${boardId}/experiments/${experimentId}`, 'PUT', experiment),
   moveExperiment: (boardId: string, experimentId: string, move: ExperimentMove) =>
     request<unknown>(`/boards/${boardId}/experiments/${experimentId}`, 'PATCH', move),
   recordEvidence: (boardId: string, fact: NewEvidence) =>

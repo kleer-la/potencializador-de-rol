@@ -5,7 +5,7 @@ import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProg
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
-type Method = 'GET' | 'POST';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
 
 describe('score, evolution, closing and recalibration', () => {
   let ownerPool: pg.Pool;
@@ -100,7 +100,9 @@ describe('score, evolution, closing and recalibration', () => {
         targetLevelId: program.levelIds[1],
       })
     ).json().focusId;
-    await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses/${focusId}/experiments`, { description: 'Probar' });
+    const experimentId = (
+      await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses/${focusId}/experiments`, { description: 'Probar' })
+    ).json().experimentId;
     await call(sessions.leader, 'POST', `/cycles/${cycleId}/start`);
     const evidenceId = (await call(sessions.owner, 'POST', '/evidence', { description: 'Lo logró', occurredOn: '2027-01-10' })).json()
       .evidenceId;
@@ -117,6 +119,12 @@ describe('score, evolution, closing and recalibration', () => {
     expect((await call(sessions.owner, 'POST', `/cycles/${cycleId}/close`)).statusCode).toBe(403);
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).statusCode).toBe(200);
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).json()).toEqual({ error: 'cycle_not_active' });
+    const retargeted = await call(sessions.owner, 'PATCH', `/cycles/${cycleId}/focuses/${focusId}`, {
+      targetLevelId: program.levelIds[1],
+    });
+    expect([retargeted.statusCode, retargeted.json()]).toEqual([409, { error: 'cycle_closed' }]);
+    const edited = await call(sessions.owner, 'PUT', `/experiments/${experimentId}`, { description: 'Probar otra vez' });
+    expect([edited.statusCode, edited.json()]).toEqual([409, { error: 'cycle_closed' }]);
 
     const closed = await view(sessions.owner);
     expect(closed.status).toBe('between_cycles');

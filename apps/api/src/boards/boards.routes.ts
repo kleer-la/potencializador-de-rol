@@ -108,6 +108,7 @@ const cycleInput = z
   .object({ startsOn: z.iso.date(), endsOn: z.iso.date() })
   .refine((cycle) => cycle.endsOn >= cycle.startsOn);
 const focusInput = z.object({ capabilityId: id, targetLevelId: id });
+const focusTargetInput = z.object({ targetLevelId: id });
 const experimentInput = z.object({
   description: z.string().trim().min(1).max(2000),
   expectedResult: z.string().trim().max(2000).default(''),
@@ -1095,6 +1096,46 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     );
   });
 
+  // The target level of a focus changes while its cycle is planned or active.
+  api.patch('/boards/:boardId/cycles/:cycleId/focuses/:focusId', async (request, reply) => {
+    const params = focusParams.safeParse(request.params);
+    const body = focusTargetInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
+        const [focus] = await tx
+          .select({ capabilityId: focuses.capabilityId })
+          .from(focuses)
+          .where(and(eq(focuses.id, params.data.focusId), eq(focuses.cycleId, cycle.id)));
+        if (focus === undefined) throw new Refusal(404, NOT_FOUND);
+        if (cycle.state === 'closed') throw new Refusal(409, { error: 'cycle_closed' });
+        const program = await programOf(tx, row.programId);
+        const [current] = await tx
+          .select({ position: levels.position })
+          .from(placements)
+          .leftJoin(levels, eq(levels.id, placements.levelId))
+          .where(and(eq(placements.boardId, row.id), eq(placements.capabilityId, focus.capabilityId)));
+        const [target] = await tx
+          .select({ position: levels.position })
+          .from(levels)
+          .where(and(eq(levels.id, body.data.targetLevelId), eq(levels.mapId, program.mapId)));
+        if (current === undefined || target === undefined || !isValidTarget(current.position, target.position)) {
+          throw new Refusal(422, { error: 'invalid_target' });
+        }
+        try {
+          await tx.update(focuses).set({ targetLevelId: body.data.targetLevelId }).where(eq(focuses.id, params.data.focusId));
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_closed' });
+          if (postgresCode(error) === '23514') throw new Refusal(422, { error: 'invalid_target' });
+          throw error;
+        }
+        return { status: 200, body: { targetLevelId: body.data.targetLevelId } };
+      }),
+    );
+  });
+
   api.post('/boards/:boardId/cycles/:cycleId/focuses/:focusId/experiments', async (request, reply) => {
     const params = focusParams.safeParse(request.params);
     const body = experimentInput.safeParse(request.body);
@@ -1184,6 +1225,34 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           throw error;
         }
         return { body: { state: move.state } };
+      }),
+    );
+  });
+
+  // The text of an experiment changes until it is reviewed, while its cycle is not closed.
+  api.put('/boards/:boardId/experiments/:experimentId', async (request, reply) => {
+    const params = experimentParams.safeParse(request.params);
+    const body = experimentInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        const [found] = await tx
+          .select({ id: experiments.id, state: experiments.state, cycleState: cycles.state })
+          .from(experiments)
+          .innerJoin(focuses, eq(focuses.id, experiments.focusId))
+          .innerJoin(cycles, eq(cycles.id, focuses.cycleId))
+          .where(and(eq(experiments.id, params.data.experimentId), eq(cycles.boardId, row.id)));
+        if (found === undefined) throw new Refusal(404, NOT_FOUND);
+        if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (found.cycleState === 'closed') throw new Refusal(409, { error: 'cycle_closed' });
+        if (found.state === 'reviewed') throw new Refusal(409, { error: 'experiment_final' });
+        try {
+          await tx.update(experiments).set(body.data).where(eq(experiments.id, found.id));
+        } catch (error) {
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'experiment_final' });
+          throw error;
+        }
+        return { body: body.data };
       }),
     );
   });

@@ -134,11 +134,12 @@ export const cycleErrors: Record<string, string> = {
   board_closed: 'Este tablero está cerrado.',
   invalid_target: 'El nivel objetivo debe estar por encima del nivel actual de la capacidad.',
   already_focus: 'Esa capacidad ya es un foco de este ciclo.',
-  cycle_not_planned: 'Los focos solo cambian mientras el ciclo está planeado.',
+  cycle_not_planned: 'Los focos solo se agregan o se quitan mientras el ciclo está planeado.',
   cycle_closed: 'El ciclo está cerrado.',
   board_not_ready: 'El tablero no está en un estado que permita iniciar un ciclo.',
   cycle_changed: 'El ciclo cambió mientras se iniciaba. Vuelve a abrir el tablero.',
   invalid_transition: 'Ese experimento no puede pasar a ese estado.',
+  experiment_final: 'Un experimento revisado ya no cambia.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };
 

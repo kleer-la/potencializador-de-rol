@@ -179,7 +179,7 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
         <div className="actions">
           <ConfirmAction
             label="Iniciar ciclo"
-            prompt="¿Iniciar el ciclo? Durante el ciclo los focos quedan fijos; se pueden sumar experimentos."
+            prompt="¿Iniciar el ciclo? Durante el ciclo los focos ya no se agregan ni se quitan; se puede cambiar su nivel objetivo y sumar experimentos."
             confirmLabel="Confirmar inicio"
             variant="primary"
             onConfirm={start}
@@ -287,6 +287,7 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
           />
         )}
       </div>
+      {cycle.state !== 'closed' && canPlan && <FocusTarget board={board} cycle={cycle} focus={focus} change={change} />}
       {focus.experiments.length === 0 ? (
         <p className="muted">Sin experimentos todavía: cada foco necesita al menos uno para iniciar el ciclo.</p>
       ) : (
@@ -327,17 +328,71 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
   );
 }
 
+/** The target level of a focus changes while its cycle is planned or active. */
+function FocusTarget(props: { board: Board; cycle: Cycle; focus: Focus; change: Change }) {
+  const { board, cycle, focus, change } = props;
+  const [targetLevelId, setTargetLevelId] = useState(focus.targetLevelId);
+  const currentLevelId = board.placements.find((placement) => placement.capabilityId === focus.capabilityId)?.levelId;
+  const current = board.levels.find((level) => level.id === currentLevelId)?.position;
+  const targets = current === undefined ? [] : board.levels.filter((level) => level.position > current);
+  // Nothing to choose when the present target is the only level above.
+  if (targets.length < 2) return null;
+
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void change(() => boardApi.changeFocusTarget(board.id, cycle.id, focus.id, targetLevelId));
+      }}
+    >
+      <label>
+        Cambiar objetivo
+        <select value={targetLevelId} onChange={(event) => setTargetLevelId(event.target.value)}>
+          {targets.map((level) => (
+            <option key={level.id} value={level.id}>
+              {level.position} · {level.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className="secondary" disabled={targetLevelId === focus.targetLevelId}>
+        Guardar objetivo
+      </button>
+    </form>
+  );
+}
+
 function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experiment; change: Change }) {
   const { board, cycle, experiment, change } = props;
   const [result, setResult] = useState<ExperimentResult | ''>('');
   const [observedResult, setObservedResult] = useState('');
   const [learnings, setLearnings] = useState('');
+  const [editing, setEditing] = useState(false);
   const active = cycle.state === 'active';
+  const editable = cycle.state !== 'closed' && board.viewer.canPlanCycle && experiment.state !== 'reviewed';
   const reviewable = active && board.viewer.canReviewExperiments && experiment.state !== 'reviewed';
   // A planned experiment that never ran can only be discarded.
   const results = (Object.keys(experimentResultLabels) as ExperimentResult[]).filter(
     (candidate) => experiment.state === 'in_progress' || candidate === 'discarded',
   );
+
+  if (editing) {
+    return (
+      <li aria-label={experiment.description} className="experiment stack">
+        <ExperimentEdit
+          experiment={experiment}
+          onCancel={() => setEditing(false)}
+          onSave={(text) =>
+            change(async () => {
+              await boardApi.editExperiment(board.id, experiment.id, text);
+              setEditing(false);
+            })
+          }
+        />
+      </li>
+    );
+  }
 
   return (
     <li aria-label={experiment.description} className="experiment stack">
@@ -351,6 +406,18 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
       {experiment.expectedResult !== '' && <div className="muted">Resultado esperado: {experiment.expectedResult}</div>}
       {experiment.observedResult !== '' && <div className="notes">Resultado: {experiment.observedResult}</div>}
       {experiment.learnings !== '' && <div className="notes">Aprendizajes: {experiment.learnings}</div>}
+      {editable && (
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            aria-label={`Editar «${experiment.description}»`}
+            onClick={() => setEditing(true)}
+          >
+            Editar
+          </button>
+        </div>
+      )}
       {active && board.viewer.canPlanCycle && experiment.state === 'planned' && (
         <div className="actions">
           <button
@@ -401,5 +468,41 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
         </form>
       )}
     </li>
+  );
+}
+
+/** The description and expected result of an experiment, until it is reviewed. */
+function ExperimentEdit(props: {
+  experiment: Experiment;
+  onCancel: () => void;
+  onSave: (text: { description: string; expectedResult: string }) => Promise<void>;
+}) {
+  const { experiment, onCancel, onSave } = props;
+  const [description, setDescription] = useState(experiment.description);
+  const [expectedResult, setExpectedResult] = useState(experiment.expectedResult);
+
+  return (
+    <form
+      className="stack"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSave({ description, expectedResult });
+      }}
+    >
+      <label>
+        Experimento
+        <input required maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} />
+      </label>
+      <label>
+        Resultado esperado
+        <input maxLength={2000} value={expectedResult} onChange={(event) => setExpectedResult(event.target.value)} />
+      </label>
+      <div className="actions">
+        <button type="submit">Guardar</button>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancelar
+        </button>
+      </div>
+    </form>
   );
 }

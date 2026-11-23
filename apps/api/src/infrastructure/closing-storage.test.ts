@@ -158,6 +158,11 @@ describe('closing, recalibration and snapshots storage', () => {
         /closed cycle/,
       );
     }
+    // Nor the target level of its focuses.
+    await expectRefused(
+      one(board.owner, 'update focuses set target_level_id = target_level_id where cycle_id = $1', [cycleId]),
+      /closed cycle/,
+    );
   });
 
   it('INV-4 recalibrates between cycles with the attendance of the calibration; levels may go down, once', async () => {
