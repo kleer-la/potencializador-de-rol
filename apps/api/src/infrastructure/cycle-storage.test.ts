@@ -139,9 +139,11 @@ describe('cycle storage', () => {
     await expectRefused(start(board.leader), /planned/);
   });
 
-  it('INV-8 an active cycle keeps its focuses and experiments; more experiments may join', async () => {
-    await expectRefused(addFocus(board.owner, 2, 1), /only while it is planned/);
-    await expectRefused(one(board.owner, 'delete from focuses where id = $1', [focusIds[0]]), /only while it is planned/);
+  it('INV-8 an active cycle keeps its focuses and experiments; more focuses and experiments may join', async () => {
+    // Every placed capability is already a focus: the guard lets the insert through to the uniqueness check.
+    await expectRefused(addFocus(board.owner, 2, 1), /focuses_one_per_capability/);
+    await expectRefused(addFocus(board.leader, 0, 1), /focuses_one_per_capability/);
+    await expectRefused(one(board.owner, 'delete from focuses where id = $1', [focusIds[0]]), /focus with experiments stays/);
     await expectRefused(one(board.owner, 'delete from experiments where id = $1', [experimentIds[0]]), /invariant 8/);
     await expectRefused(one(board.leader, 'delete from cycles where id = $1', [cycleId]), /planned/);
     await expectRefused(

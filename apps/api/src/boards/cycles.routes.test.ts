@@ -150,10 +150,32 @@ describe('cycles, focuses and experiments', () => {
     expect(led.cycle.state).toBe('active');
     expect(led.cycle.startedAt).toEqual(expect.any(String));
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/start`)).json()).toEqual({ error: 'cycle_not_planned' });
-    expect((await focus(sessions.owner, 2, 1)).json()).toEqual({ error: 'cycle_not_planned' });
     expect((await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${focusOf[0]}`)).json()).toEqual({
-      error: 'cycle_not_planned',
+      error: 'focus_has_experiments',
     });
+  });
+
+  it('adds focuses to the active cycle, removing them only while they have no experiment', async () => {
+    const removable = (await focus(sessions.owner, 2, 1)).json().focusId;
+    expect((await call(sessions.otherParticipant, 'DELETE', `/cycles/${cycleId}/focuses/${removable}`)).statusCode).toBe(404);
+    expect((await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${removable}`)).statusCode).toBe(204);
+    expect((await view(sessions.owner)).cycle.focuses).toHaveLength(2);
+
+    const added = await focus(sessions.leader, 2, 1);
+    expect(added.statusCode).toBe(201);
+    expect((await focus(sessions.owner, 2, 1)).json()).toEqual({ error: 'already_focus' });
+    expect((await focus(sessions.otherParticipant, 2, 1)).statusCode).toBe(404);
+    const focuses = (await view(sessions.owner)).cycle.focuses;
+    expect(focuses.map((item: { capabilityId: string }) => item.capabilityId)).toEqual(program.capabilityIds.slice(0, 3));
+    expect(focuses[2]).toEqual({
+      id: added.json().focusId,
+      capabilityId: program.capabilityIds[2],
+      targetLevelId: program.levelIds[1],
+      experiments: [],
+    });
+    expect((await experiment(sessions.owner, added.json().focusId)).statusCode).toBe(201);
+    const kept = await call(sessions.leader, 'DELETE', `/cycles/${cycleId}/focuses/${added.json().focusId}`);
+    expect([kept.statusCode, kept.json()]).toEqual([409, { error: 'focus_has_experiments' }]);
   });
 
   it('changes the target level of a focus while the cycle is active, for owner and panel', async () => {

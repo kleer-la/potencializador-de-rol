@@ -5,7 +5,7 @@ import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProg
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 describe('score, evolution, closing and recalibration', () => {
   let ownerPool: pg.Pool;
@@ -136,6 +136,13 @@ describe('score, evolution, closing and recalibration', () => {
       targetLevelId: program.levelIds[1],
     });
     expect([retargeted.statusCode, retargeted.json()]).toEqual([409, { error: 'cycle_closed' }]);
+    const focusAdded = await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses`, {
+      capabilityId: program.capabilityIds[1],
+      targetLevelId: program.levelIds[1],
+    });
+    expect([focusAdded.statusCode, focusAdded.json()]).toEqual([409, { error: 'cycle_closed' }]);
+    const focusRemoved = await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${focusId}`);
+    expect([focusRemoved.statusCode, focusRemoved.json()]).toEqual([409, { error: 'cycle_closed' }]);
     const edited = await call(sessions.owner, 'PUT', `/experiments/${experimentId}`, { description: 'Probar otra vez' });
     expect([edited.statusCode, edited.json()]).toEqual([409, { error: 'cycle_closed' }]);
 

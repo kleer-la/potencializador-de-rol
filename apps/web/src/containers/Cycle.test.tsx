@@ -235,11 +235,37 @@ describe('cycle', () => {
     });
 
     await user.click(within(section()).getByRole('button', { name: 'Iniciar ciclo' }));
-    expect(within(section()).getByText(/los focos ya no se agregan ni se quitan/)).toBeTruthy();
+    expect(within(section()).getByText(/un foco solo se quita mientras no tenga experimentos/)).toBeTruthy();
     await user.click(within(section()).getByRole('button', { name: 'Confirmar inicio' }));
 
     const alert = await within(section()).findByRole('alert');
     expect(within(alert).getByText('Identifica a quién sirve el producto')).toBeTruthy();
+  });
+
+  it('lets owner and panel add a focus to an active cycle, and remove it only while it has no experiment', async () => {
+    const withAdded: Cycle = {
+      ...active,
+      focuses: [...active.focuses, { id: 'focus-2', capabilityId: 'capability-2', targetLevelId: 'level-1', experiments: [] }],
+    };
+    let loads = 0;
+    const { calls, user, section } = await open(board(active), {
+      'POST /api/boards/board-1/cycles/cycle-1/focuses': () => json({ focusId: 'focus-2' }, 201),
+      'GET /api/boards/board-1': () => json(board(loads++ === 0 ? active : withAdded)),
+      'DELETE /api/boards/board-1/cycles/cycle-1/focuses/focus-2': () => new Response(null, { status: 204 }),
+    });
+
+    const form = within(section()).getByRole('heading', { name: 'Nuevo foco' }).closest('form')!;
+    await user.selectOptions(within(form).getByLabelText('Capacidad'), 'capability-2');
+    await user.selectOptions(within(form).getByLabelText('Nivel objetivo'), 'level-1');
+    await user.click(within(form).getByRole('button', { name: 'Agregar foco' }));
+    expect(calls.find((call) => call.route.endsWith('/focuses'))?.body).toEqual({
+      capabilityId: 'capability-2',
+      targetLevelId: 'level-1',
+    });
+    await user.click(await within(section()).findByRole('button', { name: 'Quitar foco «Lee el estado actual del producto»' }));
+    await user.click(within(section()).getByRole('button', { name: 'Confirmar' }));
+    expect(calls.some((call) => call.route === 'DELETE /api/boards/board-1/cycles/cycle-1/focuses/focus-2')).toBe(true);
+    expect(within(section()).queryByRole('button', { name: 'Quitar foco «Identifica a quién sirve el producto»' })).toBeNull();
   });
 
   it('lets owner and panel change the target level of a focus in an active cycle', async () => {
