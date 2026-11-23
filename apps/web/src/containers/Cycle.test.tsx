@@ -65,6 +65,7 @@ const board = (cycle: Cycle | null, who = viewer({})): Board => ({
   score: null,
   evolution: [],
   recalibrations: [],
+  pastCycles: [],
 });
 
 const WARNING = '¡Pilas con tu foco, no agreguemos más de lo que podamos atender!';
@@ -254,5 +255,52 @@ describe('cycle', () => {
       observedResult: 'Dos usuarios pidieron exportar',
       learnings: 'Escuchar antes de proponer',
     });
+  });
+
+  it('shows the closed cycles with their focuses and experiments, read-only', async () => {
+    const closed: Cycle = {
+      ...active,
+      id: 'cycle-0',
+      number: 1,
+      startsOn: '2026-09-01',
+      endsOn: '2026-11-30',
+      state: 'closed',
+      focuses: [
+        {
+          id: 'focus-0',
+          capabilityId: 'capability-1',
+          targetLevelId: 'level-2',
+          experiments: [
+            {
+              id: 'experiment-0',
+              description: 'Entrevistar a tres usuarios',
+              expectedResult: 'Un mapa de usuarios validado',
+              state: 'reviewed',
+              result: 'consolidated',
+              observedResult: 'Dos usuarios pidieron exportar',
+              learnings: 'Escuchar antes de proponer',
+              reviewedAt: '2026-11-20T10:00:00Z',
+            },
+          ],
+        },
+      ],
+    };
+    const { user, section } = await open({ ...board({ ...planned, number: 2 }, leader), pastCycles: [closed] });
+
+    const past = within(section()).getByRole('region', { name: 'Ciclos anteriores' });
+    await user.click(within(past).getByText('Ciclo 1 · Cerrado · del 2026-09-01 al 2026-11-30'));
+    const focus = within(past).getByRole('article', { name: 'Identifica a quién sirve el producto' });
+    expect(within(focus).getByText('Nivel actual: 1 · Principiante · Objetivo: 2 · Practicante')).toBeTruthy();
+    const experiment = within(focus).getByRole('listitem', { name: 'Entrevistar a tres usuarios' });
+    expect(within(experiment).getByText('Revisado: Consolidó')).toBeTruthy();
+    expect(within(experiment).getByText('Resultado: Dos usuarios pidieron exportar')).toBeTruthy();
+    expect(within(experiment).getByText('Aprendizajes: Escuchar antes de proponer')).toBeTruthy();
+    expect(within(past).queryByRole('button')).toBeNull();
+    expect(within(past).queryByRole('textbox')).toBeNull();
+  });
+
+  it('shows no past cycles block before any cycle closes', async () => {
+    const { section } = await open(board(planned));
+    expect(within(section()).queryByRole('region', { name: 'Ciclos anteriores' })).toBeNull();
   });
 });

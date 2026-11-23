@@ -68,6 +68,7 @@ const base: Board = {
   score: null,
   evolution: [],
   recalibrations: [],
+  pastCycles: [],
 };
 
 const calibrated: Board = {

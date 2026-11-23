@@ -51,6 +51,30 @@ export function CycleSection({ board, onChanged }: { board: Board; onChanged: ()
       ) : (
         <CurrentCycle board={board} cycle={cycle} change={change} onFailure={setFailure} />
       )}
+      <PastCycles board={board} change={change} />
+    </section>
+  );
+}
+
+/** The closed cycles, newest first, each collapsed; opened, its focuses and experiments read-only. */
+function PastCycles({ board, change }: { board: Board; change: Change }) {
+  const headingId = useId();
+  if (board.pastCycles.length === 0) return null;
+  return (
+    <section className="stack" aria-labelledby={headingId}>
+      <h4 id={headingId}>Ciclos anteriores</h4>
+      {board.pastCycles.map((cycle) => (
+        <details key={cycle.id}>
+          <summary>
+            Ciclo {cycle.number} · {cycleStateLabels[cycle.state]} · del {cycle.startsOn} al {cycle.endsOn}
+          </summary>
+          <div className="stack">
+            {cycle.focuses.map((focus) => (
+              <FocusCard key={focus.id} board={board} cycle={cycle} focus={focus} change={change} />
+            ))}
+          </div>
+        </details>
+      ))}
     </section>
   );
 }

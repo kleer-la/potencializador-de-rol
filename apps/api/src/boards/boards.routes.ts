@@ -261,20 +261,13 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     };
   };
 
-  /** The board's cycle that is not closed, with focuses (map order) and experiments (oldest first). */
-  const readOpenCycle = async (
+  /** A cycle with its focuses (map order) and their experiments (oldest first). */
+  const readCycle = async (
     tx: ScopedTransaction,
-    boardId: string,
+    cycle: typeof cycles.$inferSelect,
     maxFocuses: number,
     byMapOrder: <T extends { capabilityId: string }>(entries: T[]) => T[],
   ) => {
-    const [cycle] = await tx
-      .select()
-      .from(cycles)
-      .where(and(eq(cycles.boardId, boardId), ne(cycles.state, 'closed')))
-      .orderBy(desc(cycles.number))
-      .limit(1);
-    if (cycle === undefined) return null;
     const focusRows = await tx
       .select({ id: focuses.id, capabilityId: focuses.capabilityId, targetLevelId: focuses.targetLevelId })
       .from(focuses)
@@ -312,6 +305,39 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .map(({ focusId: _focusId, ...experiment }) => experiment),
       })),
     };
+  };
+
+  /** The board's cycle that is not closed, or null if none. */
+  const readOpenCycle = async (
+    tx: ScopedTransaction,
+    boardId: string,
+    maxFocuses: number,
+    byMapOrder: <T extends { capabilityId: string }>(entries: T[]) => T[],
+  ) => {
+    const [cycle] = await tx
+      .select()
+      .from(cycles)
+      .where(and(eq(cycles.boardId, boardId), ne(cycles.state, 'closed')))
+      .orderBy(desc(cycles.number))
+      .limit(1);
+    return cycle === undefined ? null : readCycle(tx, cycle, maxFocuses, byMapOrder);
+  };
+
+  /** The board's closed cycles, newest first, each as readCycle shows it. */
+  const readPastCycles = async (
+    tx: ScopedTransaction,
+    boardId: string,
+    maxFocuses: number,
+    byMapOrder: <T extends { capabilityId: string }>(entries: T[]) => T[],
+  ) => {
+    const closed = await tx
+      .select()
+      .from(cycles)
+      .where(and(eq(cycles.boardId, boardId), eq(cycles.state, 'closed')))
+      .orderBy(desc(cycles.number));
+    const past = [];
+    for (const cycle of closed) past.push(await readCycle(tx, cycle, maxFocuses, byMapOrder));
+    return past;
   };
 
   /** Evidence, level change proposals, bonuses with the map's rules, and mentoring sessions. */
@@ -670,6 +696,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
                 savedAt: draftRow.savedAt,
               };
         const cycle = await readOpenCycle(tx, row.id, program!.maxFocuses, byMapOrder);
+        const pastCycles = await readPastCycles(tx, row.id, program!.maxFocuses, byMapOrder);
         const history = await readEvidenceAndDecisions(tx, row.id, program!.mapId);
         const topMultiplier = Math.max(0, ...scale.map((level) => Number(level.multiplier)));
         const progress =
@@ -748,6 +775,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             baseline,
             // The cycle that is not closed yet, with its focuses and experiments; null if none.
             cycle,
+            // The closed cycles, newest first, with the focuses and experiments they had.
+            pastCycles,
             // Facts of the board and what was proposed and decided with them (invariants 4 to 7).
             ...history,
             // The maturity score of this board only: no list or program view carries it (invariant 9).

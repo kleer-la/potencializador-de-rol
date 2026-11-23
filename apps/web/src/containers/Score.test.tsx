@@ -93,6 +93,7 @@ const board = (who: Board['viewer'], overrides: Partial<Board> = {}): Board => (
     { kind: 'today', date: '2027-03-01T10:00:00Z', total: 2, maximum: 2, capabilities: 2, change: 0 },
   ],
   recalibrations: [],
+  pastCycles: [],
   ...overrides,
 });
 
