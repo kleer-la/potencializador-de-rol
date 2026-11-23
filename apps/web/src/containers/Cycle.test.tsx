@@ -219,11 +219,86 @@ describe('cycle', () => {
     });
 
     await user.click(within(section()).getByRole('button', { name: 'Iniciar ciclo' }));
-    expect(within(section()).getByText(/los focos quedan fijos/)).toBeTruthy();
+    expect(within(section()).getByText(/los focos ya no se agregan ni se quitan/)).toBeTruthy();
     await user.click(within(section()).getByRole('button', { name: 'Confirmar inicio' }));
 
     const alert = await within(section()).findByRole('alert');
     expect(within(alert).getByText('Identifica a quién sirve el producto')).toBeTruthy();
+  });
+
+  it('lets owner and panel change the target level of a focus in an active cycle', async () => {
+    const retargetable: Cycle = {
+      ...active,
+      focuses: [{ ...active.focuses[0]!, id: 'focus-2', capabilityId: 'capability-2', targetLevelId: 'level-1' }],
+    };
+    const { calls, user, section } = await open(board(retargetable, leader), {
+      'PATCH /api/boards/board-1/cycles/cycle-1/focuses/focus-2': () => json({ targetLevelId: 'level-2' }),
+    });
+
+    const focus = within(section()).getByRole('article', { name: 'Lee el estado actual del producto' });
+    const options = within(within(focus).getByLabelText('Cambiar objetivo')).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual(['1 · Principiante', '2 · Practicante']);
+    expect(within(focus).getByRole('button', { name: 'Guardar objetivo' }).hasAttribute('disabled')).toBe(true);
+    await user.selectOptions(within(focus).getByLabelText('Cambiar objetivo'), 'level-2');
+    await user.click(within(focus).getByRole('button', { name: 'Guardar objetivo' }));
+    expect(calls.find((call) => call.route.startsWith('PATCH'))?.body).toEqual({ targetLevelId: 'level-2' });
+  });
+
+  it('offers no target change without another level above, nor in a closed cycle', async () => {
+    const closed: Cycle = {
+      ...active,
+      id: 'cycle-0',
+      state: 'closed',
+      focuses: [{ id: 'focus-0', capabilityId: 'capability-2', targetLevelId: 'level-1', experiments: [] }],
+    };
+    const { user, section } = await open({ ...board(active, leader), pastCycles: [closed] });
+    const focus = within(section()).getByRole('article', { name: 'Identifica a quién sirve el producto' });
+    expect(within(focus).queryByLabelText('Cambiar objetivo')).toBeNull();
+
+    const past = within(section()).getByRole('region', { name: 'Ciclos anteriores' });
+    await user.click(within(past).getByText(/Ciclo 1 · Cerrado/));
+    expect(within(past).getByRole('article', { name: 'Lee el estado actual del producto' })).toBeTruthy();
+    expect(within(past).queryByLabelText('Cambiar objetivo')).toBeNull();
+  });
+
+  it('lets the participant edit an experiment that is not reviewed yet', async () => {
+    const withReviewed: Cycle = {
+      ...active,
+      focuses: [
+        {
+          ...active.focuses[0]!,
+          experiments: [
+            ...active.focuses[0]!.experiments,
+            { ...active.focuses[0]!.experiments[0]!, id: 'experiment-3', description: 'Ya revisado', state: 'reviewed', result: 'discarded' },
+          ],
+        },
+      ],
+    };
+    const { calls, user, section } = await open(board(withReviewed), {
+      'PUT /api/boards/board-1/experiments/experiment-1': () => json({ description: 'Entrevistar a cinco usuarios' }),
+    });
+
+    expect(within(section()).queryByRole('button', { name: 'Editar «Ya revisado»' })).toBeNull();
+    const experiment = within(section()).getByRole('listitem', { name: 'Entrevistar a tres usuarios' });
+    await user.click(within(experiment).getByRole('button', { name: 'Editar «Entrevistar a tres usuarios»' }));
+    const description = within(experiment).getByLabelText('Experimento');
+    expect((within(experiment).getByLabelText('Resultado esperado') as HTMLInputElement).value).toBe('Un mapa de usuarios validado');
+    await user.clear(description);
+    await user.type(description, 'Entrevistar a cinco usuarios');
+    await user.click(within(experiment).getByRole('button', { name: 'Guardar' }));
+    expect(calls.find((call) => call.route.startsWith('PUT'))?.body).toEqual({
+      description: 'Entrevistar a cinco usuarios',
+      expectedResult: 'Un mapa de usuarios validado',
+    });
+  });
+
+  it('cancels an experiment edit without saving', async () => {
+    const { calls, user, section } = await open(board(active));
+    const experiment = within(section()).getByRole('listitem', { name: 'Revisar métricas de uso' });
+    await user.click(within(experiment).getByRole('button', { name: 'Editar «Revisar métricas de uso»' }));
+    await user.click(within(experiment).getByRole('button', { name: 'Cancelar' }));
+    expect(within(experiment).queryByLabelText('Experimento')).toBeNull();
+    expect(calls.some((call) => call.route.startsWith('PUT'))).toBe(false);
   });
 
   it('lets the participant mark an experiment in progress, without reviewing it', async () => {

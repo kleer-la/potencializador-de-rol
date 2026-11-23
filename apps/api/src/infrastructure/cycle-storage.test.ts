@@ -151,6 +151,21 @@ describe('cycle storage', () => {
     experimentIds.push((await addExperiment(board.owner, focusIds[0]!)).rows[0].id);
   });
 
+  it('changes the target level of a focus while the cycle is active, above the current level', async () => {
+    const retarget = (personId: string, level: number) =>
+      one(personId, 'update focuses set target_level_id = $2 where id = $1 returning target_level_id', [
+        focusIds[0],
+        program.levelIds[level],
+      ]);
+    await expectRefused(retarget(board.owner, 0), /above the current level/);
+    expect((await retarget(board.owner, 1)).rows).toEqual([{ target_level_id: program.levelIds[1] }]);
+    expect((await retarget(board.leader, 1)).rowCount).toBe(1);
+    await expectRefused(
+      one(board.owner, 'update focuses set capability_id = $2 where id = $1', [focusIds[0], program.capabilityIds[1]]),
+      /permission denied/,
+    );
+  });
+
   it('moves experiments from planned to in progress to reviewed by the panel, for good', async () => {
     const move = (personId: string, id: string, set: string) => one(personId, `update experiments set ${set} where id = $1`, [id]);
 

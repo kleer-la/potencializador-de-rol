@@ -6,7 +6,7 @@ import { giveBaseline, seedBoard, seedProgram, type SeededBoard, type SeededProg
 import { createSeeder } from '../../test-support/seed.ts';
 import { createSignedInApp, TEST_PUBLIC_URL } from '../../test-support/signed-in-app.ts';
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 describe('cycles, focuses and experiments', () => {
   let ownerPool: pg.Pool;
@@ -155,6 +155,21 @@ describe('cycles, focuses and experiments', () => {
     });
   });
 
+  it('changes the target level of a focus while the cycle is active, for owner and panel', async () => {
+    const retarget = (session: string, focusId: string, level: number) =>
+      call(session, 'PATCH', `/cycles/${cycleId}/focuses/${focusId}`, { targetLevelId: program.levelIds[level] });
+    expect((await retarget(sessions.owner, focusOf[1]!, 1)).statusCode).toBe(200);
+    expect((await retarget(sessions.leader, focusOf[1]!, 1)).statusCode).toBe(200);
+    expect((await retarget(sessions.owner, focusOf[1]!, 0)).json()).toEqual({ error: 'invalid_target' });
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+    const foreign = await call(sessions.owner, 'PATCH', `/cycles/${cycleId}/focuses/${focusOf[1]}`, { targetLevelId: other.levelId });
+    expect(foreign.json()).toEqual({ error: 'invalid_target' });
+    expect((await call(sessions.owner, 'PATCH', `/cycles/${cycleId}/focuses/${focusOf[1]}`, {})).statusCode).toBe(400);
+    expect((await retarget(sessions.owner, cycleId, 1)).statusCode).toBe(404);
+    expect((await retarget(sessions.otherParticipant, focusOf[1]!, 1)).statusCode).toBe(404);
+    expect((await view(sessions.owner)).cycle.focuses[1]).toMatchObject({ id: focusOf[1], targetLevelId: program.levelIds[1] });
+  });
+
   it('moves experiments to in progress and has the panel review them, for good', async () => {
     const move = (session: string, experimentId: string, body: unknown) => call(session, 'PATCH', `/experiments/${experimentId}`, body);
     expect((await move(sessions.owner, experiments[0]!, { state: 'in_progress' })).statusCode).toBe(200);
@@ -184,6 +199,20 @@ describe('cycles, focuses and experiments', () => {
       learnings: 'Mostrar datos antes de opinar cambió la conversación',
       reviewedAt: expect.any(String),
     });
+  });
+
+  it('lets owner and panel edit an experiment until it is reviewed', async () => {
+    const edit = (session: string, experimentId: string, body: unknown) => call(session, 'PUT', `/experiments/${experimentId}`, body);
+    const text = { description: 'Leer las métricas de uso con el equipo', expectedResult: 'Dos decisiones apoyadas en datos' };
+    expect((await edit(sessions.owner, experiments[1]!, text)).statusCode).toBe(200);
+    expect((await edit(sessions.leader, experiments[1]!, { ...text, expectedResult: '' })).statusCode).toBe(200);
+    expect((await edit(sessions.owner, experiments[1]!, { description: '  ' })).json()).toEqual({ error: 'invalid_request' });
+    expect((await edit(sessions.owner, experiments[0]!, text)).json()).toEqual({ error: 'experiment_final' });
+    expect((await edit(sessions.otherParticipant, experiments[1]!, text)).statusCode).toBe(404);
+    expect((await edit(sessions.owner, cycleId, text)).statusCode).toBe(404);
+
+    const [, second] = (await view(sessions.owner)).cycle.focuses;
+    expect(second.experiments[0]).toMatchObject({ id: experiments[1], description: text.description, expectedResult: '', state: 'planned' });
   });
 
   it('INV-9 keeps cycles away from anyone off the board', async () => {
