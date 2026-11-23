@@ -195,25 +195,40 @@ describe('calibration', () => {
 
     expect(screen.queryByRole('region', { name: 'Calibración' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Capacidades por nivelar' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Línea base vs estado actual' })).toBeTruthy();
+    expect(screen.getByText(/Línea base fijada en la calibración del/)).toBeTruthy();
   });
 });
 
 describe('baseline', () => {
-  it('shows the calibration, the baseline beside the current level and the difference', async () => {
-    await open(movedOn);
+  it('notes under the legend when the baseline was fixed, who attended, the notes and what joined later', async () => {
+    const { user } = await open({
+      ...movedOn,
+      baseline: {
+        ...movedOn.baseline!,
+        entries: [
+          ...movedOn.baseline!.entries,
+          { capabilityId: 'capability-3', levelId: 'level-2', origin: 'initial_leveling', setAt: '2026-11-21T10:00:00Z' },
+        ],
+      },
+    });
 
-    const comparison = screen.getByRole('region', { name: 'Línea base vs estado actual' });
-    expect(within(comparison).getByText(/Ana Gómez, Luis Mora/)).toBeTruthy();
-    expect(within(comparison).getByText('Revisamos dos entregas del trimestre.')).toBeTruthy();
-    const table = within(comparison).getByRole('table', { name: 'Línea base y estado actual' });
-    const first = within(table).getByRole('row', { name: /Identifica a quién sirve el producto/ });
-    expect(within(first).getByText('1 · Principiante')).toBeTruthy();
-    expect(within(first).getByText('2 · Practicante')).toBeTruthy();
-    expect(within(first).getByText('+1')).toBeTruthy();
-    const second = within(table).getByRole('row', { name: /Lee el estado actual del producto/ });
-    expect(within(second).getByText('=')).toBeTruthy();
-    expect(within(comparison).queryByText(/Autoevaluación|Sin propuesta/)).toBeNull();
+    const note = screen.getByRole('group', { name: 'Contexto de la línea base' });
+    expect(within(note).getByText(/Línea base fijada en la calibración del 20 de noviembre de 2026/)).toBeTruthy();
+    expect(within(note).getByText(/Asistieron: Ana Gómez, Luis Mora/)).toBeTruthy();
+    await user.click(within(note).getByText('Notas de la calibración'));
+    expect(within(note).getByText('Revisamos dos entregas del trimestre.')).toBeTruthy();
+    await user.click(within(note).getByText('Agregadas después: 1'));
+    expect(within(note).getByText(/Mantiene un backlog ordenado: 2 · Practicante \(nivelación inicial del 21 de noviembre de 2026\)/)).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Línea base y estado actual' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Línea base vs estado actual' })).toBeNull();
+  });
+
+  it('leaves out the notes and the later additions when there are none', async () => {
+    await open({ ...movedOn, calibration: { ...movedOn.calibration!, notes: '' } });
+
+    const note = screen.getByRole('group', { name: 'Contexto de la línea base' });
+    expect(within(note).queryByText('Notas de la calibración')).toBeNull();
+    expect(within(note).queryByText(/Agregadas después/)).toBeNull();
   });
 
   it('marks the current level and the baseline on the board, no longer the self-assessment', async () => {

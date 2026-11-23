@@ -158,8 +158,8 @@ describe('board layout', () => {
     await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
 
     const inOrder = [
+      screen.getByRole('group', { name: 'Contexto de la línea base' }),
       screen.getByRole('table', { name: 'Tablero' }),
-      screen.getByRole('region', { name: 'Línea base vs estado actual' }),
       screen.getByRole('region', { name: 'Puntaje de madurez' }),
       screen.getByRole('region', { name: 'Ciclo de mejora' }),
       screen.getByRole('region', { name: 'Evidencias' }),

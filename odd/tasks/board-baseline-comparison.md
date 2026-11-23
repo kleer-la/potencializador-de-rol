@@ -16,9 +16,13 @@ S3. Proposal approved by the user (2026-11-23, "adelante"):
 - Order: comparison (grid and table), Calibración and Capacidades por nivelar only when they apply, Puntaje, Ciclo, Evidencias, Cambios de nivel, Bonificaciones, Recalibración, Mentorías, Cerrar tablero, Capacidades fuera del tablero.
 - Mentorías is hidden from the board's owner (the participant).
 
+S4. User decision (2026-11-23): "Me está sobrando la tabla "Línea base vs estado actual", la que es en modo Kanban ya presenta esa información." Approved replacement ("sí, impleméntalo así"): the table and its heading go away; under the grid legend, a short note "Línea base fijada en la calibración del <fecha> · Asistieron: <nombres>", with collapsible "Notas de la calibración" (only when there are notes) and "Agregadas después: N" (only when there are capabilities added after the baseline, each with its initial level and date).
+
 ## Tasks
 
 - [x] T1 — Web only: grid markers, comparison table, section order, mentoring hidden from the owner, tests. Specs: S1-S3. Route: inline (one behavior; no writer reason). Risk: none (web display only; data already served: `placements` hold the current level, `baseline.entries` the fixed baseline). Commit: see L4.
+
+- [x] T2 — Replace the comparison table with the baseline note under the legend. Specs: S4. Route: inline. Risk: none (web display only). Commit: see L6.
 
 ## Log
 
@@ -29,3 +33,7 @@ L2 (2026-11-23, user approval of the proposal): see S3.
 L3 (2026-11-23, analysis): approved level changes (migration 0008) and recalibrations (0006, 0009) update `placements.level_id`, so `placements` is the current state; `baseline.entries` never change (invariant 3). No API change needed. Hiding Mentorías from the owner is a display rule; the API still sends `mentoringSessions` to the owner.
 
 L4 (2026-11-23, T1 evidence): RED observed first (5 failing for the expected reason: missing region "Línea base vs estado actual", missing "Línea base" marker, Mentorías shown to the owner). GREEN: `npm test` 430 passed in 46 files, `npm run typecheck` clean. `EvidenceSections` split into `EvidenceSection`, `LevelChangesSection`, `BonusesSection`, `MentoringSection` so the board orders them; `BaselineSummary` renamed `BaselineComparison`.
+
+L5 (2026-11-23, user): see S4.
+
+L6 (2026-11-23, T2 evidence): RED observed (4 failing: missing group "Contexto de la línea base"). GREEN: `npm test` 431 passed in 46 files, typecheck clean. Checked in Chrome on the rebuilt web container (board of Leo Prueba): legend and note together above the grid, table gone. Section `BaselineComparison` replaced by `BaselineNote`; no CSS change.

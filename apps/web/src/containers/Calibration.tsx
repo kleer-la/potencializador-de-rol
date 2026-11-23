@@ -176,67 +176,34 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
 }
 
 /**
- * The baseline and the calibration it came from, beside the level each capability has
- * reached since (approved level changes and recalibrations move the placement; the baseline
- * never moves, invariant 3).
+ * A short note under the board legend: when the baseline was fixed, who attended the
+ * calibration, its notes and the capabilities that joined the baseline later (invariant 3).
+ * The board itself sets the baseline beside the current level.
  */
-export function BaselineComparison({ board }: { board: Board }) {
-  const headingId = useId();
+export function BaselineNote({ board }: { board: Board }) {
   const { calibration, baseline } = board;
   if (baseline === null) return null;
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
-  const position = (levelId: string | null) => board.levels.find((level) => level.id === levelId)?.position;
-  const steps = (from: string | null, to: string | null) => {
-    const start = position(from);
-    const end = position(to);
-    if (start === undefined || end === undefined) return '—';
-    const difference = end - start;
-    return difference === 0 ? '=' : difference > 0 ? `+${difference}` : `−${-difference}`;
-  };
   const added = baseline.entries.filter((entry) => entry.origin === 'initial_leveling');
-  const current = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
-  const baselineLevel = new Map(baseline.entries.map((entry) => [entry.capabilityId, entry.levelId]));
-  const compared = onBoard(board).filter((capability) => baselineLevel.has(capability.id));
 
   return (
-    <section className="panel stack" aria-labelledby={headingId}>
-      <h3 id={headingId}>Línea base vs estado actual</h3>
-      <p className="muted">Fijada el {longDate(baseline.setAt)}. Sus niveles no cambian; es el punto de partida del avance.</p>
-      {calibration !== null && (
-        <>
-          <p>
-            Calibración del {longDate(calibration.heldOn)}. Asistieron: {calibration.attendees.map((person) => person.name).join(', ')}.
-          </p>
-          {calibration.notes !== '' && <p className="notes">{calibration.notes}</p>}
-        </>
+    <div role="group" aria-label="Contexto de la línea base" className="muted">
+      <p className="muted">
+        {calibration !== null
+          ? `Línea base fijada en la calibración del ${longDate(calibration.heldOn)} · Asistieron: ${calibration.attendees
+              .map((person) => person.name)
+              .join(', ')}`
+          : `Línea base fijada el ${longDate(baseline.setAt)}`}
+      </p>
+      {calibration !== null && calibration.notes !== '' && (
+        <details>
+          <summary>Notas de la calibración</summary>
+          <p className="notes muted">{calibration.notes}</p>
+        </details>
       )}
-      <table aria-label="Línea base y estado actual">
-        <thead>
-          <tr>
-            <th scope="col">Capacidad</th>
-            <th scope="col">Línea base</th>
-            <th scope="col">Actual</th>
-            <th scope="col">Diferencia</th>
-          </tr>
-        </thead>
-        <tbody>
-          {compared.map((capability) => {
-            const from = baselineLevel.get(capability.id) ?? null;
-            const to = current.get(capability.id) ?? null;
-            return (
-              <tr key={capability.id}>
-                <th scope="row">{capability.statement}</th>
-                <td>{levelLabel(board, from)}</td>
-                <td>{levelLabel(board, to) ?? 'Sin ubicar'}</td>
-                <td>{steps(from, to)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
       {added.length > 0 && (
-        <>
-          <h4>Agregadas después de la calibración</h4>
+        <details>
+          <summary>Agregadas después: {added.length}</summary>
           <ul className="plain-list">
             {added.map((entry) => (
               <li key={entry.capabilityId}>
@@ -245,9 +212,9 @@ export function BaselineComparison({ board }: { board: Board }) {
               </li>
             ))}
           </ul>
-        </>
+        </details>
       )}
-    </section>
+    </div>
   );
 }
 

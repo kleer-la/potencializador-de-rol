@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { ApiError, boardApi, type Board, type BoardLists, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
-import { BaselineComparison, CalibrationEditor, InitialLevels } from './Calibration.tsx';
+import { BaselineNote, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
 import { BonusesSection, EvidenceSection, LevelChangesSection, MentoringSection } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
@@ -167,7 +167,12 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       {board.viewer.isOwner && board.selfAssessment?.submittedAt && (
         <p className="ds-notice">Enviaste tu autoevaluación. Tu panel la usará en la calibración.</p>
       )}
-      {baselineLevels !== null && <p className="muted">● estado actual · ○ línea base</p>}
+      {baselineLevels !== null && (
+        <div>
+          <p className="muted">● estado actual · ○ línea base</p>
+          <BaselineNote board={board} />
+        </div>
+      )}
       {proposed !== null && <p className="muted">● nivel acordado · ○ autoevaluación</p>}
       {error !== null && (
         <p role="alert" className="alert">
@@ -250,7 +255,6 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
         </table>
       </div>
 
-      <BaselineComparison board={board} />
       {board.viewer.canCalibrate && <CalibrationEditor board={board} onDone={load} />}
       <InitialLevels board={board} onDone={load} />
       <ScoreSection board={board} />
