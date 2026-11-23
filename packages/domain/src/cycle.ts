@@ -26,22 +26,23 @@ export function canReviewExperiment(personId: string, board: BoardAccess): boole
   return board.hasBaseline && isOnPanel(personId, board);
 }
 
-/** Invariant 8: focuses a cycle may still take under the program's maximum. */
-export function remainingFocuses(maxFocuses: number, focusCount: number): number {
-  return Math.max(0, maxFocuses - focusCount);
+/**
+ * Invariant 8: the program recommends how many focuses a cycle takes. A new focus beyond
+ * that number is allowed, with a warning: few focuses are what the person can attend to.
+ */
+export function addsFocusAboveRecommended(recommendedFocuses: number, focusCount: number): boolean {
+  return focusCount >= recommendedFocuses;
 }
 
 /**
- * Invariant 8: what keeps a planned cycle from starting. It needs a focus, no more focuses
- * than the maximum, and at least one experiment per focus (named, in the given order).
+ * Invariant 8: what keeps a planned cycle from starting. It needs a focus and at least one
+ * experiment per focus (named, in the given order), whatever the number of focuses.
  */
 export function startBlockers(
   focuses: readonly { capabilityId: string; experiments: number }[],
-  maxFocuses: number,
-): { noFocus: boolean; tooMany: boolean; withoutExperiment: string[] } {
+): { noFocus: boolean; withoutExperiment: string[] } {
   return {
     noFocus: focuses.length === 0,
-    tooMany: focuses.length > maxFocuses,
     withoutExperiment: focuses.filter((focus) => focus.experiments === 0).map((focus) => focus.capabilityId),
   };
 }

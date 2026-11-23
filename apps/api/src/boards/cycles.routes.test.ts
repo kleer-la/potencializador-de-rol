@@ -99,7 +99,7 @@ describe('cycles, focuses and experiments', () => {
     expect((await call(sessions.otherParticipant, 'POST', '/cycles', dates)).statusCode).toBe(404);
   });
 
-  it('INV-8 takes focuses above the current level, up to the program maximum', async () => {
+  it('INV-8 takes focuses above the current level, also beyond the program recommendation', async () => {
     const first = await focus(sessions.owner, 0, 1);
     expect(first.statusCode).toBe(201);
     focusOf[0] = first.json().focusId;
@@ -112,7 +112,9 @@ describe('cycles, focuses and experiments', () => {
     await call(sessions.leader, 'POST', '/capabilities', { capabilityId: program.capabilityIds[2] });
     await call(sessions.leader, 'POST', '/initial-levels', { capabilityId: program.capabilityIds[2], levelId: program.levelIds[0] });
     const third = await focus(sessions.leader, 2, 1);
-    expect([third.statusCode, third.json()]).toEqual([422, { error: 'too_many_focuses', maxFocuses: 2 }]);
+    expect(third.statusCode).toBe(201);
+    expect((await view(sessions.owner)).cycle).toMatchObject({ maxFocuses: 2, focuses: { length: 3 } });
+    expect((await call(sessions.owner, 'DELETE', `/cycles/${cycleId}/focuses/${third.json().focusId}`)).statusCode).toBe(204);
     expect((await focus(sessions.leader, 0, 1)).json()).toEqual({ error: 'already_focus' });
     const other = await seedMap(ownerPool, program.organizationId, 'published');
     const foreignLevel = await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses`, {
@@ -135,7 +137,7 @@ describe('cycles, focuses and experiments', () => {
     const blocked = await call(sessions.leader, 'POST', `/cycles/${cycleId}/start`);
     expect([blocked.statusCode, blocked.json()]).toEqual([
       422,
-      { error: 'cannot_start', noFocus: false, tooMany: false, withoutExperiment: [program.capabilityIds[1]] },
+      { error: 'cannot_start', noFocus: false, withoutExperiment: [program.capabilityIds[1]] },
     ]);
 
     experiments.push((await experiment(sessions.leader, focusOf[1]!)).json().experimentId);

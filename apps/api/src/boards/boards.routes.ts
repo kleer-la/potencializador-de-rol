@@ -516,14 +516,14 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
   };
 
   /** Invariant 8 as the API sees it: what keeps a planned cycle from starting. */
-  const blockersOf = async (tx: ScopedTransaction, cycleId: string, maxFocuses: number) => {
+  const blockersOf = async (tx: ScopedTransaction, cycleId: string) => {
     const counted = await tx
       .select({ capabilityId: focuses.capabilityId, experiments: sql<number>`count(${experiments.id})::int` })
       .from(focuses)
       .leftJoin(experiments, eq(experiments.focusId, focuses.id))
       .where(eq(focuses.cycleId, cycleId))
       .groupBy(focuses.id, focuses.capabilityId);
-    return startBlockers(counted, maxFocuses);
+    return startBlockers(counted);
   };
 
   /**
@@ -973,7 +973,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
   });
 
   const programOf = async (tx: ScopedTransaction, programId: string) =>
-    (await tx.select({ maxFocuses: programs.maxFocuses, mapId: programs.mapId }).from(programs).where(eq(programs.id, programId)))[0]!;
+    (await tx.select({ mapId: programs.mapId }).from(programs).where(eq(programs.id, programId)))[0]!;
 
   api.post('/boards/:boardId/cycles', async (request, reply) => {
     const params = boardParams.safeParse(request.params);
@@ -1020,7 +1020,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         if (current === undefined || target === undefined || !isValidTarget(current.position, target.position)) {
           throw new Refusal(422, { error: 'invalid_target' });
         }
-        // Checked before the maximum, so a repeated focus on a full cycle is named as such.
+        // A repeated focus is named as such.
         const [repeated] = await tx
           .select({ id: focuses.id })
           .from(focuses)
@@ -1034,7 +1034,6 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           return { status: 201, body: { focusId: created!.id } };
         } catch (error) {
           if (postgresConstraint(error) === 'focuses_one_per_capability') throw new Refusal(409, { error: 'already_focus' });
-          if (postgresCode(error) === 'PM008') throw new Refusal(422, { error: 'too_many_focuses', maxFocuses: program.maxFocuses });
           if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
           if (postgresCode(error) === '23514') throw new Refusal(422, { error: 'invalid_target' });
           throw error;
@@ -1104,9 +1103,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
         if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
         if (row.status !== 'calibrated' && row.status !== 'between_cycles') throw new Refusal(409, { error: 'board_not_ready' });
-        const { maxFocuses } = await programOf(tx, row.programId);
-        const blockers = await blockersOf(tx, cycle.id, maxFocuses);
-        if (blockers.noFocus || blockers.tooMany || blockers.withoutExperiment.length > 0) {
+        const blockers = await blockersOf(tx, cycle.id);
+        if (blockers.noFocus || blockers.withoutExperiment.length > 0) {
           throw new Refusal(422, { error: 'cannot_start', ...blockers });
         }
         try {

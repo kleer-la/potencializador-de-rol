@@ -52,7 +52,7 @@ export {
   canReviewExperiment,
   canStartCycle,
   isValidTarget,
-  remainingFocuses,
+  addsFocusAboveRecommended,
   startBlockers,
   type CycleState,
   type ExperimentResult,

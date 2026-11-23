@@ -105,7 +105,7 @@ El modelo tiene tres zonas: la **definición** (qué se espera del rol), la **op
 | --- | --- | --- |
 | `Person` | nombre, correo | pertenece a una organización o a la firma de mentores; las personas de la firma son superadministradoras |
 | `OrganizationMembership` | papel en la organización (administrador, diseñador del mapa) | une una persona con una organización; no depende de ningún programa |
-| `Program` | nombre, fechas, máximo de focos por ciclo, roles obligatorios del panel | usa una versión publicada del mapa de un rol; tiene la selección base de capacidades para todos sus participantes |
+| `Program` | nombre, fechas, focos recomendados por ciclo, roles obligatorios del panel | usa una versión publicada del mapa de un rol; tiene la selección base de capacidades para todos sus participantes |
 | `Enrollment` | papel en el programa (participante, líder, especialista, mentor, administrador) | une una persona con un programa |
 | `PanelAssignment` | — | asigna líder, especialista y mentor a un participante |
 | `Board` | estado | uno por participante y programa; una persona con varios roles tiene un tablero por cada uno; tiene ubicaciones y ciclos |
@@ -188,7 +188,7 @@ Estas reglas son las que convierten el tablero en un instrumento confiable; el s
 5. **El participante no aprueba sus propios cambios.** Propone; basta la aprobación de un solo integrante de su panel.
 6. **Los niveles que exigen transferencia piden evidencia de haber enseñado a otros.** En el caso de origen es el nivel 4.
 7. **Una bonificación solo cuenta con su condición cumplida y evidenciada.** Se registra como `BonusAward` sobre una ubicación: el participante la propone con al menos una evidencia y un integrante de su panel la aprueba. Solo las aprobadas suman, y hay a lo sumo una por regla y capacidad. En el caso de origen: usó IA para potenciar la capacidad y transfirió esa práctica a sus compañeros.
-8. **Focos acotados.** Un ciclo no admite más focos que el máximo del programa, y cada foco tiene al menos un experimento.
+8. **Focos acotados.** El programa recomienda cuántos focos toma un ciclo; se pueden agregar más, con una advertencia al crearlos. Cada foco tiene al menos un experimento.
 9. **Sin comparación entre personas.** No existen rankings ni vistas que ordenen participantes por puntaje. Un tablero lo ven su dueño, su panel y los líderes inscritos en su programa; esos líderes solo lo leen si no están en su panel (decisión del 23 de noviembre de 2026).
 10. **Un mapa publicado solo crece.** Las dimensiones y capacidades existentes no se modifican ni se eliminan; esos cambios crean una versión nueva. Sí se pueden agregar dimensiones y capacidades nuevas en cualquier momento, y quedan disponibles para los tableros de los programas que usan ese mapa.
 11. **Aislamiento por organización.** El sistema aloja varias organizaciones y ningún dato de una es visible desde otra. Los mapas plantilla son de la firma de mentores, no de las organizaciones cliente. La única excepción son las personas de la firma de mentores: son superadministradoras, crean las cuentas de las organizaciones cliente y pueden administrar dentro de ellas cuando se requiere por soporte.
@@ -231,7 +231,7 @@ El sistema sostiene un flujo de preparación que ocurre una vez y un ciclo de me
 
 1. **Diseñar el mapa.** Se definen dimensiones, capacidades observables, herramientas, escala, dificultad y bonificaciones, a partir del contexto estratégico de la organización. El mapa queda en borrador.
 2. **Publicar el mapa.** Lo existente queda congelado y disponible para programas; la versión solo admite agregar dimensiones y capacidades.
-3. **Crear el programa.** El diseñador del mapa selecciona, de la versión elegida, las capacidades que cubrirán a todos los participantes. Se definen las fechas y el máximo de focos por ciclo.
+3. **Crear el programa.** El diseñador del mapa selecciona, de la versión elegida, las capacidades que cubrirán a todos los participantes. Se definen las fechas y los focos recomendados por ciclo.
 4. **Inscribir personas.** Se registran participantes y se asigna a cada uno su panel. Cada tablero arranca con la selección base; cualquier integrante del panel puede ajustarla para su participante. Después de fijar la línea base solo se agregan capacidades.
 
 ### 6.2 Ciclo de mejora (por participante)

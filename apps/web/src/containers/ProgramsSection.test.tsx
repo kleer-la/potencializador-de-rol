@@ -86,7 +86,7 @@ describe('programs', () => {
     await user.selectOptions(await screen.findByLabelText('Mapa'), 'Product Owner · versión 1');
     await user.type(screen.getByLabelText('Inicio'), '2027-01-15');
     await user.type(screen.getByLabelText('Fin'), '2027-06-30');
-    expect((screen.getByLabelText('Máximo de focos por ciclo') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Focos recomendados por ciclo') as HTMLInputElement).value).toBe('3');
     await user.click(screen.getByRole('button', { name: 'Crear programa' }));
 
     expect(calls.find((call) => call.route === `POST ${base}/programs`)?.body).toEqual({
@@ -99,13 +99,13 @@ describe('programs', () => {
     });
   });
 
-  it('lets an administrator change the maximum of focuses and the mandatory roles, keeping at least one', async () => {
+  it('lets an administrator change the recommended focuses and the mandatory roles, keeping at least one', async () => {
     const { calls, user } = await openProgram(true, false, {
       [`PATCH ${base}/programs/program-1`]: (body) => json({ ...program, ...(body as object) }),
     });
 
     const settings = screen.getByRole('group', { name: 'Configuración del programa' });
-    const focuses = within(settings).getByLabelText('Máximo de focos por ciclo');
+    const focuses = within(settings).getByLabelText('Focos recomendados por ciclo');
     await user.clear(focuses);
     await user.type(focuses, '4');
     await user.click(within(settings).getByRole('checkbox', { name: 'Especialista' }));
@@ -129,7 +129,7 @@ describe('programs', () => {
     });
 
     const settings = screen.getByRole('group', { name: 'Configuración del programa' });
-    const focuses = within(settings).getByLabelText('Máximo de focos por ciclo') as HTMLInputElement;
+    const focuses = within(settings).getByLabelText('Focos recomendados por ciclo') as HTMLInputElement;
     await user.clear(focuses);
     await user.type(focuses, '5');
     await user.type(screen.getByLabelText('Correo de la persona'), 'nuevo@uni.test');

@@ -5,7 +5,7 @@ import {
   canReviewExperiment,
   canStartCycle,
   isValidTarget,
-  remainingFocuses,
+  addsFocusAboveRecommended,
   startBlockers,
 } from './cycle.ts';
 import type { BoardAccess } from './program.ts';
@@ -39,30 +39,24 @@ describe('who plans and who starts a cycle', () => {
   });
 });
 
-describe('INV-8 bounded focuses', () => {
-  it('INV-8 counts the focuses still allowed by the program maximum', () => {
-    expect(remainingFocuses(3, 1)).toBe(2);
-    expect(remainingFocuses(3, 3)).toBe(0);
-    expect(remainingFocuses(2, 3)).toBe(0);
+describe('INV-8 focuses and the recommended number', () => {
+  it('INV-8 warns when a new focus goes above the program recommendation', () => {
+    expect(addsFocusAboveRecommended(3, 2)).toBe(false);
+    expect(addsFocusAboveRecommended(3, 3)).toBe(true);
+    expect(addsFocusAboveRecommended(2, 5)).toBe(true);
   });
 
-  it('INV-8 a cycle starts with at least one focus, within the maximum, each with an experiment', () => {
-    expect(startBlockers([{ capabilityId: 'c1', experiments: 1 }], 3)).toEqual({
-      noFocus: false,
-      tooMany: false,
-      withoutExperiment: [],
-    });
-    expect(startBlockers([], 3)).toEqual({ noFocus: true, tooMany: false, withoutExperiment: [] });
+  it('INV-8 a cycle starts with at least one focus, each with an experiment, whatever their number', () => {
+    expect(startBlockers([{ capabilityId: 'c1', experiments: 1 }])).toEqual({ noFocus: false, withoutExperiment: [] });
+    expect(startBlockers([])).toEqual({ noFocus: true, withoutExperiment: [] });
     expect(
-      startBlockers(
-        [
-          { capabilityId: 'c1', experiments: 0 },
-          { capabilityId: 'c2', experiments: 2 },
-          { capabilityId: 'c3', experiments: 0 },
-        ],
-        2,
-      ),
-    ).toEqual({ noFocus: false, tooMany: true, withoutExperiment: ['c1', 'c3'] });
+      startBlockers([
+        { capabilityId: 'c1', experiments: 0 },
+        { capabilityId: 'c2', experiments: 2 },
+        { capabilityId: 'c3', experiments: 0 },
+        { capabilityId: 'c4', experiments: 1 },
+      ]),
+    ).toEqual({ noFocus: false, withoutExperiment: ['c1', 'c3'] });
   });
 });
 

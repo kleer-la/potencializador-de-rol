@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { ApiError, boardApi, type Board, type Cycle, type Experiment, type ExperimentResult, type Focus } from '../api/client.ts';
+import { addsFocusAboveRecommended } from '@potencializador/domain';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { cycleErrors, cycleStateLabels, experimentResultLabels, experimentStateLabels, messages } from '../copy.ts';
 
@@ -107,12 +108,11 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
       await change(async () => undefined);
     } catch (error) {
       if (error instanceof ApiError && error.code === 'cannot_start') {
-        const details = error.details as { noFocus?: boolean; tooMany?: boolean; withoutExperiment?: string[] };
+        const details = error.details as { noFocus?: boolean; withoutExperiment?: string[] };
         props.onFailure({
           text: 'El ciclo todavía no puede empezar:',
           items: [
             ...(details.noFocus ? ['Agrega al menos un foco.'] : []),
-            ...(details.tooMany ? [`Hay más focos que el máximo del programa (${cycle.maxFocuses}).`] : []),
             ...(details.withoutExperiment ?? []).map((capabilityId) => statement.get(capabilityId) ?? capabilityId),
           ],
         });
@@ -133,12 +133,12 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
         </span>
       </p>
       <p className="muted">
-        {cycle.focuses.length} de {cycle.maxFocuses} focos
+        Focos: {cycle.focuses.length} · recomendados: {cycle.maxFocuses}
       </p>
       {cycle.focuses.map((focus) => (
         <FocusCard key={focus.id} board={board} cycle={cycle} focus={focus} change={change} />
       ))}
-      {planned && board.viewer.canPlanCycle && cycle.focuses.length < cycle.maxFocuses && (
+      {planned && board.viewer.canPlanCycle && (
         <NewFocus board={board} cycle={cycle} change={change} />
       )}
       {cycle.state === 'active' && board.viewer.canCloseCycle && (
@@ -190,6 +190,11 @@ function NewFocus({ board, cycle, change }: { board: Board; cycle: Cycle; change
       }}
     >
       <h4>Nuevo foco</h4>
+      {addsFocusAboveRecommended(cycle.maxFocuses, cycle.focuses.length) && (
+        <p className="warning" role="status">
+          ¡Pilas con tu foco, no agreguemos más de lo que podamos atender!
+        </p>
+      )}
       <label>
         Capacidad
         <select

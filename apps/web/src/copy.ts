@@ -134,7 +134,6 @@ export const cycleErrors: Record<string, string> = {
   board_closed: 'Este tablero está cerrado.',
   invalid_target: 'El nivel objetivo debe estar por encima del nivel actual de la capacidad.',
   already_focus: 'Esa capacidad ya es un foco de este ciclo.',
-  too_many_focuses: 'El ciclo ya tiene el máximo de focos del programa.',
   cycle_not_planned: 'Los focos solo cambian mientras el ciclo está planeado.',
   cycle_closed: 'El ciclo está cerrado.',
   board_not_ready: 'El tablero no está en un estado que permita iniciar un ciclo.',
