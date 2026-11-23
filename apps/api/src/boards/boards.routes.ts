@@ -2,7 +2,7 @@ import {
   BOARD_MARKS,
   canAdjustSelection,
   canMarkCapability,
-  canTakeOffMark,
+  isMarkedByHand,
   bonusProblems,
   baselineAttendanceMet,
   canCalibrate,
@@ -857,23 +857,15 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     );
   });
 
-  /** Experiments in progress, in a cycle of the board not closed yet, on one capability. */
-  const experimentsInProgress = async (tx: ScopedTransaction, boardId: string, capabilityId: string) =>
-    (
-      await tx
-        .select({ id: experiments.id })
-        .from(experiments)
-        .innerJoin(focuses, eq(focuses.id, experiments.focusId))
-        .innerJoin(cycles, eq(cycles.id, focuses.cycleId))
-        .where(
-          and(
-            eq(cycles.boardId, boardId),
-            ne(cycles.state, 'closed'),
-            eq(focuses.capabilityId, capabilityId),
-            eq(experiments.state, 'in_progress'),
-          ),
-        )
-    ).length;
+  /** The mark guard repeats the closed-board refusal: the board closed in between. */
+  const closedInBetween = async (write: () => Promise<unknown>) => {
+    try {
+      await write();
+    } catch (error) {
+      if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'board_closed' });
+      throw error;
+    }
+  };
 
   /** Marks on a capability of the board: the owner and their panel put them and take them off. */
   const openMark = (
@@ -886,6 +878,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return answer(reply, () =>
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         if (!canMarkCapability(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        // WIP follows the experiments of the capability (migration 0020); nobody sets it.
+        if (!isMarkedByHand(params.data.mark)) throw new Refusal(409, { error: 'wip_automatic' });
         const [placed] = await tx
           .select({ id: placements.id })
           .from(placements)
@@ -899,46 +893,25 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
 
   api.put('/boards/:boardId/capabilities/:capabilityId/marks/:mark', async (request, reply) =>
     openMark(request, reply, async (tx, { boardId, capabilityId, mark }, organizationId, personId) => {
-      try {
-        await tx
+      await closedInBetween(() =>
+        tx
           .insert(placementMarks)
           .values({ organizationId, boardId, capabilityId, mark, markedBy: personId })
-          .onConflictDoNothing();
-      } catch (error) {
-        if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'board_closed' });
-        throw error;
-      }
+          .onConflictDoNothing(),
+      );
     }),
   );
 
   api.delete('/boards/:boardId/capabilities/:capabilityId/marks/:mark', async (request, reply) =>
     openMark(request, reply, async (tx, { boardId, capabilityId, mark }) => {
-      const [present] = await tx
-        .select({ mark: placementMarks.mark })
-        .from(placementMarks)
-        .where(
-          and(eq(placementMarks.boardId, boardId), eq(placementMarks.capabilityId, capabilityId), eq(placementMarks.mark, mark)),
-        );
       // Taking off a mark that is not there changes nothing.
-      if (present === undefined) return;
-      const inProgress = await experimentsInProgress(tx, boardId, capabilityId);
-      if (!canTakeOffMark(mark, { experimentsInProgress: inProgress })) {
-        throw new Refusal(409, { error: 'wip_in_progress' });
-      }
-      try {
-        await tx
+      await closedInBetween(() =>
+        tx
           .delete(placementMarks)
           .where(
-            and(
-              eq(placementMarks.boardId, boardId),
-              eq(placementMarks.capabilityId, capabilityId),
-              eq(placementMarks.mark, mark),
-            ),
-          );
-      } catch (error) {
-        if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'wip_in_progress' });
-        throw error;
-      }
+            and(eq(placementMarks.boardId, boardId), eq(placementMarks.capabilityId, capabilityId), eq(placementMarks.mark, mark)),
+          ),
+      );
     }),
   );
 

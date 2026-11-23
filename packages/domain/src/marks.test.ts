@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_MARKS, canMarkCapability, canTakeOffMark } from './marks.ts';
+import { BOARD_MARKS, canMarkCapability, isMarkedByHand } from './marks.ts';
 import type { BoardAccess } from './program.ts';
 
 const board: BoardAccess = {
@@ -21,9 +21,8 @@ describe('marks on the capabilities of a board', () => {
     expect(canMarkCapability('stranger', board)).toBe(false);
   });
 
-  it('keep the work-in-progress mark while an experiment on the capability is in progress', () => {
-    expect(canTakeOffMark('wip', { experimentsInProgress: 1 })).toBe(false);
-    expect(canTakeOffMark('wip', { experimentsInProgress: 0 })).toBe(true);
-    expect(canTakeOffMark('candidate', { experimentsInProgress: 2 })).toBe(true);
+  it('are put by hand except work in progress, which follows the experiments', () => {
+    expect(isMarkedByHand('candidate')).toBe(true);
+    expect(isMarkedByHand('wip')).toBe(false);
   });
 });

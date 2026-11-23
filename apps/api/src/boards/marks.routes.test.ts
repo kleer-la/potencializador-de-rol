@@ -68,15 +68,28 @@ describe('marks on the capabilities of a board', () => {
     expect((await view(sessions.programLeader)).viewer.canMark).toBe(false);
     expect(await marksOf(sessions.owner)).toEqual([[], []]);
 
-    expect((await mark(sessions.owner, 'PUT', 0, 'wip')).statusCode).toBe(204);
     expect((await mark(sessions.leader, 'PUT', 0, 'candidate')).statusCode).toBe(204);
     expect((await mark(sessions.owner, 'PUT', 1, 'candidate')).statusCode).toBe(204);
     // Putting a mark twice changes nothing.
     expect((await mark(sessions.leader, 'PUT', 1, 'candidate')).statusCode).toBe(204);
+    expect(await marksOf(sessions.owner)).toEqual([['candidate'], ['candidate']]);
+    expect(await marksOf(sessions.programLeader)).toEqual([['candidate'], ['candidate']]);
+  });
 
-    // In catalog order, whatever order they were put in.
-    expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate']]);
-    expect(await marksOf(sessions.programLeader)).toEqual([['candidate', 'wip'], ['candidate']]);
+  it('never puts or takes off WIP by hand, at the route nor in the database', async () => {
+    for (const method of ['PUT', 'DELETE'] as const) {
+      const refused = await mark(sessions.owner, method, 0, 'wip');
+      expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'wip_automatic' }]);
+    }
+    expect((await mark(sessions.leader, 'PUT', 0, 'wip')).json()).toEqual({ error: 'wip_automatic' });
+    // Without an experiment in progress on the capability, the database refuses it too.
+    await expect(
+      ownerPool.query(
+        "insert into placement_marks (organization_id, board_id, capability_id, mark, marked_by) values ($1, $2, $3, 'wip', $4)",
+        [program.organizationId, board.boardId, program.capabilityIds[0], board.owner],
+      ),
+    ).rejects.toMatchObject({ code: 'PM050' });
+    expect(await marksOf(sessions.owner)).toEqual([['candidate'], ['candidate']]);
   });
 
   it('refuses unknown marks, capabilities off the board and people who do not work on it', async () => {
@@ -87,7 +100,7 @@ describe('marks on the capabilities of a board', () => {
     expect([reader.statusCode, reader.json()]).toEqual([403, { error: 'forbidden' }]);
     expect((await mark(sessions.programLeader, 'DELETE', 0, 'candidate')).statusCode).toBe(403);
     expect((await mark(sessions.otherParticipant, 'PUT', 1, 'wip')).statusCode).toBe(404);
-    expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate']]);
+    expect(await marksOf(sessions.owner)).toEqual([['candidate'], ['candidate']]);
   });
 
   it('puts WIP while an experiment on the capability is in progress and takes it off after', async () => {
@@ -122,19 +135,16 @@ describe('marks on the capabilities of a board', () => {
 
     // Starting an experiment puts WIP on its capability.
     expect((await move(sessions.owner, otherExperimentId, { state: 'in_progress' })).statusCode).toBe(200);
-    expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate', 'wip']]);
-
-    // Planned, not in progress yet: WIP comes off and goes back on by hand.
-    expect((await mark(sessions.owner, 'DELETE', 0, 'wip')).statusCode).toBe(204);
+    // The other capability, its experiment only planned, has no WIP.
     expect(await marksOf(sessions.owner)).toEqual([['candidate'], ['candidate', 'wip']]);
     expect((await move(sessions.owner, experimentId, { state: 'in_progress' })).statusCode).toBe(200);
     expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate', 'wip']]);
 
     for (const session of [sessions.owner, sessions.leader]) {
       const refused = await mark(session, 'DELETE', 0, 'wip');
-      expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'wip_in_progress' }]);
+      expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'wip_automatic' }]);
     }
-    // The database keeps the rule too, whatever the caller.
+    // The database keeps it while the experiment is in progress, whatever the caller.
     await expect(
       ownerPool.query("delete from placement_marks where board_id = $1 and capability_id = $2 and mark = 'wip'", [
         board.boardId,
@@ -150,7 +160,6 @@ describe('marks on the capabilities of a board', () => {
     // Once nothing on the capability is in progress, WIP comes off by itself.
     expect((await review(experimentId)).statusCode).toBe(200);
     expect(await marksOf(sessions.owner)).toEqual([[], ['candidate', 'wip']]);
-    expect((await mark(sessions.leader, 'DELETE', 0, 'wip')).statusCode).toBe(204);
 
     // A planned experiment does not keep it; starting it puts it back.
     const plannedId = (

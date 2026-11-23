@@ -14,9 +14,9 @@ export function canMarkCapability(personId: string, board: BoardAccess): boolean
 }
 
 /**
- * The work-in-progress mark stays while an experiment of an open cycle works on the
- * capability (user decision of 2026-11-23). Other marks are taken off at any time.
+ * Work in progress follows the experiments: on while one on the capability is in progress,
+ * never put or taken off by hand (user requests of 2026-11-23). Other marks are put by hand.
  */
-export function canTakeOffMark(mark: BoardMark, capability: { experimentsInProgress: number }): boolean {
-  return mark !== 'wip' || capability.experimentsInProgress === 0;
+export function isMarkedByHand(mark: BoardMark): boolean {
+  return mark !== 'wip';
 }

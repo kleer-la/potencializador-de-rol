@@ -235,62 +235,27 @@ describe('the board', () => {
     expect(screen.queryByRole('button', { name: /★ Candidata|WIP/ })).toBeNull();
   });
 
-  it('lets the owner and the panel put and take off the marks of a capability', async () => {
+  it('lets the owner and the panel put and take off the candidate mark, never WIP', async () => {
     const markingOwner = { ...owner, canMark: true };
     const { calls, user } = await open(markingOwner, {
       'GET /api/boards/board-1': () => json(marked(markingOwner)),
       'PUT /api/boards/board-1/capabilities/capability-3/marks/candidate': () => ({ status: 204 }),
-      'DELETE /api/boards/board-1/capabilities/capability-3/marks/wip': () => ({ status: 204 }),
+      'DELETE /api/boards/board-1/capabilities/capability-1/marks/candidate': () => ({ status: 204 }),
     });
 
-    const candidate = screen.getByRole('button', { name: '★ Candidata «Comunica por escrito de forma clara»' });
-    const wip = screen.getByRole('button', { name: 'WIP «Comunica por escrito de forma clara»' });
-    expect(candidate.getAttribute('aria-pressed')).toBe('false');
-    expect(wip.getAttribute('aria-pressed')).toBe('true');
-    await user.click(candidate);
-    await user.click(wip);
+    const third = screen.getByRole('button', { name: '★ Candidata «Comunica por escrito de forma clara»' });
+    const first = screen.getByRole('button', { name: '★ Candidata «Identifica a quién sirve el producto»' });
+    expect(third.getAttribute('aria-pressed')).toBe('false');
+    expect(first.getAttribute('aria-pressed')).toBe('true');
+    await user.click(third);
+    await user.click(first);
 
     expect(calls.map((call) => call.route)).toContain('PUT /api/boards/board-1/capabilities/capability-3/marks/candidate');
-    expect(calls.map((call) => call.route)).toContain('DELETE /api/boards/board-1/capabilities/capability-3/marks/wip');
-  });
-
-  it('keeps WIP while an experiment on the capability is in progress, and says why', async () => {
-    const experiment = {
-      id: 'experiment-1',
-      description: 'Escribir el resumen semanal',
-      hypothesis: '',
-      expectedResult: '',
-      state: 'in_progress' as const,
-      result: null,
-      observedResult: '',
-      learnings: '',
-      reviewedAt: null,
-    };
-    const cycle: Board['cycle'] = {
-      id: 'cycle-1',
-      number: 1,
-      startsOn: '2026-12-01',
-      endsOn: '2027-02-28',
-      state: 'active',
-      startedAt: '2026-12-01T10:00:00Z',
-      maxFocuses: 3,
-      focuses: [{ id: 'focus-1', capabilityId: 'capability-3', targetLevelId: 'level-1', experiments: [experiment] }],
-    };
-    const panelMember = { ...leader, canMark: true };
-    const { user } = await open(panelMember, {
-      'GET /api/boards/board-1': () => json(marked(panelMember, cycle)),
-      'DELETE /api/boards/board-1/capabilities/capability-1/marks/wip': () => json({ error: 'wip_in_progress' }, 409),
-    });
-
-    const locked = screen.getByRole('button', { name: 'WIP «Comunica por escrito de forma clara»' });
-    expect(locked.hasAttribute('disabled')).toBe(true);
-    expect(locked.getAttribute('title')).toBe('Hay un experimento en curso para esta capacidad');
-
-    // When the board is behind the server, the refusal says the same.
-    await user.click(screen.getByRole('button', { name: 'WIP «Identifica a quién sirve el producto»' }));
-    expect((await screen.findByRole('alert')).textContent).toBe(
-      'Hay un experimento en curso para esta capacidad: la marca WIP se mantiene hasta revisarlo.',
-    );
+    expect(calls.map((call) => call.route)).toContain('DELETE /api/boards/board-1/capabilities/capability-1/marks/candidate');
+    // WIP follows the experiments: a tag, never a toggle.
+    expect(screen.queryByRole('button', { name: /^WIP/ })).toBeNull();
+    const wip = within(rowOf(/Comunica por escrito/)).getByText('WIP');
+    expect(wip.getAttribute('title')).toBe('Hay un experimento en curso para esta capacidad');
   });
 
   it('lets the owner propose a level per capability, save a draft and submit after confirming', async () => {

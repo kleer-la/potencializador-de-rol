@@ -228,7 +228,7 @@ export const markLabels = {
 /** What each mark means, for its toggle. */
 export const markHints = {
   candidate: 'Candidata a trabajarse en el corto o mediano plazo',
-  wip: 'Se está trabajando en este momento. Se pone sola al iniciar un experimento y se quita cuando ninguno sigue en curso',
+  wip: 'Hay un experimento en curso para esta capacidad',
 } as const;
 
 /** Messages for the `error` code of a refused program or board change. */
@@ -244,7 +244,7 @@ export const programErrors: Record<string, string> = {
   already_submitted: 'La autoevaluación ya fue enviada y no se puede cambiar.',
   board_not_open: 'Este tablero ya no admite autoevaluación.',
   empty_board: 'Este tablero no tiene capacidades para autoevaluar.',
-  wip_in_progress: 'Hay un experimento en curso para esta capacidad: la marca WIP se mantiene hasta revisarlo.',
+  wip_automatic: 'La marca WIP se pone y se quita sola con los experimentos en curso.',
   board_closed: 'El tablero está cerrado y ya no admite cambios.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',
 };
