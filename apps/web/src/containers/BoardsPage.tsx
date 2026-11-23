@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from 'react';
 import { ApiError, boardApi, type Board, type BoardLists, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
-import { BaselineSummary, CalibrationEditor, InitialLevels } from './Calibration.tsx';
+import { BaselineNote, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
-import { EvidenceSections } from './Evidence.tsx';
+import { BonusesSection, EvidenceSection, LevelChangesSection, MentoringSection } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
@@ -135,9 +135,19 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
   }
 
   const levelOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
-  const proposed = board.selfAssessment?.submittedAt
-    ? new Map(board.selfAssessment.levels.map((level) => [level.capabilityId, level.levelId]))
+  // Before the baseline the board sets the agreed level beside the self-assessment; once the
+  // baseline exists, it sets the current level beside the baseline (invariant 3).
+  const baselineLevels = board.baseline
+    ? new Map(board.baseline.entries.map((entry) => [entry.capabilityId, entry.levelId]))
     : null;
+  const proposed = baselineLevels
+    ? null
+    : board.selfAssessment?.submittedAt
+      ? new Map(board.selfAssessment.levels.map((level) => [level.capabilityId, level.levelId]))
+      : null;
+  const reference = baselineLevels ?? proposed;
+  const placedLabel = baselineLevels ? 'Estado actual' : 'Nivel acordado';
+  const referenceLabel = baselineLevels ? 'Línea base' : 'Autoevaluación';
   const columns = [null, ...board.levels.map((level) => level.id)];
   const offBoard = board.capabilities.filter((capability) => !levelOf.has(capability.id));
 
@@ -156,6 +166,12 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       {board.viewer.isOwner && <p className="ds-notice">Tu panel decide qué capacidades trabajas en este programa.</p>}
       {board.viewer.isOwner && board.selfAssessment?.submittedAt && (
         <p className="ds-notice">Enviaste tu autoevaluación. Tu panel la usará en la calibración.</p>
+      )}
+      {baselineLevels !== null && (
+        <div>
+          <p className="muted">● estado actual · ○ línea base</p>
+          <BaselineNote board={board} />
+        </div>
       )}
       {proposed !== null && <p className="muted">● nivel acordado · ○ autoevaluación</p>}
       {error !== null && (
@@ -220,12 +236,12 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
                     {columns.map((levelId) => (
                       <td key={levelId ?? 'unplaced'} className="kanban-cell">
                         {levelOf.get(capability.id) === levelId && (
-                          <span className="kanban-dot" aria-label="Nivel acordado">
+                          <span className="kanban-dot" aria-label={placedLabel}>
                             ●
                           </span>
                         )}
-                        {proposed !== null && levelId !== null && proposed.get(capability.id) === levelId && (
-                          <span className="kanban-dot proposed" aria-label="Autoevaluación">
+                        {reference !== null && levelId !== null && reference.get(capability.id) === levelId && (
+                          <span className="kanban-dot proposed" aria-label={referenceLabel}>
                             ○
                           </span>
                         )}
@@ -240,17 +256,19 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
       </div>
 
       {board.viewer.canCalibrate && <CalibrationEditor board={board} onDone={load} />}
-      <BaselineSummary board={board} />
       <InitialLevels board={board} onDone={load} />
       <ScoreSection board={board} />
       <CycleSection board={board} onChanged={load} />
+      <EvidenceSection board={board} onChanged={load} />
+      <LevelChangesSection board={board} onChanged={load} />
+      <BonusesSection board={board} onChanged={load} />
       {/* Remounted when levels change, so the form starts from the board as it is now. */}
       <RecalibrationEditor
         key={board.placements.map((placement) => `${placement.capabilityId}:${placement.levelId}`).join('|')}
         board={board}
         onDone={load}
       />
-      <EvidenceSections board={board} onChanged={load} />
+      <MentoringSection board={board} onChanged={load} />
       <CloseBoard board={board} onDone={load} />
 
       {board.viewer.canAdd && offBoard.length > 0 && (

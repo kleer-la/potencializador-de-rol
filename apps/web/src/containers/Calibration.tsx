@@ -175,57 +175,35 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
   );
 }
 
-/** The baseline and the calibration it came from, with the difference from the self-assessment. */
-export function BaselineSummary({ board }: { board: Board }) {
-  const headingId = useId();
+/**
+ * A short note under the board legend: when the baseline was fixed, who attended the
+ * calibration, its notes and the capabilities that joined the baseline later (invariant 3).
+ * The board itself sets the baseline beside the current level.
+ */
+export function BaselineNote({ board }: { board: Board }) {
   const { calibration, baseline } = board;
   if (baseline === null) return null;
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
-  const position = (levelId: string | null) => board.levels.find((level) => level.id === levelId)?.position;
-  const steps = (from: string | null, to: string) => {
-    const start = position(from);
-    const end = position(to);
-    if (start === undefined || end === undefined) return '—';
-    const difference = end - start;
-    return difference === 0 ? '=' : difference > 0 ? `+${difference}` : `−${-difference}`;
-  };
   const added = baseline.entries.filter((entry) => entry.origin === 'initial_leveling');
 
   return (
-    <section className="panel stack" aria-labelledby={headingId}>
-      <h3 id={headingId}>Línea base</h3>
-      <p className="muted">Fijada el {longDate(baseline.setAt)}. Sus niveles no cambian; es el punto de partida del avance.</p>
-      {calibration !== null && (
-        <>
-          <p>
-            Calibración del {longDate(calibration.heldOn)}. Asistieron: {calibration.attendees.map((person) => person.name).join(', ')}.
-          </p>
-          {calibration.notes !== '' && <p className="notes">{calibration.notes}</p>}
-          <table aria-label="Autoevaluación y nivel acordado">
-            <thead>
-              <tr>
-                <th scope="col">Capacidad</th>
-                <th scope="col">Autoevaluación</th>
-                <th scope="col">Acordado</th>
-                <th scope="col">Diferencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calibration.levels.map((level) => (
-                <tr key={level.capabilityId}>
-                  <th scope="row">{statement.get(level.capabilityId) ?? level.capabilityId}</th>
-                  <td>{levelLabel(board, level.selfAssessedLevelId) ?? 'Sin propuesta'}</td>
-                  <td>{levelLabel(board, level.agreedLevelId)}</td>
-                  <td>{steps(level.selfAssessedLevelId, level.agreedLevelId)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
+    <div role="group" aria-label="Contexto de la línea base" className="muted">
+      <p className="muted">
+        {calibration !== null
+          ? `Línea base fijada en la calibración del ${longDate(calibration.heldOn)} · Asistieron: ${calibration.attendees
+              .map((person) => person.name)
+              .join(', ')}`
+          : `Línea base fijada el ${longDate(baseline.setAt)}`}
+      </p>
+      {calibration !== null && calibration.notes !== '' && (
+        <details>
+          <summary>Notas de la calibración</summary>
+          <p className="notes muted">{calibration.notes}</p>
+        </details>
       )}
       {added.length > 0 && (
-        <>
-          <h4>Agregadas después de la calibración</h4>
+        <details>
+          <summary>Agregadas después: {added.length}</summary>
           <ul className="plain-list">
             {added.map((entry) => (
               <li key={entry.capabilityId}>
@@ -234,9 +212,9 @@ export function BaselineSummary({ board }: { board: Board }) {
               </li>
             ))}
           </ul>
-        </>
+        </details>
       )}
-    </section>
+    </div>
   );
 }
 
