@@ -501,23 +501,50 @@ fieldset {
   border-bottom: 1px solid var(--line);
 }
 
+/* The participant's name stays pinned at the top of the page while the board scrolls.
+   It is kept on one line so its height is constant and the board frame can fit below it. */
 .board-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-3);
   align-items: baseline;
+  min-width: 0;
+  padding: var(--space-2) 0;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--line);
 }
 
 .board-header h2 {
   margin: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* The board scrolls inside its own viewport-tall frame so the level headings stay frozen
-   like a spreadsheet's top row (a horizontal-scroll ancestor would otherwise defeat sticky). */
+.board-header .tag {
+  flex: none;
+}
+
+.board-header .muted {
+  flex: 0 10 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The board scrolls inside its own frame, sized to fit below the pinned header, so the level
+   headings stay frozen like a spreadsheet's top row (a horizontal-scroll ancestor would
+   otherwise defeat sticky). */
 .board-scroll {
   padding: 0;
   overflow: auto;
-  max-height: calc(100dvh - var(--space-5));
+  max-height: calc(100dvh - 47px - var(--space-5)); /* 47px: one-line header (30px + padding + border) */
 }
 
 .kanban {
