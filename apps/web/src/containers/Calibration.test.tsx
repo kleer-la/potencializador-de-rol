@@ -191,6 +191,28 @@ describe('calibration', () => {
     expect(within(form).queryByText('Borrador guardado.')).toBeNull();
   });
 
+  it('does not say the draft is saved when the form changed while saving', async () => {
+    const { user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ savedAt: '2026-11-19T10:00:00Z' }),
+    });
+    // Hold the save until the form has changed.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const backend = globalThis.fetch;
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PUT') await held;
+      return backend(input, init);
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+    await user.click(within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }));
+    release();
+
+    expect(await within(form).findByText(/Borrador guardado el 19 de noviembre de 2026/)).toBeTruthy();
+    expect(within(form).queryByText('Borrador guardado.')).toBeNull();
+  });
+
   it('opens the calibration from the saved draft', async () => {
     await open({
       ...base,

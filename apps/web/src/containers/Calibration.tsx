@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { ApiError, boardApi, type Board, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { calibrationErrors, enrollmentRoleLabels, messages } from '../copy.ts';
@@ -49,12 +49,15 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
   const [failure, setFailure] = useState<Failure | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt ?? null);
   const [justSaved, setJustSaved] = useState(false);
+  // Counts edits, so a save that resolves after an edit does not claim the form is saved.
+  const edits = useRef(0);
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
   const settled = capabilities.filter((capability) => agreed.has(capability.id)).length;
 
   /** Any change makes the saved draft older than the form. */
   const edit = (change: () => void) => {
     change();
+    edits.current += 1;
     setJustSaved(false);
   };
 
@@ -74,10 +77,11 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
   const saveDraft = async () => {
     setFailure(null);
     setJustSaved(false);
+    const editsAtSave = edits.current;
     try {
       const saved = await boardApi.saveCalibrationDraft(board.id, { heldOn, notes, attendees, levels: agreedLevels() });
       setSavedAt(saved.savedAt);
-      setJustSaved(true);
+      setJustSaved(edits.current === editsAtSave);
     } catch (error) {
       setFailure({ text: (error instanceof ApiError && calibrationErrors[error.code]) || messages.requestFailed, items: [] });
     }

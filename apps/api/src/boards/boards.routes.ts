@@ -915,7 +915,14 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         const { attendees, levels: agreed } = body.data;
         const people = new Set([access.ownerPersonId, ...access.panel.map((member) => member.personId)]);
         const onBoard = new Set(await capabilitiesOnBoard(tx, row.id));
-        if (attendees.some((attendee) => !people.has(attendee)) || agreed.some((level) => !onBoard.has(level.capabilityId))) {
+        const { mapId } = await programOf(tx, row.programId);
+        const ofMap = new Set(
+          (await tx.select({ id: levels.id }).from(levels).where(eq(levels.mapId, mapId))).map((level) => level.id),
+        );
+        if (
+          attendees.some((attendee) => !people.has(attendee)) ||
+          agreed.some((level) => !onBoard.has(level.capabilityId) || !ofMap.has(level.levelId))
+        ) {
           throw new Refusal(400, { error: 'unknown_reference' });
         }
         const draft = {

@@ -70,6 +70,9 @@ describe('calibration and baseline', () => {
     expect(before.baseline).toBeNull();
     expect((await calibrate(sessions.leader, {})).json()).toEqual({ error: 'not_self_assessed' });
     expect((await call(sessions.leader, 'POST', '/initial-levels', agreed([[0, 0]])[0])).json()).toEqual({ error: 'no_baseline' });
+    const early = await call(sessions.leader, 'PUT', '/calibration/draft', { heldOn: '2026-11-19', notes: '', attendees: [], levels: [] });
+    expect(early.statusCode).toBe(409);
+    expect(early.json()).toEqual({ error: 'not_self_assessed' });
 
     // The owner proposes the first capability one level higher than it will be agreed.
     await call(sessions.owner, 'PUT', '/self-assessment', { levels: agreed([[0, 1], [1, 1]]) });
@@ -144,7 +147,13 @@ describe('calibration and baseline', () => {
     const draft = { heldOn: '2026-11-19', notes: '', attendees: [board.owner], levels: agreed([[0, 1]]) };
     const stranger = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, attendees: [board.otherParticipant] });
     const offBoard = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, levels: agreed([[2, 0]]) });
-    expect([stranger.statusCode, offBoard.statusCode]).toEqual([400, 400]);
+    const other = await seedMap(ownerPool, program.organizationId, 'published');
+    const foreignLevel = await call(sessions.leader, 'PUT', '/calibration/draft', {
+      ...draft,
+      levels: [{ capabilityId: program.capabilityIds[0], levelId: other.levelId }],
+    });
+    expect([stranger.statusCode, offBoard.statusCode, foreignLevel.statusCode]).toEqual([400, 400, 400]);
+    expect(foreignLevel.json()).toEqual({ error: 'unknown_reference' });
     expect(stranger.json()).toEqual({ error: 'unknown_reference' });
     expect(offBoard.json()).toEqual({ error: 'unknown_reference' });
     for (const body of [{ ...draft, heldOn: '19-11-2026' }, { ...draft, attendees: 'all' }, { ...draft, levels: agreed([[0, 0], [0, 1]]) }]) {
