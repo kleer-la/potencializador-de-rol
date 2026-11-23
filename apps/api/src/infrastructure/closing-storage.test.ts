@@ -163,9 +163,17 @@ describe('closing, recalibration and snapshots storage', () => {
         /closed cycle/,
       );
     }
-    // Nor the target level of its focuses.
+    // Nor the target level of its focuses, nor which focuses it has.
     await expectRefused(
       one(board.owner, 'update focuses set target_level_id = target_level_id where cycle_id = $1', [cycleId]),
+      /closed cycle/,
+    );
+    await expectRefused(
+      one(
+        board.owner,
+        'insert into focuses (organization_id, cycle_id, capability_id, target_level_id, created_by) select organization_id, cycle_id, $2, target_level_id, created_by from focuses where cycle_id = $1 limit 1',
+        [cycleId, program.capabilityIds[1]],
+      ),
       /closed cycle/,
     );
   });

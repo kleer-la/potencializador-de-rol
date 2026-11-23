@@ -1107,6 +1107,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     );
   });
 
+  // Focuses are added while their cycle is planned or active; removed while it is planned, or
+  // while it is active and the focus has no experiment.
   api.post('/boards/:boardId/cycles/:cycleId/focuses', async (request, reply) => {
     const params = cycleParams.safeParse(request.params);
     const body = focusInput.safeParse(request.body);
@@ -1115,7 +1117,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
         const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
-        if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        if (cycle.state === 'closed') throw new Refusal(409, { error: 'cycle_closed' });
         const program = await programOf(tx, row.programId);
         const [current] = await tx
           .select({ position: levels.position })
@@ -1143,7 +1145,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           return { status: 201, body: { focusId: created!.id } };
         } catch (error) {
           if (postgresConstraint(error) === 'focuses_one_per_capability') throw new Refusal(409, { error: 'already_focus' });
-          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_closed' });
           if (postgresCode(error) === '23514') throw new Refusal(422, { error: 'invalid_target' });
           throw error;
         }
@@ -1158,7 +1160,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
         if (!canPlanCycle(personId, access)) throw new Refusal(403, { error: 'forbidden' });
         const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
-        if (cycle.state !== 'planned') throw new Refusal(409, { error: 'cycle_not_planned' });
+        if (cycle.state === 'closed') throw new Refusal(409, { error: 'cycle_closed' });
+        // In an active cycle only a focus without experiments leaves: one added during the cycle.
         let removed;
         try {
           removed = await tx
@@ -1166,7 +1169,11 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             .where(and(eq(focuses.id, params.data.focusId), eq(focuses.cycleId, cycle.id)))
             .returning({ id: focuses.id });
         } catch (error) {
-          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_planned' });
+          if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_closed' });
+          // PM008: an experiment joined in between and the cascade reached it; it is never deleted.
+          if (postgresCode(error) === 'PM051' || postgresCode(error) === 'PM008') {
+            throw new Refusal(409, { error: 'focus_has_experiments' });
+          }
           throw error;
         }
         if (removed.length === 0) throw new Refusal(404, NOT_FOUND);

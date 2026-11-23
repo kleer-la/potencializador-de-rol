@@ -199,9 +199,7 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
       {cycle.focuses.map((focus) => (
         <FocusCard key={focus.id} board={board} cycle={cycle} focus={focus} change={change} />
       ))}
-      {planned && board.viewer.canPlanCycle && (
-        <NewFocus board={board} cycle={cycle} change={change} />
-      )}
+      {board.viewer.canPlanCycle && <NewFocus board={board} cycle={cycle} change={change} />}
       {cycle.state === 'active' && board.viewer.canCloseCycle && (
         <div className="actions">
           <ConfirmAction
@@ -216,7 +214,7 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
         <div className="actions">
           <ConfirmAction
             label="Iniciar ciclo"
-            prompt="¿Iniciar el ciclo? Durante el ciclo los focos ya no se agregan ni se quitan; se puede cambiar su nivel objetivo y sumar experimentos."
+            prompt="¿Iniciar el ciclo? Durante el ciclo se pueden agregar focos, cambiar su nivel objetivo y sumar experimentos; un foco solo se quita mientras no tenga experimentos."
             confirmLabel="Confirmar inicio"
             variant="primary"
             onConfirm={start}
@@ -314,7 +312,7 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
             Nivel actual: {levelLabel(board, currentLevelId)} · Objetivo: {levelLabel(board, focus.targetLevelId)}
           </div>
         </div>
-        {cycle.state === 'planned' && canPlan && (
+        {canPlan && (cycle.state === 'planned' || (cycle.state === 'active' && focus.experiments.length === 0)) && (
           <ConfirmAction
             label="Quitar"
             accessibleLabel={`Quitar foco «${statement}»`}
@@ -327,7 +325,11 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
       </div>
       {cycle.state !== 'closed' && canPlan && <FocusTarget board={board} cycle={cycle} focus={focus} change={change} />}
       {focus.experiments.length === 0 ? (
-        <p className="muted">Sin experimentos todavía: cada foco necesita al menos uno para iniciar el ciclo.</p>
+        <p className="muted">
+          {cycle.state === 'planned'
+            ? 'Sin experimentos todavía: cada foco necesita al menos uno para iniciar el ciclo.'
+            : 'Sin experimentos todavía.'}
+        </p>
       ) : (
         <ul className="plain-list stack">
           {focus.experiments.map((experiment) => (
