@@ -326,4 +326,34 @@ describe('calibration storage', () => {
     const missing = await ownerPool.query('select missing_panel_roles from calibration_sessions where board_id = $1', [second.boardId]);
     expect(missing.rows[0].missing_panel_roles).toEqual(['mentor']);
   });
+  it('INV-9 only the panel reads and writes a calibration draft, and only before the baseline', async () => {
+    const third = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    const save = (personId: string, boardId: string, organizationId = program.organizationId) =>
+      as(
+        personId,
+        [
+          [
+            "insert into calibration_drafts (organization_id, board_id, held_on, notes, attendee_ids, levels, saved_by) values ($1, $2, date '2026-11-19', 'borrador', $3::uuid[], $4::jsonb, $5)",
+            [organizationId, boardId, [third.owner], levels([[0, 1]]), personId],
+          ],
+        ],
+        organizationId,
+      );
+    const read = async (personId: string, organizationId = program.organizationId) =>
+      (await as(personId, [['select count(*)::int as n from calibration_drafts where board_id = $1', [third.boardId]]], organizationId))[0]!
+        .rows[0].n;
+
+    await expectRefused(save(third.owner, third.boardId), /row-level security/);
+    await expectRefused(save(third.otherParticipant, third.boardId), /row-level security/);
+    await expectRefused(save(third.leader, third.boardId, otherOrganization), /row-level security|foreign key/);
+    await save(third.leader, third.boardId);
+    expect(await read(third.leader)).toBe(1);
+    expect(await read(third.owner)).toBe(0);
+    expect(await read(third.otherParticipant)).toBe(0);
+    expect(await read(administrator)).toBe(0);
+    expect(await read(third.leader, otherOrganization)).toBe(0);
+
+    // The first board already has its baseline: no draft for it.
+    await expectRefused(save(board.leader, board.boardId), /row-level security/);
+  });
 });

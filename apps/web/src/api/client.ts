@@ -282,6 +282,8 @@ export type Board = {
   selfAssessment: SelfAssessment | null;
   /** What the panel and the participant agreed; `null` before the calibration. */
   calibration: Calibration | null;
+  /** What the panel agreed so far; only for a panel member who can still calibrate. */
+  calibrationDraft: CalibrationDraft | null;
   /** Invariant 3: entries never change; capabilities added later join with their initial level. */
   baseline: Baseline | null;
   /** The cycle that is not closed, with its focuses and experiments; `null` if none. */
@@ -369,6 +371,7 @@ export type CalibrationRecord = {
   allowMissingRoles?: boolean;
 };
 export type ProposedLevel = { capabilityId: string; levelId: string };
+export type CalibrationDraft = { heldOn: string; notes: string; attendees: string[]; levels: ProposedLevel[]; savedAt: string };
 export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel[] };
 
 export const boardApi = {
@@ -382,6 +385,8 @@ export const boardApi = {
     request<unknown>(`/boards/${boardId}/self-assessment`, 'PUT', { levels }),
   submitSelfAssessment: (boardId: string) =>
     request<{ submittedAt: string }>(`/boards/${boardId}/self-assessment/submit`, 'POST'),
+  saveCalibrationDraft: (boardId: string, draft: Omit<CalibrationRecord, 'allowMissingRoles'>) =>
+    request<{ savedAt: string }>(`/boards/${boardId}/calibration/draft`, 'PUT', draft),
   calibrate: (boardId: string, calibration: CalibrationRecord) =>
     request<{ calibrationId: string }>(`/boards/${boardId}/calibration`, 'POST', calibration),
   createCycle: (boardId: string, dates: { startsOn: string; endsOn: string }) =>

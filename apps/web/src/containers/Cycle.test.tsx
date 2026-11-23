@@ -54,6 +54,7 @@ const board = (cycle: Cycle | null, who = viewer({})): Board => ({
   ],
   selfAssessment: null,
   calibration: null,
+  calibrationDraft: null,
   baseline: { setAt: '2026-11-20T15:00:00Z', entries: [] },
   cycle,
   evidence: [],

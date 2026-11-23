@@ -1,4 +1,4 @@
-import { boolean, date, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Typed view of the tables for queries. The SQL files in ../../migrations are the
 // source of truth for structure, constraints and Row Level Security policies.
@@ -217,6 +217,18 @@ export const calibrationLevels = pgTable('calibration_levels', {
   capabilityId: uuid('capability_id').notNull(),
   selfAssessedLevelId: uuid('self_assessed_level_id'),
   agreedLevelId: uuid('agreed_level_id').notNull(),
+});
+
+// What the panel agreed so far, before the baseline (migration 0014). Replaced on save.
+export const calibrationDrafts = pgTable('calibration_drafts', {
+  boardId: uuid('board_id').primaryKey(),
+  organizationId: uuid('organization_id').notNull(),
+  heldOn: date('held_on', { mode: 'string' }).notNull(),
+  notes: text('notes').notNull(),
+  attendeeIds: uuid('attendee_ids').array().notNull(),
+  levels: jsonb('levels').$type<{ capabilityId: string; levelId: string }[]>().notNull(),
+  savedBy: uuid('saved_by').notNull(),
+  savedAt: timestamp('saved_at', { withTimezone: true }).notNull(),
 });
 
 export const baselineEntries = pgTable('baseline_entries', {

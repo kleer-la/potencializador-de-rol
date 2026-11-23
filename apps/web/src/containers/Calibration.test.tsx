@@ -57,6 +57,7 @@ const base: Board = {
   ],
   selfAssessment: { submittedAt: '2026-11-14T10:00:00Z', levels: [{ capabilityId: 'capability-1', levelId: 'level-2' }] },
   calibration: null,
+  calibrationDraft: null,
   baseline: null,
   cycle: null,
   evidence: [],
@@ -160,6 +161,69 @@ describe('calibration', () => {
     });
     // The board reloads after the baseline is fixed.
     expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2);
+  });
+
+  it('saves a partial draft without the whole panel, and keeps the form as it was', async () => {
+    const { calls, user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ savedAt: '2026-11-19T10:00:00Z' }),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.clear(within(form).getByLabelText('Fecha de la sesión'));
+    await user.type(within(form).getByLabelText('Fecha de la sesión'), '2026-11-19');
+    await user.click(within(form).getByRole('checkbox', { name: 'Ana Gómez (Participante)' }));
+    await user.type(within(form).getByLabelText('Notas'), 'Falta el mentor');
+    const first = within(form).getByRole('radiogroup', { name: 'Identifica a quién sirve el producto' });
+    await user.click(within(first).getByRole('radio', { name: '1 · Principiante' }));
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+
+    expect(await within(form).findByText('Borrador guardado.')).toBeTruthy();
+    expect(calls.find((call) => call.route === 'PUT /api/boards/board-1/calibration/draft')?.body).toEqual({
+      heldOn: '2026-11-19',
+      notes: 'Falta el mentor',
+      attendees: ['ana'],
+      levels: [{ capabilityId: 'capability-1', levelId: 'level-1' }],
+    });
+    // Saving a draft does not reload the board.
+    expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(1);
+
+    await user.click(within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }));
+    expect(within(form).queryByText('Borrador guardado.')).toBeNull();
+  });
+
+  it('opens the calibration from the saved draft', async () => {
+    await open({
+      ...base,
+      calibrationDraft: {
+        heldOn: '2026-11-19',
+        notes: 'Falta el mentor',
+        attendees: ['ana'],
+        levels: [{ capabilityId: 'capability-1', levelId: 'level-1' }],
+        savedAt: '2026-11-19T10:00:00Z',
+      },
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    expect((within(form).getByLabelText('Fecha de la sesión') as HTMLInputElement).value).toBe('2026-11-19');
+    expect((within(form).getByLabelText('Notas') as HTMLTextAreaElement).value).toBe('Falta el mentor');
+    expect((within(form).getByRole('checkbox', { name: 'Ana Gómez (Participante)' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(form).getByRole('checkbox', { name: 'Luis Mora (Líder)' }) as HTMLInputElement).checked).toBe(false);
+    const first = within(form).getByRole('radiogroup', { name: 'Identifica a quién sirve el producto' });
+    expect((within(first).getByRole('radio', { name: '1 · Principiante' }) as HTMLInputElement).checked).toBe(true);
+    expect(within(form).getByText('1 de 2 capacidades acordadas')).toBeTruthy();
+    expect(within(form).getByText(/Borrador guardado el 19 de noviembre de 2026/)).toBeTruthy();
+  });
+
+  it('says why a draft was not saved', async () => {
+    const { user } = await open(base, {
+      'PUT /api/boards/board-1/calibration/draft': () => json({ error: 'baseline_set' }, 409),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Guardar borrador' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(/ya tiene línea base/)).toBeTruthy();
   });
 
   it('says who is missing when the attendance does not allow a baseline', async () => {

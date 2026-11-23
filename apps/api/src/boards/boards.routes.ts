@@ -51,6 +51,7 @@ import {
   recalibrationSessions,
   snapshots,
   calibrationAttendees,
+  calibrationDrafts,
   calibrationLevels,
   calibrationSessions,
   capabilities,
@@ -91,6 +92,13 @@ const calibrationInput = z.object({
   levels: levelsInput,
   // Amendment of invariant 3: fix the baseline although a mandatory panel role is missing.
   allowMissingRoles: z.boolean().default(false),
+});
+// A working copy of the calibration: any attendance and any subset of the agreed levels.
+const calibrationDraftInput = z.object({
+  heldOn: z.iso.date(),
+  notes: z.string().max(5000).default(''),
+  attendees: z.array(id).max(50),
+  levels: levelsInput,
 });
 const initialLevelInput = z.object({ capabilityId: id, levelId: id });
 const cycleParams = z.object({ boardId: id, cycleId: id });
@@ -641,6 +649,20 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .where(eq(panelAssignments.participantEnrollmentId, row.enrollmentId))
           .orderBy(asc(panelAssignments.role), asc(persons.name));
         const calibration = await readCalibration(tx, row.id, byMapOrder);
+        // The panel's working copy, only while it can still calibrate.
+        const [draftRow] = canCalibrate(personId, access, row.status)
+          ? await tx.select().from(calibrationDrafts).where(eq(calibrationDrafts.boardId, row.id))
+          : [];
+        const calibrationDraft =
+          draftRow === undefined
+            ? null
+            : {
+                heldOn: draftRow.heldOn,
+                notes: draftRow.notes,
+                attendees: draftRow.attendeeIds,
+                levels: draftRow.levels,
+                savedAt: draftRow.savedAt,
+              };
         const cycle = await readOpenCycle(tx, row.id, program!.maxFocuses, byMapOrder);
         const history = await readEvidenceAndDecisions(tx, row.id, program!.mapId);
         const topMultiplier = Math.max(0, ...scale.map((level) => Number(level.multiplier)));
@@ -714,6 +736,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
             selfAssessment,
             // What the panel and the participant agreed, beside what was self-assessed.
             calibration,
+            // What the panel agreed so far, before the baseline; null for anyone else.
+            calibrationDraft,
             // Invariant 3: the agreed snapshot; its entries never change, later ones are added.
             baseline,
             // The cycle that is not closed yet, with its focuses and experiments; null if none.
@@ -862,6 +886,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
                   ${`{${attendees.join(',')}}`}::uuid[], ${JSON.stringify(agreed)}::jsonb,
                   ${body.data.allowMissingRoles}::boolean) as id`,
           );
+          // The baseline is fixed: the draft has served its purpose.
+          await tx.delete(calibrationDrafts).where(eq(calibrationDrafts.boardId, row.id));
           return { status: 201, body: { calibrationId: recorded.rows[0]!.id } };
         } catch (error) {
           if (postgresCode(error) === '23514') throw new Refusal(400, { error: 'unknown_reference' });
@@ -873,6 +899,39 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           if (postgresCode(error) === 'PM031') throw new Refusal(409, { error: 'panel_changed' });
           throw error;
         }
+      }),
+    );
+  });
+
+  api.put('/boards/:boardId/calibration/draft', async (request, reply) => {
+    const params = boardParams.safeParse(request.params);
+    const body = calibrationDraftInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_request' });
+    return answer(reply, () =>
+      openBoard(request, reply, params.data.boardId, async (tx, { access, personId, row }) => {
+        if (!isOnPanel(personId, access)) throw new Refusal(403, { error: 'forbidden' });
+        if (access.hasBaseline) throw new Refusal(409, { error: 'baseline_set' });
+        if (row.status !== 'self_assessed') throw new Refusal(409, { error: 'not_self_assessed' });
+        const { attendees, levels: agreed } = body.data;
+        const people = new Set([access.ownerPersonId, ...access.panel.map((member) => member.personId)]);
+        const onBoard = new Set(await capabilitiesOnBoard(tx, row.id));
+        if (attendees.some((attendee) => !people.has(attendee)) || agreed.some((level) => !onBoard.has(level.capabilityId))) {
+          throw new Refusal(400, { error: 'unknown_reference' });
+        }
+        const draft = {
+          heldOn: body.data.heldOn,
+          notes: body.data.notes,
+          attendeeIds: [...new Set(attendees)],
+          levels: agreed,
+          savedBy: personId,
+          savedAt: sql`now()`,
+        };
+        const [saved] = await tx
+          .insert(calibrationDrafts)
+          .values({ organizationId: row.organizationId, boardId: row.id, ...draft })
+          .onConflictDoUpdate({ target: calibrationDrafts.boardId, set: draft })
+          .returning({ savedAt: calibrationDrafts.savedAt });
+        return { body: { savedAt: saved!.savedAt } };
       }),
     );
   });

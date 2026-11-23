@@ -41,25 +41,51 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
     { personId: board.owner.personId, label: `${board.owner.name} (${enrollmentRoleLabels.participant})` },
     ...board.panel.map((member) => ({ personId: member.personId, label: `${member.name} (${enrollmentRoleLabels[member.role]})` })),
   ];
-  const [heldOn, setHeldOn] = useState(today);
-  const [notes, setNotes] = useState('');
-  const [attendees, setAttendees] = useState<string[]>([]);
-  const [agreed, setAgreed] = useState(() => new Map<string, string>());
+  const draft = board.calibrationDraft;
+  const [heldOn, setHeldOn] = useState(() => draft?.heldOn ?? today());
+  const [notes, setNotes] = useState(draft?.notes ?? '');
+  const [attendees, setAttendees] = useState<string[]>(draft?.attendees ?? []);
+  const [agreed, setAgreed] = useState(() => new Map((draft?.levels ?? []).map((level) => [level.capabilityId, level.levelId])));
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt ?? null);
+  const [justSaved, setJustSaved] = useState(false);
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
   const settled = capabilities.filter((capability) => agreed.has(capability.id)).length;
 
+  /** Any change makes the saved draft older than the form. */
+  const edit = (change: () => void) => {
+    change();
+    setJustSaved(false);
+  };
+
   const toggle = (personId: string) =>
-    setAttendees(
-      attendees.includes(personId) ? attendees.filter((candidate) => candidate !== personId) : [...attendees, personId],
+    edit(() =>
+      setAttendees(
+        attendees.includes(personId) ? attendees.filter((candidate) => candidate !== personId) : [...attendees, personId],
+      ),
     );
 
-  const record = async (allowMissingRoles = false) => {
-    setFailure(null);
-    const levels: ProposedLevel[] = capabilities.flatMap((capability) => {
+  const agreedLevels = (): ProposedLevel[] =>
+    capabilities.flatMap((capability) => {
       const levelId = agreed.get(capability.id);
       return levelId === undefined ? [] : [{ capabilityId: capability.id, levelId }];
     });
+
+  const saveDraft = async () => {
+    setFailure(null);
+    setJustSaved(false);
+    try {
+      const saved = await boardApi.saveCalibrationDraft(board.id, { heldOn, notes, attendees, levels: agreedLevels() });
+      setSavedAt(saved.savedAt);
+      setJustSaved(true);
+    } catch (error) {
+      setFailure({ text: (error instanceof ApiError && calibrationErrors[error.code]) || messages.requestFailed, items: [] });
+    }
+  };
+
+  const record = async (allowMissingRoles = false) => {
+    setFailure(null);
+    const levels = agreedLevels();
     try {
       await boardApi.calibrate(board.id, { heldOn, notes, attendees, levels, ...(allowMissingRoles ? { allowMissingRoles } : {}) });
       await onDone();
@@ -92,8 +118,8 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
     <section className="panel stack" aria-labelledby={headingId}>
       <h3 id={headingId}>Calibración</h3>
       <p className="ds-notice">
-        Contrasten cada capacidad con casos reales y acuerden su nivel. Al fijar la línea base, el sistema guarda la diferencia
-        con la autoevaluación.
+        Contrasten cada capacidad con casos reales y acuerden su nivel. Pueden guardar un borrador y seguir en otra sesión. Al
+        fijar la línea base, el sistema guarda la diferencia con la autoevaluación.
       </p>
       {failure !== null && (
         <div role="alert" className="alert">
@@ -117,7 +143,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
       )}
       <label>
         Fecha de la sesión
-        <input type="date" value={heldOn} onChange={(event) => setHeldOn(event.target.value)} />
+        <input type="date" value={heldOn} onChange={(event) => edit(() => setHeldOn(event.target.value))} />
       </label>
       <fieldset>
         <legend>Asistentes</legend>
@@ -134,7 +160,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
       </fieldset>
       <label>
         Notas
-        <textarea value={notes} maxLength={5000} onChange={(event) => setNotes(event.target.value)} />
+        <textarea value={notes} maxLength={5000} onChange={(event) => edit(() => setNotes(event.target.value))} />
       </label>
 
       <div className="self-assessment">
@@ -160,7 +186,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
                           type="radio"
                           name={`agreed-${capability.id}`}
                           checked={agreed.get(capability.id) === level.id}
-                          onChange={() => setAgreed(new Map(agreed).set(capability.id, level.id))}
+                          onChange={() => edit(() => setAgreed(new Map(agreed).set(capability.id, level.id)))}
                         />
                         {level.position} · {level.name}
                       </label>
@@ -177,6 +203,14 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
         <span className="muted">
           {settled} de {capabilities.length} capacidades acordadas
         </span>
+        <button type="button" onClick={saveDraft}>
+          Guardar borrador
+        </button>
+        {justSaved ? (
+          <span className="muted">Borrador guardado.</span>
+        ) : (
+          savedAt !== null && <span className="muted">Borrador guardado el {longDate(savedAt)}</span>
+        )}
         <ConfirmAction
           label="Fijar línea base"
           prompt="¿Fijar la línea base? Después no se podrá cambiar; las capacidades que se agreguen luego se nivelan una por una."

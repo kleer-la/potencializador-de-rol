@@ -120,6 +120,38 @@ describe('calibration and baseline', () => {
     }
   });
 
+  it('lets the panel save a partial calibration draft, without the whole panel, and read it back', async () => {
+    const draft = { heldOn: '2026-11-19', notes: 'Falta el especialista', attendees: [board.owner], levels: agreed([[0, 1]]) };
+    expect((await view(sessions.leader)).calibrationDraft).toBeNull();
+
+    const saved = await call(sessions.leader, 'PUT', '/calibration/draft', draft);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ savedAt: expect.any(String) });
+    expect((await view(sessions.leader)).calibrationDraft).toEqual({ ...draft, savedAt: expect.any(String) });
+
+    // Saving again replaces the draft.
+    const replaced = { ...draft, notes: '', attendees: [board.owner, board.leader], levels: agreed([[0, 0], [1, 1]]) };
+    expect((await call(sessions.leader, 'PUT', '/calibration/draft', replaced)).statusCode).toBe(200);
+    expect((await view(sessions.leader)).calibrationDraft).toEqual({ ...replaced, savedAt: expect.any(String) });
+
+    // Only the panel reads and writes it.
+    expect((await view(sessions.owner)).calibrationDraft).toBeNull();
+    expect((await call(sessions.owner, 'PUT', '/calibration/draft', draft)).statusCode).toBe(403);
+    expect((await call(sessions.otherParticipant, 'PUT', '/calibration/draft', draft)).statusCode).toBe(404);
+  });
+
+  it('refuses a calibration draft with foreign references or a malformed body', async () => {
+    const draft = { heldOn: '2026-11-19', notes: '', attendees: [board.owner], levels: agreed([[0, 1]]) };
+    const stranger = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, attendees: [board.otherParticipant] });
+    const offBoard = await call(sessions.leader, 'PUT', '/calibration/draft', { ...draft, levels: agreed([[2, 0]]) });
+    expect([stranger.statusCode, offBoard.statusCode]).toEqual([400, 400]);
+    expect(stranger.json()).toEqual({ error: 'unknown_reference' });
+    expect(offBoard.json()).toEqual({ error: 'unknown_reference' });
+    for (const body of [{ ...draft, heldOn: '19-11-2026' }, { ...draft, attendees: 'all' }, { ...draft, levels: agreed([[0, 0], [0, 1]]) }]) {
+      expect((await call(sessions.leader, 'PUT', '/calibration/draft', body)).json()).toEqual({ error: 'invalid_request' });
+    }
+  });
+
   it('INV-3 records the calibration and fixes the baseline once, even when two arrive together', async () => {
     const responses = await Promise.all([calibrate(sessions.leader, {}), calibrate(sessions.leader, {})]);
     expect(responses.map((response) => response.statusCode).sort()).toEqual([201, 409]);
@@ -153,6 +185,13 @@ describe('calibration and baseline', () => {
     );
     expect((await view(sessions.leader)).viewer.canCalibrate).toBe(false);
     expect((await calibrate(sessions.leader, {})).json()).toEqual({ error: 'baseline_set' });
+
+    // Fixing the baseline discards the draft; no new draft afterwards.
+    expect((await view(sessions.leader)).calibrationDraft).toBeNull();
+    const drafts = await ownerPool.query('select count(*)::int as n from calibration_drafts where board_id = $1', [board.boardId]);
+    expect(drafts.rows[0].n).toBe(0);
+    const late = await call(sessions.leader, 'PUT', '/calibration/draft', { heldOn: '2026-11-21', notes: '', attendees: [], levels: [] });
+    expect(late.json()).toEqual({ error: 'baseline_set' });
   });
 
   it('INV-3 a capability added after the baseline gets its initial level from the panel, once', async () => {
