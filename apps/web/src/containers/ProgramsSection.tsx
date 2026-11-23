@@ -95,7 +95,7 @@ const NEW_PROGRAM: ProgramInput = {
   mandatoryPanelRoles: [...PANEL_ROLES],
 };
 
-/** Name, dates, maximum of focuses and mandatory panel roles: at least one role stays mandatory. */
+/** Name, dates, recommended focuses and mandatory panel roles: at least one role stays mandatory. */
 function SettingsFields(props: { value: ProgramSettings; onChange: (value: ProgramSettings) => void }) {
   const { value, onChange } = props;
   const toggle = (role: PanelRole, checked: boolean) =>
@@ -127,7 +127,7 @@ function SettingsFields(props: { value: ProgramSettings; onChange: (value: Progr
         />
       </label>
       <label>
-        Máximo de focos por ciclo
+        Focos recomendados por ciclo
         <input
           type="number"
           min={1}
@@ -263,7 +263,7 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
       <header>
         <h3>{program.name}</h3>
         <p className="muted">
-          Del {program.startsOn} al {program.endsOn} · hasta {program.maxFocuses} focos por ciclo
+          Del {program.startsOn} al {program.endsOn} · {program.maxFocuses} focos recomendados por ciclo
         </p>
       </header>
       {error !== null && (

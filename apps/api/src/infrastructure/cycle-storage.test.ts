@@ -101,12 +101,12 @@ describe('cycle storage', () => {
     await expectRefused(one(board.owner, "update cycles set state = 'active' where id = $1", [cycleId]), /permission denied/);
   });
 
-  it('INV-8 takes focuses above the current level, up to the program maximum', async () => {
+  it('INV-8 takes focuses above the current level, also beyond the program recommendation', async () => {
     await expectRefused(addFocus(board.owner, 0, 0), /above the current level/);
     await expectRefused(addFocus(board.owner, 2, 1), /not on the board/);
     focusIds = [(await addFocus(board.owner, 0, 1)).rows[0].id];
     await expectRefused(addFocus(board.leader, 0, 1), /focuses_one_per_capability/);
-    // A third capability joins the board at level 0, so it could be a focus but for the maximum.
+    // A third capability joins the board at level 0: a third focus, above the recommended two.
     await ownerPool.query('insert into placements (organization_id, board_id, capability_id, added_by) values ($1, $2, $3, $4)', [
       program.organizationId,
       board.boardId,
@@ -116,7 +116,7 @@ describe('cycle storage', () => {
     await expectRefused(addFocus(board.leader, 2, 1), /above the current level/);
     focusIds.push((await addFocus(board.leader, 1, 1)).rows[0].id);
     await one(board.leader, 'select app_record_initial_level($1, $2, $3)', [board.boardId, program.capabilityIds[2], program.levelIds[0]]);
-    await expectRefused(addFocus(board.leader, 2, 1), /invariant 8: .*maximum/);
+    focusIds.push((await addFocus(board.leader, 2, 1)).rows[0].id);
   });
 
   it('INV-8 starts only by the panel, when every focus has an experiment', async () => {
@@ -131,6 +131,8 @@ describe('cycle storage', () => {
     expect(await state()).toEqual({ cycle: 'planned', board: 'calibrated' });
 
     experimentIds.push((await addExperiment(board.leader, focusIds[1]!)).rows[0].id);
+    await expectRefused(start(board.leader), /invariant 8: .*experiment/);
+    await addExperiment(board.leader, focusIds[2]!);
     await start(board.leader);
 
     expect(await state()).toEqual({ cycle: 'active', board: 'in_cycle' });
@@ -179,8 +181,8 @@ describe('cycle storage', () => {
           organizationId,
         )
       ).map((result) => result.rows[0].n);
-    expect(await seenBy(board.owner)).toEqual([1, 2, 3]);
-    expect(await seenBy(board.leader)).toEqual([1, 2, 3]);
+    expect(await seenBy(board.owner)).toEqual([1, 3, 4]);
+    expect(await seenBy(board.leader)).toEqual([1, 3, 4]);
     expect(await seenBy(administrator)).toEqual([0, 0, 0]);
     expect(await seenBy(board.otherParticipant)).toEqual([0, 0, 0]);
   });

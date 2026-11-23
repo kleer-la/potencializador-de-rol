@@ -413,6 +413,18 @@ fieldset {
   background: var(--surface-raised);
 }
 
+/* A caution that does not block: the action stays available. */
+.warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--accent);
+  border-left-width: 6px;
+  border-radius: var(--radius-m);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .alert p,
 .alert li {
   color: var(--ink);

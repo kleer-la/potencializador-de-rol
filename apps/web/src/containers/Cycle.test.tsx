@@ -67,6 +67,8 @@ const board = (cycle: Cycle | null, who = viewer({})): Board => ({
   recalibrations: [],
 });
 
+const WARNING = '¡Pilas con tu foco, no agreguemos más de lo que podamos atender!';
+
 const planned: Cycle = {
   id: 'cycle-1',
   number: 1,
@@ -149,7 +151,8 @@ describe('cycle', () => {
     });
 
     expect(within(section()).getByText(/Ciclo 1 · Planeado/)).toBeTruthy();
-    expect(within(section()).getByText('1 de 3 focos')).toBeTruthy();
+    expect(within(section()).getByText('Focos: 1 · recomendados: 3')).toBeTruthy();
+    expect(within(section()).queryByText(WARNING)).toBeNull();
     const focus = within(section()).getByRole('article', { name: 'Identifica a quién sirve el producto' });
     expect(within(focus).getByText('Nivel actual: 1 · Principiante · Objetivo: 2 · Practicante')).toBeTruthy();
 
@@ -173,16 +176,33 @@ describe('cycle', () => {
     expect(within(section()).queryByRole('button', { name: 'Iniciar ciclo' })).toBeNull();
   });
 
+  it('keeps adding focuses above the recommended number, warning when creating one', async () => {
+    const { calls, user, section } = await open(board({ ...planned, maxFocuses: 1 }), {
+      'POST /api/boards/board-1/cycles/cycle-1/focuses': () => json({ focusId: 'focus-2' }, 201),
+    });
+
+    expect(within(section()).getByText('Focos: 1 · recomendados: 1')).toBeTruthy();
+    const form = within(section()).getByRole('heading', { name: 'Nuevo foco' }).closest('form')!;
+    expect(within(form).getByText(WARNING)).toBeTruthy();
+    await user.selectOptions(within(form).getByLabelText('Capacidad'), 'capability-2');
+    await user.selectOptions(within(form).getByLabelText('Nivel objetivo'), 'level-1');
+    await user.click(within(form).getByRole('button', { name: 'Agregar foco' }));
+    expect(calls.find((call) => call.route.endsWith('/focuses'))?.body).toEqual({
+      capabilityId: 'capability-2',
+      targetLevelId: 'level-1',
+    });
+  });
+
   it('says why a focus was refused and reloads the board after a change', async () => {
     const { calls, user, section } = await open(board(planned), {
-      'POST /api/boards/board-1/cycles/cycle-1/focuses': () => json({ error: 'too_many_focuses', maxFocuses: 3 }, 422),
+      'POST /api/boards/board-1/cycles/cycle-1/focuses': () => json({ error: 'already_focus' }, 409),
       'POST /api/boards/board-1/cycles/cycle-1/focuses/focus-1/experiments': () => json({ experimentId: 'experiment-1' }, 201),
     });
 
     await user.selectOptions(within(section()).getByLabelText('Capacidad'), 'capability-2');
     await user.selectOptions(within(section()).getByLabelText('Nivel objetivo'), 'level-1');
     await user.click(within(section()).getByRole('button', { name: 'Agregar foco' }));
-    expect(await within(section()).findByText('El ciclo ya tiene el máximo de focos del programa.')).toBeTruthy();
+    expect(await within(section()).findByText('Esa capacidad ya es un foco de este ciclo.')).toBeTruthy();
 
     const focus = within(section()).getByRole('article', { name: 'Identifica a quién sirve el producto' });
     await user.type(within(focus).getByLabelText('Experimento'), 'Entrevistar a tres usuarios');
@@ -194,7 +214,7 @@ describe('cycle', () => {
   it('lets a panel member start the cycle after confirming, naming the focuses without an experiment', async () => {
     const { user, section } = await open(board(planned, leader), {
       'POST /api/boards/board-1/cycles/cycle-1/start': () =>
-        json({ error: 'cannot_start', noFocus: false, tooMany: false, withoutExperiment: ['capability-1'] }, 422),
+        json({ error: 'cannot_start', noFocus: false, withoutExperiment: ['capability-1'] }, 422),
     });
 
     await user.click(within(section()).getByRole('button', { name: 'Iniciar ciclo' }));
