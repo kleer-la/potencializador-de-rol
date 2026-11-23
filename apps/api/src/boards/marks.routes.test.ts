@@ -90,7 +90,7 @@ describe('marks on the capabilities of a board', () => {
     expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate']]);
   });
 
-  it('takes marks off, keeping WIP while an experiment on the capability is in progress', async () => {
+  it('puts WIP while an experiment on the capability is in progress and takes it off after', async () => {
     const cycleId = (await call(sessions.owner, 'POST', '/cycles', { startsOn: '2026-12-01', endsOn: '2027-02-28' })).json().cycleId;
     const focusId = (
       await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses`, {
@@ -116,13 +116,20 @@ describe('marks on the capabilities of a board', () => {
       })
     ).json().experimentId;
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/start`)).statusCode).toBe(200);
-    expect((await call(sessions.owner, 'PATCH', `/experiments/${otherExperimentId}`, { state: 'in_progress' })).statusCode).toBe(200);
+    const move = (session: string, id: string, body: unknown) => call(session, 'PATCH', `/experiments/${id}`, body);
+    const review = (id: string) =>
+      move(sessions.leader, id, { state: 'reviewed', result: 'consolidated', learnings: 'Mostrar datos antes de opinar cambió la conversación' });
 
-    // Planned, not in progress yet: WIP comes off and goes back on.
+    // Starting an experiment puts WIP on its capability.
+    expect((await move(sessions.owner, otherExperimentId, { state: 'in_progress' })).statusCode).toBe(200);
+    expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate', 'wip']]);
+
+    // Planned, not in progress yet: WIP comes off and goes back on by hand.
     expect((await mark(sessions.owner, 'DELETE', 0, 'wip')).statusCode).toBe(204);
-    expect((await mark(sessions.owner, 'PUT', 0, 'wip')).statusCode).toBe(204);
+    expect(await marksOf(sessions.owner)).toEqual([['candidate'], ['candidate', 'wip']]);
+    expect((await move(sessions.owner, experimentId, { state: 'in_progress' })).statusCode).toBe(200);
+    expect(await marksOf(sessions.owner)).toEqual([['candidate', 'wip'], ['candidate', 'wip']]);
 
-    expect((await call(sessions.owner, 'PATCH', `/experiments/${experimentId}`, { state: 'in_progress' })).statusCode).toBe(200);
     for (const session of [sessions.owner, sessions.leader]) {
       const refused = await mark(session, 'DELETE', 0, 'wip');
       expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'wip_in_progress' }]);
@@ -134,22 +141,27 @@ describe('marks on the capabilities of a board', () => {
         program.capabilityIds[0],
       ]),
     ).rejects.toMatchObject({ code: 'PM050' });
-    // Taking off a WIP mark that is not there changes nothing, even with an experiment in progress.
-    expect((await mark(sessions.owner, 'DELETE', 1, 'wip')).statusCode).toBe(204);
     // Other marks come off at any time.
     expect((await mark(sessions.owner, 'DELETE', 0, 'candidate')).statusCode).toBe(204);
     // Taking off a mark that is not there changes nothing.
     expect((await mark(sessions.owner, 'DELETE', 0, 'candidate')).statusCode).toBe(204);
-    expect(await marksOf(sessions.owner)).toEqual([['wip'], ['candidate']]);
+    expect(await marksOf(sessions.owner)).toEqual([['wip'], ['candidate', 'wip']]);
 
-    const reviewed = await call(sessions.leader, 'PATCH', `/experiments/${experimentId}`, {
-      state: 'reviewed',
-      result: 'consolidated',
-      learnings: 'Mostrar datos antes de opinar cambió la conversación',
-    });
-    expect(reviewed.statusCode).toBe(200);
+    // Once nothing on the capability is in progress, WIP comes off by itself.
+    expect((await review(experimentId)).statusCode).toBe(200);
+    expect(await marksOf(sessions.owner)).toEqual([[], ['candidate', 'wip']]);
     expect((await mark(sessions.leader, 'DELETE', 0, 'wip')).statusCode).toBe(204);
+
+    // A planned experiment does not keep it; starting it puts it back.
+    const plannedId = (
+      await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses/${otherFocusId}/experiments`, {
+        description: 'Pedir retroalimentación sobre el resumen',
+      })
+    ).json().experimentId;
+    expect((await review(otherExperimentId)).statusCode).toBe(200);
     expect(await marksOf(sessions.owner)).toEqual([[], ['candidate']]);
+    expect((await move(sessions.owner, plannedId, { state: 'in_progress' })).statusCode).toBe(200);
+    expect(await marksOf(sessions.owner)).toEqual([[], ['candidate', 'wip']]);
   });
 
   it('keeps the marks of a closed board as they are', async () => {
@@ -158,7 +170,7 @@ describe('marks on the capabilities of a board', () => {
     const refused = await mark(sessions.leader, 'PUT', 0, 'wip');
     expect([refused.statusCode, refused.json()]).toEqual([409, { error: 'board_closed' }]);
     expect((await mark(sessions.owner, 'DELETE', 1, 'candidate')).json()).toEqual({ error: 'board_closed' });
-    expect(await marksOf(sessions.owner)).toEqual([[], ['candidate']]);
+    expect(await marksOf(sessions.owner)).toEqual([[], ['candidate', 'wip']]);
   });
 
   it('takes the marks off with the capability before the baseline', async () => {

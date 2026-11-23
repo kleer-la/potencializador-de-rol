@@ -228,7 +228,7 @@ export const markLabels = {
 /** What each mark means, for its toggle. */
 export const markHints = {
   candidate: 'Candidata a trabajarse en el corto o mediano plazo',
-  wip: 'Se está trabajando en este momento',
+  wip: 'Se está trabajando en este momento. Se pone sola al iniciar un experimento y se quita cuando ninguno sigue en curso',
 } as const;
 
 /** Messages for the `error` code of a refused program or board change. */
