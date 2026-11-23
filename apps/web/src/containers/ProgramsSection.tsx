@@ -12,7 +12,8 @@ import {
   type ProgramSettings,
 } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
-import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
+import { boardStatusLabels, created as createdText, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { organizationId: string; canAdminister: boolean; canDesign: boolean };
 
@@ -67,6 +68,7 @@ export function ProgramsSection({ organizationId, canAdminister, canDesign }: Pr
               const created = await programs.create(input);
               await load();
               setSelectedId(created.id);
+              notifyCreated(createdText.program);
             }}
           />
         )}
@@ -242,11 +244,12 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when the program changes
   }, [props.programId]);
 
-  const run = async (work: () => Promise<unknown>) => {
+  const run = async (work: () => Promise<unknown>, success?: string) => {
     setError(null);
     try {
       await work();
       await load();
+      if (success !== undefined) notifyCreated(success);
     } catch (failure) {
       setError(errorText(failure));
       throw failure;
@@ -333,7 +336,7 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
           </tbody>
         </table>
         {props.canAdminister && (
-          <EnrollForm onEnroll={(email, roles, name) => run(() => programs.enroll(program.id, email, roles, name))} />
+          <EnrollForm onEnroll={(email, roles, name) => run(() => programs.enroll(program.id, email, roles, name), createdText.enrollment)} />
         )}
       </section>
 
@@ -344,7 +347,10 @@ function ProgramDetailView(props: { organizationId: string; programId: string; c
           detail={detail}
           canAdminister={props.canAdminister}
           onAssign={(memberEnrollmentId, role) =>
-            run(() => programs.assign(program.id, { participantEnrollmentId: participant.id, memberEnrollmentId, role }))
+            run(
+              () => programs.assign(program.id, { participantEnrollmentId: participant.id, memberEnrollmentId, role }),
+              createdText.panelMember,
+            )
           }
           onRemove={(memberEnrollmentId, role) =>
             quietly(() => programs.unassign(program.id, { participantEnrollmentId: participant.id, memberEnrollmentId, role }))

@@ -42,6 +42,29 @@ export const passwordMessages = {
   confirmIntro: 'Elige tu contraseña. Si ya tenías una, esta la reemplaza.',
 };
 
+/** Green notices announcing that an element was created. */
+export const created = {
+  organization: 'Organización creada.',
+  invitation: 'Invitación enviada.',
+  role: 'Rol creado.',
+  catalogEntry: 'Agregado al catálogo.',
+  mapDraft: 'Borrador del mapa creado.',
+  mapImport: 'Mapa importado como borrador.',
+  dimension: 'Dimensión agregada.',
+  capability: 'Capacidad agregada.',
+  program: 'Programa creado.',
+  enrollment: 'Persona inscrita en el programa.',
+  panelMember: 'Persona asignada al panel.',
+  boardCapability: 'Capacidad agregada al tablero.',
+  cycle: 'Ciclo creado.',
+  focus: 'Foco agregado.',
+  experiment: 'Experimento agregado.',
+  evidence: 'Evidencia registrada.',
+  levelProposal: 'Propuesta de cambio de nivel enviada.',
+  bonusProposal: 'Propuesta de bonificación enviada.',
+  mentoring: 'Sesión de mentoría registrada.',
+};
+
 export const messages = {
   loading: 'Cargando…',
   unavailable: 'El servicio no está disponible. Inténtalo más tarde.',

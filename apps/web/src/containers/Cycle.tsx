@@ -11,10 +11,12 @@ import {
 } from '../api/client.ts';
 import { addsFocusAboveRecommended } from '@potencializador/domain';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
-import { cycleErrors, cycleStateLabels, experimentResultLabels, experimentStateLabels, messages } from '../copy.ts';
+import { created, cycleErrors, cycleStateLabels, experimentResultLabels, experimentStateLabels, messages } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Failure = { text: string; items: string[] };
-type Change = (work: () => Promise<unknown>) => Promise<void>;
+/** Runs a change and reloads the board; `success` names a creation to announce in green. */
+type Change = (work: () => Promise<unknown>, success?: string) => Promise<void>;
 
 const failureOf = (error: unknown): Failure => ({
   text: (error instanceof ApiError && cycleErrors[error.code]) || messages.requestFailed,
@@ -37,11 +39,12 @@ export function CycleSection({ board, onChanged }: { board: Board; onChanged: ()
   if (!board.hasBaseline) return null;
   const { cycle } = board;
 
-  const change: Change = async (work) => {
+  const change: Change = async (work, success) => {
     setFailure(null);
     try {
       await work();
       await onChanged();
+      if (success !== undefined) notifyCreated(success);
     } catch (error) {
       setFailure(failureOf(error));
     }
@@ -111,7 +114,7 @@ function NewCycle({ board, change }: { board: Board; change: Change }) {
       className="stack"
       onSubmit={(event) => {
         event.preventDefault();
-        void change(() => boardApi.createCycle(board.id, { startsOn, endsOn }));
+        void change(() => boardApi.createCycle(board.id, { startsOn, endsOn }), created.cycle);
       }}
     >
       <p className="muted">Un ciclo trabaja pocas capacidades; cada una se prueba con experimentos en el trabajo real.</p>
@@ -219,7 +222,7 @@ function NewFocus({ board, cycle, change }: { board: Board; cycle: Cycle; change
       className="stack"
       onSubmit={(event) => {
         event.preventDefault();
-        void change(() => boardApi.addFocus(board.id, cycle.id, { capabilityId, targetLevelId }));
+        void change(() => boardApi.addFocus(board.id, cycle.id, { capabilityId, targetLevelId }), created.focus);
       }}
     >
       <h4>Nuevo foco</h4>
@@ -317,7 +320,7 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
               setDescription('');
               setHypothesis('');
               setExpectedResult('');
-            });
+            }, created.experiment);
           }}
         >
           <label>

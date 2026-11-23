@@ -1,9 +1,11 @@
 import { useId, useState, type ReactNode } from 'react';
 import { ApiError, boardApi, type Board, type Evidence } from '../api/client.ts';
-import { decisionStateLabels, evidenceErrors, messages, proposalProblemLabels } from '../copy.ts';
+import { created, decisionStateLabels, evidenceErrors, messages, proposalProblemLabels } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Failure = { text: string; items: string[] };
-type Change = (work: () => Promise<unknown>) => Promise<boolean>;
+/** Runs a change and reloads the board; `success` names a creation to announce in green. */
+type Change = (work: () => Promise<unknown>, success?: string) => Promise<boolean>;
 
 const failureOf = (error: unknown): Failure => {
   if (error instanceof ApiError && Array.isArray(error.details.problems)) {
@@ -54,11 +56,12 @@ function Section(props: {
 }) {
   const headingId = useId();
   const [failure, setFailure] = useState<Failure | null>(null);
-  const change: Change = async (work) => {
+  const change: Change = async (work, success) => {
     setFailure(null);
     try {
       await work();
       await props.onChanged();
+      if (success !== undefined) notifyCreated(success);
       return true;
     } catch (error) {
       setFailure(failureOf(error));
@@ -135,7 +138,7 @@ function EvidenceList({ board, onChanged }: SectionProps) {
                   setDescription('');
                   setLink('');
                   setShowsTransfer(false);
-                });
+                }, created.evidence);
               }}
             >
               <label>
@@ -268,7 +271,7 @@ function LevelChanges({ board, onChanged }: SectionProps) {
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                void change(() => boardApi.proposeLevel(board.id, { capabilityId, levelId, evidenceIds })).then((done) => {
+                void change(() => boardApi.proposeLevel(board.id, { capabilityId, levelId, evidenceIds }), created.levelProposal).then((done) => {
                   if (done) setEvidenceIds([]);
                 });
               }}
@@ -366,7 +369,7 @@ function Bonuses({ board, onChanged }: SectionProps) {
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                void change(() => boardApi.proposeBonus(board.id, { capabilityId, bonusRuleId, evidenceIds })).then((done) => {
+                void change(() => boardApi.proposeBonus(board.id, { capabilityId, bonusRuleId, evidenceIds }), created.bonusProposal).then((done) => {
                   if (done) setEvidenceIds([]);
                 });
               }}
@@ -443,7 +446,7 @@ function Mentoring({ board, onChanged }: SectionProps) {
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                void change(() => boardApi.recordMentoring(board.id, { heldOn, notes, experimentIds })).then((done) => {
+                void change(() => boardApi.recordMentoring(board.id, { heldOn, notes, experimentIds }), created.mentoring).then((done) => {
                   if (done) {
                     setNotes('');
                     setExperimentIds([]);

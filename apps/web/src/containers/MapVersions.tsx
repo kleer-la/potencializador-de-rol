@@ -1,8 +1,9 @@
 import { canStartNewVersionFrom } from '@potencializador/domain';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { ApiError, type MapHeader, type OrganizationApi, type Role } from '../api/client.ts';
-import { mapErrors, messages, statusLabels } from '../copy.ts';
+import { created as createdText, mapErrors, messages, statusLabels } from '../copy.ts';
 import { MapEditor } from './MapEditor.tsx';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { api: OrganizationApi; role: Role; canDesign: boolean };
 
@@ -25,11 +26,12 @@ export function MapVersions({ api, role, canDesign }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when the role changes
   }, [api, role.id]);
 
-  const start = async (work: () => Promise<MapHeader>) => {
+  const start = async (work: () => Promise<MapHeader>, success: string = createdText.mapDraft) => {
     setError(null);
     try {
       const created = await work();
       setOpenId(created.id);
+      notifyCreated(success);
     } catch (failure) {
       setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
     }
@@ -46,7 +48,7 @@ export function MapVersions({ api, role, canDesign }: Props) {
       setError('El archivo no es un JSON válido.');
       return;
     }
-    await start(() => api.importMap(role.id, content));
+    await start(() => api.importMap(role.id, content), createdText.mapImport);
   };
 
   if (openId !== null) {

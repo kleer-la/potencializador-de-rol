@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Board } from '../api/client.ts';
 import { fakeBackend, json, type Routes } from '../test-support/fake-backend.ts';
+import { Toaster } from '../components/Toaster.tsx';
 import { BoardView } from './BoardsPage.tsx';
 import { localToday } from './Evidence.tsx';
 
@@ -142,7 +143,12 @@ afterEach(() => {
 async function open(who: Board['viewer'], routes: Routes = {}) {
   const calls = fakeBackend({ 'GET /api/boards/board-1': () => json(board(who)), ...routes });
   const user = userEvent.setup();
-  render(<BoardView boardId="board-1" onBack={() => {}} />);
+  render(
+    <>
+      <Toaster />
+      <BoardView boardId="board-1" onBack={() => {}} />
+    </>,
+  );
   await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
   const region = (name: string) => screen.getByRole('region', { name });
   return { calls, user, region };
@@ -214,6 +220,7 @@ describe('evidence', () => {
       link: 'https://example.test/roadmap',
       showsTransfer: true,
     });
+    expect(await screen.findByText('Evidencia registrada.')).toBeTruthy();
   });
 });
 
@@ -239,6 +246,7 @@ describe('level changes', () => {
       evidenceIds: ['evidence-1'],
     });
     expect(await within(changes).findByText('Ese nivel exige una evidencia de haber enseñado a otros.')).toBeTruthy();
+    expect(screen.queryByText('Propuesta de cambio de nivel enviada.')).toBeNull();
   });
 
   it('lets a panel member approve a proposal with a note', async () => {

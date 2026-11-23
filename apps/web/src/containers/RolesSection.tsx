@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, type OrganizationApi, type Role } from '../api/client.ts';
-import { mapErrors, messages } from '../copy.ts';
+import { created as createdText, mapErrors, messages } from '../copy.ts';
 import { MapVersions } from './MapVersions.tsx';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { api: OrganizationApi; canAdminister: boolean; canDesign: boolean };
 
@@ -30,6 +31,7 @@ export function RolesSection({ api, canAdminister, canDesign }: Props) {
       setRoles(await api.roles());
       setSelectedId(created.id);
       setName('');
+      notifyCreated(createdText.role);
     } catch (failure) {
       setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
     }

@@ -1,7 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { ApiError, type CatalogEntry, type CatalogKind, type OrganizationApi } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
-import { mapErrors, messages } from '../copy.ts';
+import { created, mapErrors, messages } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { api: OrganizationApi; kind: CatalogKind; title: string; canDesign: boolean };
 
@@ -65,6 +66,7 @@ export function CatalogSection({ api, kind, title, canDesign }: Props) {
       setItems(await api.catalog(kind));
       setDraft(emptyDraft);
       setEditingId(null);
+      if (editingId === null) notifyCreated(created.catalogEntry);
     } catch (failure) {
       setError((failure instanceof ApiError && mapErrors[failure.code]) || messages.requestFailed);
     }
