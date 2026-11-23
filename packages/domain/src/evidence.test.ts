@@ -13,6 +13,7 @@ import type { BoardAccess } from './program.ts';
 const board: BoardAccess = {
   ownerPersonId: 'ana',
   panel: [{ personId: 'eva', role: 'mentor' }],
+  programLeaders: ['marta'],
   hasBaseline: true,
 };
 const beforeBaseline: BoardAccess = { ...board, hasBaseline: false };
@@ -22,6 +23,7 @@ describe('who records, proposes and decides', () => {
     expect(canRecordEvidence('ana', board)).toBe(true);
     expect(canRecordEvidence('eva', board)).toBe(true);
     expect(canRecordEvidence('someone', board)).toBe(false);
+    expect(canRecordEvidence('marta', board)).toBe(false);
     expect(canRecordEvidence('ana', beforeBaseline)).toBe(false);
   });
 

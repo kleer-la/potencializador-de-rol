@@ -14,6 +14,7 @@ const board: BoardAccess = {
     { personId: 'luis', role: 'leader' },
     { personId: 'eva', role: 'mentor' },
   ],
+  programLeaders: ['luis'],
   hasBaseline: false,
 };
 const calibrated: BoardAccess = { ...board, hasBaseline: true };

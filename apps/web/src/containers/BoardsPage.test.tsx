@@ -89,7 +89,7 @@ describe('Mis tableros', () => {
   it('lists the boards the person owns and those they accompany', async () => {
     fakeBackend({
       'GET /api/boards': () =>
-        json({ mine: [summary], accompanied: [{ ...summary, id: 'board-2', ownerName: 'Luis Mora', panelRoles: ['mentor'] }] }),
+        json({ mine: [summary], accompanied: [{ ...summary, id: 'board-2', ownerName: 'Luis Mora', panelRoles: ['mentor'] }], program: [] }),
     });
 
     render(<BoardsPage />);
@@ -102,10 +102,33 @@ describe('Mis tableros', () => {
     expect(within(accompanied).getByText('Mentor')).toBeTruthy();
   });
 
+  it('lists the boards of the programs the person leads apart, only when there are some', async () => {
+    fakeBackend({
+      'GET /api/boards': () =>
+        json({ mine: [], accompanied: [], program: [{ ...summary, id: 'board-3', ownerName: 'Marta Ruiz', panelRoles: [] }] }),
+    });
+
+    render(<BoardsPage />);
+
+    const program = await screen.findByRole('region', { name: 'Tableros de mis programas' });
+    expect(within(program).getByText('Marta Ruiz')).toBeTruthy();
+    expect(within(program).getByRole('button', { name: 'Abrir el tablero de Marta Ruiz' })).toBeTruthy();
+    expect(screen.queryByText('Todavía no tienes tableros. Aparecen cuando te inscriben en un programa.')).toBeNull();
+  });
+
+  it('hides the program boards when the person leads no program', async () => {
+    fakeBackend({ 'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }) });
+
+    render(<BoardsPage />);
+
+    expect(await screen.findByRole('region', { name: 'Mis tableros' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Tableros de mis programas' })).toBeNull();
+  });
+
   it('recovers after a failed load when the person comes back', async () => {
     let fail = true;
     fakeBackend({
-      'GET /api/boards': () => (fail ? json({ error: 'unavailable' }, 503) : json({ mine: [summary], accompanied: [] })),
+      'GET /api/boards': () => (fail ? json({ error: 'unavailable' }, 503) : json({ mine: [summary], accompanied: [], program: [] })),
       'GET /api/boards/board-1': () => json(board(owner)),
     });
     const user = userEvent.setup();
@@ -120,7 +143,7 @@ describe('Mis tableros', () => {
   });
 
   it('says so when the person has no board yet', async () => {
-    fakeBackend({ 'GET /api/boards': () => json({ mine: [], accompanied: [] }) });
+    fakeBackend({ 'GET /api/boards': () => json({ mine: [], accompanied: [], program: [] }) });
 
     render(<BoardsPage />);
 
@@ -131,7 +154,7 @@ describe('Mis tableros', () => {
 describe('the board', () => {
   const open = async (viewer: Board['viewer'], extra: Routes = {}, selfAssessment: Board['selfAssessment'] = null) => {
     const calls = fakeBackend({
-      'GET /api/boards': () => json({ mine: [summary], accompanied: [] }),
+      'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }),
       'GET /api/boards/board-1': () => json({ ...board(viewer), selfAssessment }),
       ...extra,
     });

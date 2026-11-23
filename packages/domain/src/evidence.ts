@@ -1,13 +1,13 @@
 // Rules of evidence, level changes with evidence, bonuses and mentoring. Conceptual base:
 // sections 4.2, 5.1 (invariants 4 to 7 and 9), 6.2 step 5, 6.3, 9.1.
-import { canSeeBoardContent, isOnPanel, type BoardAccess } from './program.ts';
+import { isOnPanel, takesPartIn, type BoardAccess } from './program.ts';
 
 export const PROPOSAL_STATES = ['proposed', 'approved', 'rejected'] as const;
 export type ProposalState = (typeof PROPOSAL_STATES)[number];
 
 /** Owner and panel record the facts of the board, once it has a baseline. */
 export function canRecordEvidence(personId: string, board: BoardAccess): boolean {
-  return board.hasBaseline && canSeeBoardContent(personId, board);
+  return board.hasBaseline && takesPartIn(personId, board);
 }
 
 /** Invariant 5: the participant proposes level changes and bonuses... */

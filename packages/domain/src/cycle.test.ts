@@ -16,6 +16,7 @@ const board: BoardAccess = {
     { personId: 'luis', role: 'leader' },
     { personId: 'eva', role: 'mentor' },
   ],
+  programLeaders: ['marta'],
   hasBaseline: true,
 };
 const beforeBaseline: BoardAccess = { ...board, hasBaseline: false };
@@ -25,6 +26,7 @@ describe('who plans and who starts a cycle', () => {
     expect(canPlanCycle('ana', board)).toBe(true);
     expect(canPlanCycle('luis', board)).toBe(true);
     expect(canPlanCycle('someone', board)).toBe(false);
+    expect(canPlanCycle('marta', board)).toBe(false);
     expect(canPlanCycle('ana', beforeBaseline)).toBe(false);
   });
 

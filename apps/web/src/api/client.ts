@@ -244,6 +244,8 @@ export type BoardSummary = {
   status: BoardStatus;
   panelRoles: PanelRole[];
 };
+/** `program`: boards read only as leader of their program, never owned nor accompanied. */
+export type BoardLists = { mine: BoardSummary[]; accompanied: BoardSummary[]; program: BoardSummary[] };
 export type Board = {
   id: string;
   organizationId: string;
@@ -361,7 +363,7 @@ export type ProposedLevel = { capabilityId: string; levelId: string };
 export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel[] };
 
 export const boardApi = {
-  list: () => request<{ mine: BoardSummary[]; accompanied: BoardSummary[] }>('/boards'),
+  list: () => request<BoardLists>('/boards'),
   board: (boardId: string) => request<Board>(`/boards/${boardId}`),
   add: (boardId: string, capabilityId: string) =>
     request<unknown>(`/boards/${boardId}/capabilities`, 'POST', { capabilityId }),

@@ -5,6 +5,7 @@ import { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment
 const board: BoardAccess = {
   ownerPersonId: 'ana',
   panel: [{ personId: 'luis', role: 'leader' }],
+  programLeaders: ['luis', 'marta'],
   hasBaseline: false,
 };
 
@@ -23,6 +24,11 @@ describe('INV-9 who sees a self-assessment', () => {
     expect(canSeeSelfAssessment('luis', board, false)).toBe(false);
     expect(canSeeSelfAssessment('luis', board, true)).toBe(true);
     expect(canSeeSelfAssessment('someone', board, true)).toBe(false);
+  });
+
+  it('INV-9 a leader of the program off the panel, once submitted', () => {
+    expect(canSeeSelfAssessment('marta', board, false)).toBe(false);
+    expect(canSeeSelfAssessment('marta', board, true)).toBe(true);
   });
 });
 

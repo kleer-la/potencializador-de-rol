@@ -66,7 +66,7 @@ describe('evolution', () => {
 });
 
 describe('who closes and recalibrates', () => {
-  const board: BoardAccess = { ownerPersonId: 'ana', panel: [{ personId: 'eva', role: 'mentor' }], hasBaseline: true };
+  const board: BoardAccess = { ownerPersonId: 'ana', panel: [{ personId: 'eva', role: 'mentor' }], programLeaders: [], hasBaseline: true };
 
   it('a panel member closes the active cycle; never the owner', () => {
     expect(canCloseCycle('eva', board, 'active')).toBe(true);
