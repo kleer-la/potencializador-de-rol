@@ -288,6 +288,7 @@ export type Board = {
   baseline: Baseline | null;
   /** The cycle that is not closed, with its focuses and experiments; `null` if none. */
   cycle: Cycle | null;
+  pastCycles: Cycle[];
   evidence: Evidence[];
   proposals: LevelProposal[];
   bonuses: BonusAward[];

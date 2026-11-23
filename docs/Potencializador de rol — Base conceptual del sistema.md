@@ -241,7 +241,7 @@ El sistema sostiene un flujo de preparación que ocurre una vez y un ciclo de me
 3. **Selección de focos.** Participante y panel priorizan pocas capacidades para el ciclo.
 4. **Experimentos.** De cada foco sale al menos un experimento a ejecutar en el trabajo real.
 5. **Mentoría.** En cada sesión se revisan los experimentos, se registran hechos y aprendizajes. Si la evidencia muestra consolidación, se aprueba el cambio de nivel.
-6. **Cierre del ciclo.** Se toma una fotografía del tablero y se compara con la anterior.
+6. **Cierre del ciclo.** Se toma una fotografía del tablero y se compara con la anterior. El ciclo cerrado queda visible en el tablero, con sus focos y los experimentos que se ejecutaron.
 7. **Nuevo ciclo.** Se vuelve al paso 3. Una recalibración completa (paso 2) es opcional al iniciar un ciclo; produce una fotografía y no reemplaza la línea base. En cualquier punto del ciclo se pueden agregar al tablero capacidades nuevas a desarrollar.
 
 ### 6.3 Estados

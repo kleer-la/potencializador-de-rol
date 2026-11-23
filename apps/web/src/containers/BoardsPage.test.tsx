@@ -57,6 +57,7 @@ const board = (viewer: Board['viewer']): Board => ({
   score: null,
   evolution: [],
   recalibrations: [],
+  pastCycles: [],
 });
 
 const owner = {

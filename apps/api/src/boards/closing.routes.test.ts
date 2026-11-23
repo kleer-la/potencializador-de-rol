@@ -82,6 +82,7 @@ describe('score, evolution, closing and recalibration', () => {
     );
 
     const owned = await view(sessions.owner);
+    expect(owned.pastCycles).toEqual([]);
     expect(owned.score).toMatchObject({ total: 0, maximum: 2, capabilities: 2 });
     expect(owned.score.byDimension).toEqual([{ dimensionId: expect.any(String), total: 0, maximum: 2, capabilities: 2 }]);
     expect(owned.score.byDifficulty).toEqual([{ difficulty: null, total: 0, maximum: 2, capabilities: 2 }]);
@@ -117,7 +118,26 @@ describe('score, evolution, closing and recalibration', () => {
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).statusCode).toBe(200);
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).json()).toEqual({ error: 'cycle_not_active' });
 
-    expect((await view(sessions.owner)).status).toBe('between_cycles');
+    const closed = await view(sessions.owner);
+    expect(closed.status).toBe('between_cycles');
+    expect(closed.cycle).toBeNull();
+    expect(closed.pastCycles).toEqual([
+      expect.objectContaining({
+        id: cycleId,
+        number: 1,
+        startsOn: '2026-12-01',
+        endsOn: '2027-02-28',
+        state: 'closed',
+        focuses: [
+          {
+            id: focusId,
+            capabilityId: program.capabilityIds[0],
+            targetLevelId: program.levelIds[1],
+            experiments: [expect.objectContaining({ description: 'Probar', state: 'planned', result: null })],
+          },
+        ],
+      }),
+    ]);
     expect(await points()).toEqual([
       ['baseline', 0, null],
       ['cycle_close', 1, 1],

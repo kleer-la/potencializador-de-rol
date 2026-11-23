@@ -130,6 +130,7 @@ const board = (who: Board['viewer']): Board => ({
   score: null,
   evolution: [],
   recalibrations: [],
+  pastCycles: [],
 });
 
 afterEach(() => {
