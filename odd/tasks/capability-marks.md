@@ -23,6 +23,11 @@ S6. User request (2026-11-23): "quiero que la marca wip se ponga automáticament
 - When an experiment leaves `in_progress` and no other experiment on that capability is in progress in a cycle of the board that is not closed, `wip` comes off. User decision (2026-11-23), "Sí, si nada queda en curso": a planned experiment not started yet does not keep it; starting it puts it back.
 - Manual put/take off stays as in S3. Migration 0020 (trigger after the experiment state changes).
 
+S7. User request (2026-11-23): "Me parece que manualmente no debería poder ponerle wip a una capacidad"
+- `wip` is only automatic (S6): nobody puts it or takes it off by hand. `PUT`/`DELETE .../marks/wip` answer 409 `wip_automatic`. Assumption: taking it off by hand is refused too, so WIP is on exactly while an experiment on the capability is in progress.
+- The database keeps it: a `wip` row is inserted only while an experiment on the capability is in progress in an open cycle (and, as before, deleted only when none is). Migration 0022 aligns existing data on boards not closed: drops `wip` without an experiment in progress, adds it where one is in progress.
+- Web: WIP shows as a tag for everyone; only "★ Candidata" is a toggle. This supersedes the WIP toggle of S5.
+
 S4. API: `PUT /api/boards/:boardId/capabilities/:capabilityId/marks/:mark` puts a mark (idempotent, 204); `DELETE` on the same path takes it off (204, idempotent). 404 when the capability is not on the board, 400 for an unknown mark, 403 for someone who is not the owner or on the panel. The board returns `marks` with each placement and `viewer.canMark`.
 
 S5. Web: on the board table, each capability shows its marks as tags and, for those who can mark, toggle buttons "★ Candidata" and "WIP" (`aria-pressed`). The WIP toggle is disabled while it cannot be taken off, with the reason "Hay un experimento en curso para esta capacidad".
@@ -34,6 +39,8 @@ S5. Web: on the board table, each capability shows its marks as tags and, for th
 Route evidence: one behavior, about 300 changed lines; no writer reason.
 
 - [x] T2 — Migration 0020 (WIP follows experiments), tests, toggle hint. Specs: S6. Route: inline. Risk: item 1 (automatic writes to stored marks). Commit: `feat: put and take off WIP with the experiments of a capability`.
+
+- [x] T3 — WIP only automatic: route refusal, guard on insert, migration 0022 data alignment, web tag, tests. Specs: S7. Route: inline. Branch: `feat/close-cycle-reviewed` (stacked). Risk: item 1 (migration 0022 changes stored marks). Commit: `feat: make the WIP mark automatic only`.
 
 ## Log
 
@@ -52,3 +59,9 @@ L6 (2026-11-23, user request): "quiero que la marca wip se ponga automáticament
 L7 (2026-11-23, user decision on a planned experiment left): "Sí, si nada queda en curso" — WIP comes off when nothing on the capability is in progress; starting a planned one puts it back. S6 added.
 
 L8 (2026-11-23, T2 evidence): RED without migration 0020 (2 of 5 marks tests failed), GREEN with it; `npm test` 470 passed, typecheck clean. Independent verification PASS on S1–S6, no blockers. Advisory open for the user: closing a cycle with an experiment still in progress leaves WIP on (the cycle close does not move experiment states), removable by hand.
+
+L9 (2026-11-23, user request): "ahh ok, si funciona así. Me parece que manualmente no debería poder ponerle wip a una capacidad" — S7 added; S5 WIP toggle superseded.
+
+L10 (2026-11-23, T3 evidence): RED observed (domain 1, API 4 of 5 marks tests, web 1), then GREEN: `npm test` 472 passed in 49 files, `npm run typecheck` clean, web build ok. Route `PUT`/`DELETE .../marks/wip` answer 409 `wip_automatic`; insert guard refuses `wip` without an experiment in progress; the earlier route check for `wip_in_progress` and the domain `canTakeOffMark` are gone (WIP is never taken off by hand). Local data before 0022: one `wip` row, backed by an experiment in progress, so the alignment keeps it.
+
+L11 (2026-11-23, independent verification of T3): PASS on S1–S7, no blockers. Probes on a scratch database migrated to 0021, then 0022: missing WIP added once per capability, hand-put WIP without an experiment in progress dropped, closed boards untouched. Advisory fixed: the 0022 insert also skips closed boards.

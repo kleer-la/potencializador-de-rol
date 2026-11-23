@@ -138,12 +138,7 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
 
   const levelOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
   const marksOf = new Map(board.placements.map((placement) => [placement.capabilityId, placement.marks]));
-  // WIP stays while an experiment of the open cycle works on the capability.
-  const wipLocked = new Set(
-    (board.cycle?.focuses ?? [])
-      .filter((focus) => focus.experiments.some((experiment) => experiment.state === 'in_progress'))
-      .map((focus) => focus.capabilityId),
-  );
+
   // Before the baseline the board sets the agreed level beside the self-assessment; once the
   // baseline exists, it sets the current level beside the baseline (invariant 3).
   const baselineLevels = board.baseline
@@ -236,7 +231,6 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
                           statement={capability.statement}
                           marks={marksOf.get(capability.id) ?? []}
                           canMark={board.viewer.canMark}
-                          wipLocked={wipLocked.has(capability.id)}
                           onToggle={(mark, on) => change(() => boardApi.mark(board.id, capability.id, mark, on))}
                         />
                       </div>
@@ -323,37 +317,33 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
 }
 
 const MARKS = Object.keys(markLabels) as BoardMark[];
-const WIP_LOCKED = 'Hay un experimento en curso para esta capacidad';
+/** WIP follows the experiments of the capability; the other marks are put by hand. */
+const BY_HAND: readonly BoardMark[] = ['candidate'];
 
 /**
- * The marks of one capability of the board: toggles for the owner and their panel, tags for
- * anyone else who reads the board.
+ * The marks of one capability of the board: toggles for the marks put by hand, for the owner
+ * and their panel; tags for the rest and for anyone else who reads the board.
  */
 function CapabilityMarks(props: {
   statement: string;
   marks: BoardMark[];
   canMark: boolean;
-  wipLocked: boolean;
   onToggle: (mark: BoardMark, on: boolean) => void;
 }) {
-  const { statement, marks, canMark, wipLocked, onToggle } = props;
-  if (!canMark) {
-    if (marks.length === 0) return null;
-    return (
-      <span className="capability-marks">
-        {marks.map((mark) => (
-          <span key={mark} className={`tag mark ${mark}`} title={markHints[mark]}>
-            {markLabels[mark]}
-          </span>
-        ))}
-      </span>
-    );
-  }
+  const { statement, marks, canMark, onToggle } = props;
+  const shown = MARKS.filter((mark) => (canMark && BY_HAND.includes(mark)) || marks.includes(mark));
+  if (shown.length === 0) return null;
   return (
     <span className="capability-marks">
-      {MARKS.map((mark) => {
+      {shown.map((mark) => {
         const on = marks.includes(mark);
-        const locked = mark === 'wip' && on && wipLocked;
+        if (!canMark || !BY_HAND.includes(mark)) {
+          return (
+            <span key={mark} className={`tag mark ${mark}`} title={markHints[mark]}>
+              {markLabels[mark]}
+            </span>
+          );
+        }
         return (
           <button
             key={mark}
@@ -361,8 +351,7 @@ function CapabilityMarks(props: {
             className={`mark-toggle ${mark}${on ? ' on' : ''}`}
             aria-pressed={on}
             aria-label={`${markLabels[mark]} «${statement}»`}
-            title={locked ? WIP_LOCKED : markHints[mark]}
-            disabled={locked}
+            title={markHints[mark]}
             onClick={() => onToggle(mark, !on)}
           >
             {markLabels[mark]}

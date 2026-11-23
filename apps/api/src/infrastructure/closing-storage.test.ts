@@ -135,6 +135,11 @@ describe('closing, recalibration and snapshots storage', () => {
     await expectRefused(one(board.owner, 'select app_close_cycle($1)', [cycleId]), /only a panel member/);
     await expectRefused(one(administrator, 'select app_close_cycle($1)', [cycleId]), /only a panel member/);
 
+    // Every experiment is reviewed first; a planned one that never ran is discarded.
+    await expectRefused(one(board.leader, 'select app_close_cycle($1)', [cycleId]), /reviewed/);
+    await one(board.leader, "update experiments set state = 'reviewed', result = 'discarded' where focus_id in (select id from focuses where cycle_id = $1)", [
+      cycleId,
+    ]);
     await one(board.leader, 'select app_close_cycle($1)', [cycleId]);
 
     expect(await boardStatus()).toBe('between_cycles');

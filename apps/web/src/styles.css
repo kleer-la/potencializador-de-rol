@@ -620,8 +620,7 @@ fieldset {
   color: var(--action);
 }
 
-.tag.mark.wip,
-.mark-toggle.wip.on {
+.tag.mark.wip {
   border-color: var(--success);
   color: var(--success);
 }

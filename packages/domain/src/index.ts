@@ -48,6 +48,7 @@ export {
   EXPERIMENT_RESULTS,
   EXPERIMENT_STATES,
   canMoveExperiment,
+  closeBlockers,
   canPlanCycle,
   canReviewExperiment,
   canStartCycle,
@@ -73,4 +74,4 @@ export {
 } from './evidence.ts';
 export { canCloseBoard, canCloseCycle, canRecalibrate, computeScore, withChanges, type ScoreEntry } from './score.ts';
 export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';
-export { BOARD_MARKS, canMarkCapability, canTakeOffMark, type BoardMark } from './marks.ts';
+export { BOARD_MARKS, canMarkCapability, isMarkedByHand, type BoardMark } from './marks.ts';

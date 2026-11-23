@@ -7,6 +7,7 @@ import {
   isValidTarget,
   addsFocusAboveRecommended,
   startBlockers,
+  closeBlockers,
 } from './cycle.ts';
 import type { BoardAccess } from './program.ts';
 
@@ -88,5 +89,18 @@ describe('experiment states', () => {
     expect(canMoveExperiment('reviewed', 'in_progress', 'active')).toBe(false);
     expect(canMoveExperiment('reviewed', 'reviewed', 'active', 'discarded')).toBe(false);
     expect(canMoveExperiment('in_progress', 'reviewed', 'closed', 'consolidated')).toBe(false);
+  });
+});
+
+describe('closing a cycle', () => {
+  it('waits for every experiment to be reviewed, naming the others in order', () => {
+    expect(
+      closeBlockers([
+        { id: 'e1', state: 'reviewed' },
+        { id: 'e2', state: 'in_progress' },
+        { id: 'e3', state: 'planned' },
+      ]),
+    ).toEqual(['e2', 'e3']);
+    expect(closeBlockers([{ id: 'e1', state: 'reviewed' }])).toEqual([]);
   });
 });
