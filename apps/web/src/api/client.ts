@@ -331,6 +331,7 @@ export type ExperimentResult = 'consolidated' | 'not_consolidated' | 'discarded'
 export type Experiment = {
   id: string;
   description: string;
+  hypothesis: string;
   expectedResult: string;
   state: ExperimentState;
   result: ExperimentResult | null;
@@ -338,6 +339,8 @@ export type Experiment = {
   learnings: string;
   reviewedAt: string | null;
 };
+/** What owner and panel write about an experiment, when adding it and while it can change. */
+export type ExperimentText = { description: string; hypothesis: string; expectedResult: string };
 export type Focus = { id: string; capabilityId: string; targetLevelId: string; experiments: Experiment[] };
 export type Cycle = {
   id: string;
@@ -399,12 +402,12 @@ export const boardApi = {
     request<void>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}`, 'DELETE'),
   changeFocusTarget: (boardId: string, cycleId: string, focusId: string, targetLevelId: string) =>
     request<{ targetLevelId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}`, 'PATCH', { targetLevelId }),
-  addExperiment: (boardId: string, cycleId: string, focusId: string, experiment: { description: string; expectedResult: string }) =>
+  addExperiment: (boardId: string, cycleId: string, focusId: string, experiment: ExperimentText) =>
     request<{ experimentId: string }>(`/boards/${boardId}/cycles/${cycleId}/focuses/${focusId}/experiments`, 'POST', experiment),
   startCycle: (boardId: string, cycleId: string) =>
     request<{ startedAt: string }>(`/boards/${boardId}/cycles/${cycleId}/start`, 'POST'),
-  editExperiment: (boardId: string, experimentId: string, experiment: { description: string; expectedResult: string }) =>
-    request<{ description: string; expectedResult: string }>(`/boards/${boardId}/experiments/${experimentId}`, 'PUT', experiment),
+  editExperiment: (boardId: string, experimentId: string, experiment: ExperimentText) =>
+    request<ExperimentText>(`/boards/${boardId}/experiments/${experimentId}`, 'PUT', experiment),
   moveExperiment: (boardId: string, experimentId: string, move: ExperimentMove) =>
     request<unknown>(`/boards/${boardId}/experiments/${experimentId}`, 'PATCH', move),
   recordEvidence: (boardId: string, fact: NewEvidence) =>

@@ -1,5 +1,14 @@
 import { useId, useState } from 'react';
-import { ApiError, boardApi, type Board, type Cycle, type Experiment, type ExperimentResult, type Focus } from '../api/client.ts';
+import {
+  ApiError,
+  boardApi,
+  type Board,
+  type Cycle,
+  type Experiment,
+  type ExperimentResult,
+  type ExperimentText,
+  type Focus,
+} from '../api/client.ts';
 import { addsFocusAboveRecommended } from '@potencializador/domain';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { cycleErrors, cycleStateLabels, experimentResultLabels, experimentStateLabels, messages } from '../copy.ts';
@@ -264,6 +273,7 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
   const statement = board.capabilities.find((capability) => capability.id === focus.capabilityId)?.statement ?? focus.capabilityId;
   const currentLevelId = board.placements.find((placement) => placement.capabilityId === focus.capabilityId)?.levelId ?? null;
   const [description, setDescription] = useState('');
+  const [hypothesis, setHypothesis] = useState('');
   const [expectedResult, setExpectedResult] = useState('');
   const canPlan = board.viewer.canPlanCycle;
 
@@ -303,12 +313,17 @@ function FocusCard(props: { board: Board; cycle: Cycle; focus: Focus; change: Ch
           onSubmit={(event) => {
             event.preventDefault();
             void change(async () => {
-              await boardApi.addExperiment(board.id, cycle.id, focus.id, { description, expectedResult });
+              await boardApi.addExperiment(board.id, cycle.id, focus.id, { description, hypothesis, expectedResult });
               setDescription('');
+              setHypothesis('');
               setExpectedResult('');
             });
           }}
         >
+          <label>
+            Hipótesis
+            <textarea maxLength={2000} value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} />
+          </label>
           <label>
             Experimento
             <input required maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} />
@@ -403,6 +418,7 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
           {experiment.result !== null && `: ${experimentResultLabels[experiment.result]}`}
         </span>
       </div>
+      {experiment.hypothesis !== '' && <div className="muted">Hipótesis: {experiment.hypothesis}</div>}
       {experiment.expectedResult !== '' && <div className="muted">Resultado esperado: {experiment.expectedResult}</div>}
       {experiment.observedResult !== '' && <div className="notes">Resultado: {experiment.observedResult}</div>}
       {experiment.learnings !== '' && <div className="notes">Aprendizajes: {experiment.learnings}</div>}
@@ -475,10 +491,11 @@ function ExperimentItem(props: { board: Board; cycle: Cycle; experiment: Experim
 function ExperimentEdit(props: {
   experiment: Experiment;
   onCancel: () => void;
-  onSave: (text: { description: string; expectedResult: string }) => Promise<void>;
+  onSave: (text: ExperimentText) => Promise<void>;
 }) {
   const { experiment, onCancel, onSave } = props;
   const [description, setDescription] = useState(experiment.description);
+  const [hypothesis, setHypothesis] = useState(experiment.hypothesis);
   const [expectedResult, setExpectedResult] = useState(experiment.expectedResult);
 
   return (
@@ -486,9 +503,13 @@ function ExperimentEdit(props: {
       className="stack"
       onSubmit={(event) => {
         event.preventDefault();
-        void onSave({ description, expectedResult });
+        void onSave({ description, hypothesis, expectedResult });
       }}
     >
+      <label>
+        Hipótesis
+        <textarea maxLength={2000} value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} />
+      </label>
       <label>
         Experimento
         <input required maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} />

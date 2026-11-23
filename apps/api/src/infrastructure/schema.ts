@@ -268,6 +268,7 @@ export const experiments = pgTable('experiments', {
   organizationId: uuid('organization_id').notNull(),
   focusId: uuid('focus_id').notNull(),
   description: text('description').notNull(),
+  hypothesis: text('hypothesis').notNull().default(''),
   expectedResult: text('expected_result').notNull().default(''),
   state: text('state', { enum: ['planned', 'in_progress', 'reviewed'] }).notNull().default('planned'),
   result: text('result', { enum: ['consolidated', 'not_consolidated', 'discarded'] }),
