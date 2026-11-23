@@ -94,6 +94,7 @@ const active: Cycle = {
         {
           id: 'experiment-1',
           description: 'Entrevistar a tres usuarios',
+          hypothesis: 'Si escucho a usuarios reales, el mapa cambia',
           expectedResult: 'Un mapa de usuarios validado',
           state: 'in_progress',
           result: null,
@@ -104,6 +105,7 @@ const active: Cycle = {
         {
           id: 'experiment-2',
           description: 'Revisar métricas de uso',
+          hypothesis: '',
           expectedResult: '',
           state: 'planned',
           result: null,
@@ -167,11 +169,15 @@ describe('cycle', () => {
       targetLevelId: 'level-1',
     });
 
+    const fields = within(focus).getAllByRole('textbox').map((field) => field.closest('label')?.firstChild?.textContent);
+    expect(fields).toEqual(['Hipótesis', 'Experimento', 'Resultado esperado']);
     await user.type(within(focus).getByLabelText('Experimento'), 'Entrevistar a tres usuarios');
+    await user.type(within(focus).getByLabelText('Hipótesis'), 'Si escucho a usuarios reales, el mapa cambia');
     await user.type(within(focus).getByLabelText('Resultado esperado'), 'Un mapa de usuarios validado');
     await user.click(within(focus).getByRole('button', { name: 'Agregar experimento' }));
     expect(calls.find((call) => call.route.endsWith('/experiments'))?.body).toEqual({
       description: 'Entrevistar a tres usuarios',
+      hypothesis: 'Si escucho a usuarios reales, el mapa cambia',
       expectedResult: 'Un mapa de usuarios validado',
     });
     expect(within(section()).queryByRole('button', { name: 'Iniciar ciclo' })).toBeNull();
@@ -283,13 +289,28 @@ describe('cycle', () => {
     await user.click(within(experiment).getByRole('button', { name: 'Editar «Entrevistar a tres usuarios»' }));
     const description = within(experiment).getByLabelText('Experimento');
     expect((within(experiment).getByLabelText('Resultado esperado') as HTMLInputElement).value).toBe('Un mapa de usuarios validado');
+    const editFields = within(experiment).getAllByRole('textbox').map((field) => field.closest('label')?.firstChild?.textContent);
+    expect(editFields).toEqual(['Hipótesis', 'Experimento', 'Resultado esperado']);
+    const hypothesis = within(experiment).getByLabelText('Hipótesis') as HTMLTextAreaElement;
+    expect(hypothesis.value).toBe('Si escucho a usuarios reales, el mapa cambia');
     await user.clear(description);
     await user.type(description, 'Entrevistar a cinco usuarios');
+    await user.clear(hypothesis);
+    await user.type(hypothesis, 'Cinco voces muestran el patrón');
     await user.click(within(experiment).getByRole('button', { name: 'Guardar' }));
     expect(calls.find((call) => call.route.startsWith('PUT'))?.body).toEqual({
       description: 'Entrevistar a cinco usuarios',
+      hypothesis: 'Cinco voces muestran el patrón',
       expectedResult: 'Un mapa de usuarios validado',
     });
+  });
+
+  it('shows the hypothesis of an experiment only when it has one', async () => {
+    const { section } = await open(board(active));
+    const withHypothesis = within(section()).getByRole('listitem', { name: 'Entrevistar a tres usuarios' });
+    expect(within(withHypothesis).getByText('Hipótesis: Si escucho a usuarios reales, el mapa cambia')).toBeTruthy();
+    const without = within(section()).getByRole('listitem', { name: 'Revisar métricas de uso' });
+    expect(within(without).queryByText(/Hipótesis:/)).toBeNull();
   });
 
   it('cancels an experiment edit without saving', async () => {
@@ -349,6 +370,7 @@ describe('cycle', () => {
             {
               id: 'experiment-0',
               description: 'Entrevistar a tres usuarios',
+              hypothesis: '',
               expectedResult: 'Un mapa de usuarios validado',
               state: 'reviewed',
               result: 'consolidated',

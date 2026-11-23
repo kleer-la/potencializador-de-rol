@@ -79,6 +79,7 @@ const board = (who: Board['viewer']): Board => ({
           {
             id: 'experiment-1',
             description: 'Entrevistar a tres usuarios',
+            hypothesis: '',
             expectedResult: '',
             state: 'in_progress',
             result: null,

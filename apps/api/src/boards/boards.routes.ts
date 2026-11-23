@@ -111,6 +111,7 @@ const focusInput = z.object({ capabilityId: id, targetLevelId: id });
 const focusTargetInput = z.object({ targetLevelId: id });
 const experimentInput = z.object({
   description: z.string().trim().min(1).max(2000),
+  hypothesis: z.string().trim().max(2000).default(''),
   expectedResult: z.string().trim().max(2000).default(''),
 });
 const experimentMove = z.discriminatedUnion('state', [
@@ -281,6 +282,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
               id: experiments.id,
               focusId: experiments.focusId,
               description: experiments.description,
+              hypothesis: experiments.hypothesis,
               expectedResult: experiments.expectedResult,
               state: experiments.state,
               result: experiments.result,

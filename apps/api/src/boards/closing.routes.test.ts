@@ -141,7 +141,7 @@ describe('score, evolution, closing and recalibration', () => {
             id: focusId,
             capabilityId: program.capabilityIds[0],
             targetLevelId: program.levelIds[1],
-            experiments: [expect.objectContaining({ description: 'Probar', state: 'planned', result: null })],
+            experiments: [expect.objectContaining({ description: 'Probar', hypothesis: '', state: 'planned', result: null })],
           },
         ],
       }),

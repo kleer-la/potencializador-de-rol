@@ -36,6 +36,7 @@ describe('cycles, focuses and experiments', () => {
   const experiment = (session: string, focusId: string) =>
     call(session, 'POST', `/cycles/${cycleId}/focuses/${focusId}/experiments`, {
       description: 'Facilitar la revisión del sprint con datos de uso',
+      hypothesis: 'Si el equipo ve los datos de uso, prioriza con menos discusión',
       expectedResult: 'El equipo decide qué sigue con evidencia',
     });
 
@@ -192,6 +193,7 @@ describe('cycles, focuses and experiments', () => {
     expect(first).toEqual({
       id: experiments[0],
       description: 'Facilitar la revisión del sprint con datos de uso',
+      hypothesis: 'Si el equipo ve los datos de uso, prioriza con menos discusión',
       expectedResult: 'El equipo decide qué sigue con evidencia',
       state: 'reviewed',
       result: 'consolidated',
@@ -203,7 +205,11 @@ describe('cycles, focuses and experiments', () => {
 
   it('lets owner and panel edit an experiment until it is reviewed', async () => {
     const edit = (session: string, experimentId: string, body: unknown) => call(session, 'PUT', `/experiments/${experimentId}`, body);
-    const text = { description: 'Leer las métricas de uso con el equipo', expectedResult: 'Dos decisiones apoyadas en datos' };
+    const text = {
+      description: 'Leer las métricas de uso con el equipo',
+      hypothesis: 'Con métricas a la vista el equipo decide más rápido',
+      expectedResult: 'Dos decisiones apoyadas en datos',
+    };
     expect((await edit(sessions.owner, experiments[1]!, text)).statusCode).toBe(200);
     expect((await edit(sessions.leader, experiments[1]!, { ...text, expectedResult: '' })).statusCode).toBe(200);
     expect((await edit(sessions.owner, experiments[1]!, { description: '  ' })).json()).toEqual({ error: 'invalid_request' });
@@ -212,7 +218,16 @@ describe('cycles, focuses and experiments', () => {
     expect((await edit(sessions.owner, cycleId, text)).statusCode).toBe(404);
 
     const [, second] = (await view(sessions.owner)).cycle.focuses;
-    expect(second.experiments[0]).toMatchObject({ id: experiments[1], description: text.description, expectedResult: '', state: 'planned' });
+    expect(second.experiments[0]).toMatchObject({
+      id: experiments[1],
+      description: text.description,
+      hypothesis: text.hypothesis,
+      expectedResult: '',
+      state: 'planned',
+    });
+    expect((await edit(sessions.owner, experiments[1]!, { ...text, hypothesis: 'x'.repeat(2001) })).json()).toEqual({
+      error: 'invalid_request',
+    });
   });
 
   it('INV-9 keeps cycles away from anyone off the board', async () => {
