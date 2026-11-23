@@ -512,8 +512,12 @@ fieldset {
   margin: 0;
 }
 
+/* The board scrolls inside its own viewport-tall frame so the level headings stay frozen
+   like a spreadsheet's top row (a horizontal-scroll ancestor would otherwise defeat sticky). */
 .board-scroll {
   padding: 0;
+  overflow: auto;
+  max-height: calc(100dvh - var(--space-5));
 }
 
 .kanban {
@@ -521,6 +525,10 @@ fieldset {
 }
 
 .kanban th[scope='col'] {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 var(--line);
   text-align: center;
   font: 700 13px/18px var(--font-sans);
   color: var(--ink);
