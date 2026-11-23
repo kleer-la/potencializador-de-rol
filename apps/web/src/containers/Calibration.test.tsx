@@ -86,6 +86,7 @@ const calibrated: Board = {
       { personId: 'ana', name: 'Ana Gómez' },
       { personId: 'luis', name: 'Luis Mora' },
     ],
+    missingPanelRoles: [],
     levels: [
       { capabilityId: 'capability-1', selfAssessedLevelId: 'level-2', agreedLevelId: 'level-1' },
       { capabilityId: 'capability-2', selfAssessedLevelId: null, agreedLevelId: 'level-0' },
@@ -177,6 +178,47 @@ describe('calibration', () => {
     expect(within(alert).getByText('Alguien con el rol Mentor')).toBeTruthy();
   });
 
+  it('offers to fix the baseline without a mandatory role, after confirming, when only panel roles are missing', async () => {
+    const { user, calls } = await open(base, {
+      'POST /api/boards/board-1/calibration': (body) =>
+        (body as { allowMissingRoles?: boolean }).allowMissingRoles === true
+          ? json({ calibrationId: 'calibration-1' }, 201)
+          : json({ error: 'attendance', participantMissing: false, missingRoles: ['mentor'] }, 422),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Fijar línea base' }));
+    await user.click(within(form).getByRole('button', { name: 'Confirmar' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(/Faltan roles obligatorios del panel/)).toBeTruthy();
+    expect(within(alert).getByText('Alguien con el rol Mentor')).toBeTruthy();
+    await user.click(within(alert).getByRole('button', { name: 'Fijar sin el panel completo' }));
+    await user.click(within(alert).getByRole('button', { name: 'Confirmar' }));
+
+    await vi.waitFor(() =>
+      expect(calls.filter((call) => call.route === 'POST /api/boards/board-1/calibration').map((call) => call.body)).toEqual([
+        expect.not.objectContaining({ allowMissingRoles: true }),
+        expect.objectContaining({ allowMissingRoles: true }),
+      ]),
+    );
+    await vi.waitFor(() => expect(calls.filter((call) => call.route === 'GET /api/boards/board-1')).toHaveLength(2));
+  });
+
+  it('does not offer to fix the baseline without the participant', async () => {
+    const { user } = await open(base, {
+      'POST /api/boards/board-1/calibration': () =>
+        json({ error: 'attendance', participantMissing: true, missingRoles: ['mentor'] }, 422),
+    });
+
+    const form = screen.getByRole('region', { name: 'Calibración' });
+    await user.click(within(form).getByRole('button', { name: 'Fijar línea base' }));
+    await user.click(within(form).getByRole('button', { name: 'Confirmar' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).queryByRole('button', { name: 'Fijar sin el panel completo' })).toBeNull();
+  });
+
   it('names the capabilities without an agreed level', async () => {
     const { user } = await open(base, {
       'POST /api/boards/board-1/calibration': () => json({ error: 'incomplete', missing: ['capability-2'] }, 422),
@@ -221,6 +263,13 @@ describe('baseline', () => {
     expect(within(note).getByText(/Mantiene un backlog ordenado: 2 · Practicante \(nivelación inicial del 21 de noviembre de 2026\)/)).toBeTruthy();
     expect(screen.queryByRole('table', { name: 'Línea base y estado actual' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Línea base vs estado actual' })).toBeNull();
+  });
+
+  it('notes the mandatory roles that did not attend the calibration', async () => {
+    await open({ ...movedOn, calibration: { ...movedOn.calibration!, missingPanelRoles: ['mentor', 'specialist'] } });
+
+    const note = screen.getByRole('group', { name: 'Contexto de la línea base' });
+    expect(within(note).getByText(/Roles obligatorios ausentes: Mentor, Especialista/)).toBeTruthy();
   });
 
   it('leaves out the notes and the later additions when there are none', async () => {

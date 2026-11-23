@@ -1,6 +1,7 @@
 import {
   canAdjustSelection,
   bonusProblems,
+  baselineAttendanceMet,
   canCalibrate,
   canCloseBoard,
   canCloseCycle,
@@ -88,6 +89,8 @@ const calibrationInput = z.object({
   notes: z.string().max(5000).default(''),
   attendees: z.array(id).max(50),
   levels: levelsInput,
+  // Amendment of invariant 3: fix the baseline although a mandatory panel role is missing.
+  allowMissingRoles: z.boolean().default(false),
 });
 const initialLevelInput = z.object({ capabilityId: id, levelId: id });
 const cycleParams = z.object({ boardId: id, cycleId: id });
@@ -236,7 +239,13 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       })
       .from(calibrationLevels)
       .where(eq(calibrationLevels.calibrationSessionId, session.id));
-    return { heldOn: session.heldOn, notes: session.notes, attendees, levels: byMapOrder(levelRows) };
+    return {
+      heldOn: session.heldOn,
+      notes: session.notes,
+      attendees,
+      missingPanelRoles: session.missingPanelRoles,
+      levels: byMapOrder(levelRows),
+    };
   };
 
   /** The board's cycle that is not closed, with focuses (map order) and experiments (oldest first). */
@@ -841,7 +850,7 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           .from(programs)
           .where(eq(programs.id, row.programId));
         const absent = missingAttendance(attendees, access, program!.mandatoryPanelRoles);
-        if (absent.participant || absent.roles.length > 0) {
+        if (!baselineAttendanceMet(absent, body.data.allowMissingRoles)) {
           throw new Refusal(422, { error: 'attendance', participantMissing: absent.participant, missingRoles: absent.roles });
         }
         const missing = missingFromCalibration(await capabilitiesOnBoard(tx, row.id), agreed);
@@ -850,7 +859,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
           // Ids are validated UUIDs, so the array literal holds nothing but them.
           const recorded = await tx.execute<{ id: string }>(
             sql`select app_calibrate_board(${row.id}::uuid, ${body.data.heldOn}::date, ${body.data.notes},
-                  ${`{${attendees.join(',')}}`}::uuid[], ${JSON.stringify(agreed)}::jsonb) as id`,
+                  ${`{${attendees.join(',')}}`}::uuid[], ${JSON.stringify(agreed)}::jsonb,
+                  ${body.data.allowMissingRoles}::boolean) as id`,
           );
           return { status: 201, body: { calibrationId: recorded.rows[0]!.id } };
         } catch (error) {

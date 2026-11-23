@@ -293,4 +293,37 @@ describe('calibration storage', () => {
     );
     expect(results.map((result) => result.rows[0].n)).toEqual([0, 0, 0]);
   });
+
+  it('INV-3 fixes the baseline without a mandatory role only when asked, recording the missing roles', async () => {
+    const recorded = await ownerPool.query('select missing_panel_roles from calibration_sessions where board_id = $1', [board.boardId]);
+    expect(recorded.rows[0].missing_panel_roles).toEqual([]);
+
+    // A second board whose panel has a leader and no mentor, already self-assessed.
+    const second = await seedBoard(ownerPool, program, (organizationId) => seed.person(organizationId));
+    const [assessment] = await as(second.owner, [
+      ['insert into self_assessments (organization_id, board_id) values ($1, $2) returning id', [program.organizationId, second.boardId]],
+    ]);
+    await as(second.owner, [
+      [
+        'insert into self_assessment_levels (organization_id, self_assessment_id, capability_id, level_id) values ($1, $2, $3, $4), ($1, $2, $5, $6)',
+        [program.organizationId, assessment!.rows[0].id, program.capabilityIds[0], program.levelIds[0], program.capabilityIds[1], program.levelIds[0]],
+      ],
+      ['select app_submit_self_assessment($1)', [second.boardId]],
+    ]);
+    const allowing = (attendees: string[]) =>
+      one(second.leader, "select app_calibrate_board($1, date '2026-11-21', '', $2::uuid[], $3::jsonb, true) as id", [
+        second.boardId,
+        attendees,
+        levels([[0, 0], [1, 0]]),
+      ]);
+
+    await expectRefused(calibrate(second.leader, [second.owner, second.leader], levels([[0, 0], [1, 0]]), second.boardId), /invariant 3: .*mentor/);
+    await expectRefused(allowing([second.leader]), /invariant 3: .*participant/);
+    expect(await boardState(second.boardId)).toEqual({ status: 'self_assessed', has_baseline: false });
+
+    await allowing([second.owner, second.leader]);
+    expect(await boardState(second.boardId)).toEqual({ status: 'calibrated', has_baseline: true });
+    const missing = await ownerPool.query('select missing_panel_roles from calibration_sessions where board_id = $1', [second.boardId]);
+    expect(missing.rows[0].missing_panel_roles).toEqual(['mentor']);
+  });
 });

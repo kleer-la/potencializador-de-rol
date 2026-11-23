@@ -3,7 +3,8 @@ import { ApiError, boardApi, type Board, type ProposedLevel } from '../api/clien
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { calibrationErrors, enrollmentRoleLabels, messages } from '../copy.ts';
 
-type Failure = { text: string; items: string[] };
+/** `canSkipRoles`: only mandatory panel roles are missing, so the panel may fix the baseline anyway. */
+type Failure = { text: string; items: string[]; canSkipRoles?: boolean };
 
 const today = () => {
   const now = new Date();
@@ -28,8 +29,9 @@ const onBoard = (board: Board) => {
 
 /**
  * The calibration: the panel and the participant agree, with real cases, one level per
- * capability. Fixing the baseline needs the participant and the program's mandatory panel
- * roles among the attendees (invariant 3).
+ * capability. Fixing the baseline needs the participant among the attendees; without a
+ * mandatory panel role it needs an explicit confirmation, and the role is recorded as
+ * missing (invariant 3 as amended).
  */
 export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () => Promise<void> }) {
   const headingId = useId();
@@ -52,20 +54,24 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
       attendees.includes(personId) ? attendees.filter((candidate) => candidate !== personId) : [...attendees, personId],
     );
 
-  const record = async () => {
+  const record = async (allowMissingRoles = false) => {
     setFailure(null);
     const levels: ProposedLevel[] = capabilities.flatMap((capability) => {
       const levelId = agreed.get(capability.id);
       return levelId === undefined ? [] : [{ capabilityId: capability.id, levelId }];
     });
     try {
-      await boardApi.calibrate(board.id, { heldOn, notes, attendees, levels });
+      await boardApi.calibrate(board.id, { heldOn, notes, attendees, levels, ...(allowMissingRoles ? { allowMissingRoles } : {}) });
       await onDone();
     } catch (error) {
       if (error instanceof ApiError && error.code === 'attendance') {
         const missingRoles = (error.details.missingRoles as Board['program']['mandatoryPanelRoles']) ?? [];
+        const onlyRoles = !error.details.participantMissing && missingRoles.length > 0;
         setFailure({
-          text: 'Para fijar la línea base deben asistir:',
+          text: onlyRoles
+            ? 'Faltan roles obligatorios del panel. Pueden fijar la línea base igual; quedará registrado qué roles faltaron.'
+            : 'Para fijar la línea base deben asistir:',
+          canSkipRoles: onlyRoles,
           items: [
             ...(error.details.participantMissing ? [`${board.owner.name} (${enrollmentRoleLabels.participant})`] : []),
             ...missingRoles.map((role) => `Alguien con el rol ${enrollmentRoleLabels[role]}`),
@@ -98,6 +104,14 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          )}
+          {failure.canSkipRoles && (
+            <ConfirmAction
+              label="Fijar sin el panel completo"
+              prompt="¿Fijar la línea base sin todos los roles obligatorios? Después no se podrá cambiar y quedará registrado qué roles faltaron."
+              confirmLabel="Confirmar"
+              onConfirm={() => record(true)}
+            />
           )}
         </div>
       )}
@@ -168,7 +182,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
           prompt="¿Fijar la línea base? Después no se podrá cambiar; las capacidades que se agreguen luego se nivelan una por una."
           confirmLabel="Confirmar"
           variant="primary"
-          onConfirm={record}
+          onConfirm={() => record()}
         />
       </div>
     </section>
@@ -177,7 +191,7 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
 
 /**
  * A short note under the board legend: when the baseline was fixed, who attended the
- * calibration, its notes and the capabilities that joined the baseline later (invariant 3).
+ * calibration, the mandatory roles that did not, its notes and the capabilities that joined the baseline later (invariant 3).
  * The board itself sets the baseline beside the current level.
  */
 export function BaselineNote({ board }: { board: Board }) {
@@ -194,6 +208,9 @@ export function BaselineNote({ board }: { board: Board }) {
               .map((person) => person.name)
               .join(', ')}`
           : `Línea base fijada el ${longDate(baseline.setAt)}`}
+        {calibration !== null &&
+          calibration.missingPanelRoles.length > 0 &&
+          ` · Roles obligatorios ausentes: ${calibration.missingPanelRoles.map((role) => enrollmentRoleLabels[role]).join(', ')}`}
       </p>
       {calibration !== null && calibration.notes !== '' && (
         <details>

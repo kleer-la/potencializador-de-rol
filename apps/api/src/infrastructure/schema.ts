@@ -199,6 +199,8 @@ export const calibrationSessions = pgTable('calibration_sessions', {
   boardId: uuid('board_id').notNull(),
   heldOn: date('held_on', { mode: 'string' }).notNull(),
   notes: text('notes').notNull(),
+  // Mandatory roles nobody attended for (amendment of invariant 3, migration 0013).
+  missingPanelRoles: text('missing_panel_roles', { enum: ['leader', 'specialist', 'mentor'] }).array().notNull(),
   recordedBy: uuid('recorded_by').notNull(),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
 });

@@ -352,13 +352,22 @@ export type Calibration = {
   heldOn: string;
   notes: string;
   attendees: { personId: string; name: string }[];
+  /** Mandatory panel roles nobody attended for (amendment of invariant 3). */
+  missingPanelRoles: PanelRole[];
   levels: { capabilityId: string; selfAssessedLevelId: string | null; agreedLevelId: string }[];
 };
 export type Baseline = {
   setAt: string;
   entries: { capabilityId: string; levelId: string; origin: 'calibration' | 'initial_leveling'; setAt: string }[];
 };
-export type CalibrationRecord = { heldOn: string; notes: string; attendees: string[]; levels: ProposedLevel[] };
+export type CalibrationRecord = {
+  heldOn: string;
+  notes: string;
+  attendees: string[];
+  levels: ProposedLevel[];
+  /** Fix the baseline although a mandatory panel role did not attend. */
+  allowMissingRoles?: boolean;
+};
 export type ProposedLevel = { capabilityId: string; levelId: string };
 export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel[] };
 
