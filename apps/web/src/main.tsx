@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
+import { Toaster } from './components/Toaster.tsx';
 import './design-system/fonts.ts';
 import './design-system/tokens.css';
 import './design-system/components.css';
@@ -12,5 +13,6 @@ followSystemTheme(document.documentElement, window.matchMedia('(prefers-color-sc
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <Toaster />
   </StrictMode>,
 );

@@ -12,7 +12,8 @@ import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { DimensionForm } from '../components/DimensionForm.tsx';
 import { DimensionSection } from '../components/DimensionSection.tsx';
 import { ScaleEditor } from '../components/ScaleEditor.tsx';
-import { confirmations, frozenNotices, mapErrors, messages, obstacleText, statusLabels } from '../copy.ts';
+import { confirmations, created, frozenNotices, mapErrors, messages, obstacleText, statusLabels } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = {
   api: OrganizationApi;
@@ -174,7 +175,10 @@ export function MapEditor({ api, mapId, canDesign, onBack }: Props) {
           objectives={objectives}
           actions={{
             ...(allows('add_capability') && {
-              addCapability: (capability) => run(() => api.addCapability(map.id, dimension.id, capability)),
+              addCapability: async (capability) => {
+                await run(() => api.addCapability(map.id, dimension.id, capability));
+                notifyCreated(created.capability);
+              },
             }),
             ...(allows('change_dimension') && {
               changeDimension: (change) => run(() => api.changeDimension(map.id, dimension.id, change)),
@@ -195,7 +199,11 @@ export function MapEditor({ api, mapId, canDesign, onBack }: Props) {
       {allows('add_dimension') && (
         <section className="panel">
           <h4>Nueva dimensión</h4>
-          <DimensionForm submitLabel="Agregar dimensión" onSubmit={(dimension) => run(() => api.addDimension(map.id, dimension))} />
+          <DimensionForm submitLabel="Agregar dimensión" onSubmit={async (dimension) => {
+              await run(() => api.addDimension(map.id, dimension));
+              notifyCreated(created.dimension);
+            }}
+          />
         </section>
       )}
     </div>

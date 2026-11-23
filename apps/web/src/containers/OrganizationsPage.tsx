@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { api, type CurrentPerson, type Organization } from '../api/client.ts';
 import { CreateOrganizationForm } from '../components/CreateOrganizationForm.tsx';
 import { OrganizationList } from '../components/OrganizationList.tsx';
-import { messages } from '../copy.ts';
+import { created as createdText, messages } from '../copy.ts';
 import { OrganizationWorkspace } from './OrganizationWorkspace.tsx';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { me: CurrentPerson };
 
@@ -35,6 +36,7 @@ export function OrganizationsPage({ me }: Props) {
       const created = await api.createOrganization(name);
       setOrganizations(await api.organizations());
       setSelectedId(created.id);
+      notifyCreated(createdText.organization);
     } catch (error) {
       setCreateError(messages.requestFailed);
       throw error;

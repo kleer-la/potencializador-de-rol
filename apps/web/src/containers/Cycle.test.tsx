@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Board, Cycle } from '../api/client.ts';
 import { fakeBackend, json, type Routes } from '../test-support/fake-backend.ts';
+import { Toaster } from '../components/Toaster.tsx';
 import { BoardView } from './BoardsPage.tsx';
 
 const viewer = (overrides: Partial<Board['viewer']>): Board['viewer'] => ({
@@ -126,7 +127,12 @@ afterEach(() => {
 async function open(loaded: Board, routes: Routes = {}) {
   const calls = fakeBackend({ 'GET /api/boards/board-1': () => json(loaded), ...routes });
   const user = userEvent.setup();
-  render(<BoardView boardId="board-1" onBack={() => {}} />);
+  render(
+    <>
+      <Toaster />
+      <BoardView boardId="board-1" onBack={() => {}} />
+    </>,
+  );
   await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
   return { calls, user, section: () => screen.getByRole('region', { name: 'Ciclo de mejora' }) };
 }
@@ -145,6 +151,7 @@ describe('cycle', () => {
       startsOn: '2026-12-01',
       endsOn: '2027-02-28',
     });
+    expect((await screen.findByRole('status')).textContent).toContain('Ciclo creado.');
   });
 
   it('shows the planned cycle and lets owner and panel add a focus above its current level and an experiment', async () => {
@@ -168,6 +175,7 @@ describe('cycle', () => {
       capabilityId: 'capability-2',
       targetLevelId: 'level-1',
     });
+    expect(await screen.findByText('Foco agregado.')).toBeTruthy();
 
     const fields = within(focus).getAllByRole('textbox').map((field) => field.closest('label')?.firstChild?.textContent);
     expect(fields).toEqual(['Hipótesis', 'Experimento', 'Resultado esperado']);
@@ -180,6 +188,7 @@ describe('cycle', () => {
       hypothesis: 'Si escucho a usuarios reales, el mapa cambia',
       expectedResult: 'Un mapa de usuarios validado',
     });
+    expect(await screen.findByText('Experimento agregado.')).toBeTruthy();
     expect(within(section()).queryByRole('button', { name: 'Iniciar ciclo' })).toBeNull();
   });
 

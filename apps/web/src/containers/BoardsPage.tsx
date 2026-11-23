@@ -5,7 +5,8 @@ import { BaselineNote, CalibrationEditor, InitialLevels } from './Calibration.ts
 import { CycleSection } from './Cycle.tsx';
 import { BonusesSection, EvidenceSection, LevelChangesSection, MentoringSection } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
-import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
+import { boardStatusLabels, created, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 /** The boards a person owns, accompanies or reads as leader of their program, and the board they open. */
 export function BoardsPage() {
@@ -117,11 +118,12 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when the board changes
   }, [boardId]);
 
-  const change = async (work: () => Promise<unknown>) => {
+  const change = async (work: () => Promise<unknown>, success?: string) => {
     setError(null);
     try {
       await work();
       await load();
+      if (success !== undefined) notifyCreated(success);
     } catch (failure) {
       setError((failure instanceof ApiError && programErrors[failure.code]) || messages.requestFailed);
     }
@@ -288,7 +290,7 @@ export function BoardView({ boardId, onBack }: { boardId: string; onBack: () => 
                         type="button"
                         className="secondary"
                         aria-label={`Agregar «${capability.statement}»`}
-                        onClick={() => change(() => boardApi.add(board.id, capability.id))}
+                        onClick={() => change(() => boardApi.add(board.id, capability.id), created.boardCapability)}
                       >
                         Agregar
                       </button>

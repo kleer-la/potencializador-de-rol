@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ApiError, api, type Invitation, type Member, type Organization } from '../api/client.ts';
 import { InviteMemberForm } from '../components/InviteMemberForm.tsx';
 import { MembersTable } from '../components/MembersTable.tsx';
-import { messages } from '../copy.ts';
+import { created, messages } from '../copy.ts';
+import { notifyCreated } from '../feedback.ts';
 
 type Props = { organization: Organization };
 
@@ -31,6 +32,7 @@ export function MembersSection({ organization }: Props) {
     try {
       await api.invite(organization.id, invitation);
       setMembers(await api.members(organization.id));
+      notifyCreated(created.invitation);
     } catch (error) {
       setInviteError(
         error instanceof ApiError && error.code === 'invitation_not_possible'
