@@ -144,6 +144,42 @@ async function open(who: Board['viewer'], routes: Routes = {}) {
   return { calls, user, region };
 }
 
+describe('board layout', () => {
+  it('orders the sections as the board is read once the baseline exists', async () => {
+    const mentor = viewer({ isOwner: false, panelRoles: ['mentor'], canAdd: true, canRecordMentoring: true, canCloseBoard: true });
+    const withOffBoard = board(mentor);
+    withOffBoard.capabilities = [
+      ...withOffBoard.capabilities,
+      { id: 'capability-9', dimensionId: 'dimension-1', statement: 'Negocia el alcance', difficulty: null, position: 1 },
+    ];
+    withOffBoard.score = { total: 0, maximum: 2, capabilities: 1, byDimension: [], byDifficulty: [] };
+    fakeBackend({ 'GET /api/boards/board-1': () => json(withOffBoard) });
+    render(<BoardView boardId="board-1" onBack={() => {}} />);
+    await screen.findByRole('heading', { name: 'Tablero de Ana Gómez' });
+
+    const inOrder = [
+      screen.getByRole('table', { name: 'Tablero' }),
+      screen.getByRole('region', { name: 'Línea base vs estado actual' }),
+      screen.getByRole('region', { name: 'Puntaje de madurez' }),
+      screen.getByRole('region', { name: 'Ciclo de mejora' }),
+      screen.getByRole('region', { name: 'Evidencias' }),
+      screen.getByRole('region', { name: 'Cambios de nivel' }),
+      screen.getByRole('region', { name: 'Mentorías' }),
+      screen.getByRole('button', { name: 'Cerrar tablero' }),
+      screen.getByRole('region', { name: 'Capacidades del mapa que no están en el tablero' }),
+    ];
+    inOrder.slice(1).forEach((element, index) => {
+      expect(inOrder[index]!.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
+  it('hides the mentoring sessions from the participant', async () => {
+    await open(owner);
+
+    expect(screen.queryByRole('region', { name: 'Mentorías' })).toBeNull();
+  });
+});
+
 describe('default dates', () => {
   it('use the local date, not the UTC one', () => {
     // 21:30 on 15 December in a time zone behind UTC is already 16 December in UTC.

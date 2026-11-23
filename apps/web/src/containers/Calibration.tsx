@@ -175,14 +175,18 @@ export function CalibrationEditor({ board, onDone }: { board: Board; onDone: () 
   );
 }
 
-/** The baseline and the calibration it came from, with the difference from the self-assessment. */
-export function BaselineSummary({ board }: { board: Board }) {
+/**
+ * The baseline and the calibration it came from, beside the level each capability has
+ * reached since (approved level changes and recalibrations move the placement; the baseline
+ * never moves, invariant 3).
+ */
+export function BaselineComparison({ board }: { board: Board }) {
   const headingId = useId();
   const { calibration, baseline } = board;
   if (baseline === null) return null;
   const statement = new Map(board.capabilities.map((capability) => [capability.id, capability.statement]));
   const position = (levelId: string | null) => board.levels.find((level) => level.id === levelId)?.position;
-  const steps = (from: string | null, to: string) => {
+  const steps = (from: string | null, to: string | null) => {
     const start = position(from);
     const end = position(to);
     if (start === undefined || end === undefined) return '—';
@@ -190,10 +194,13 @@ export function BaselineSummary({ board }: { board: Board }) {
     return difference === 0 ? '=' : difference > 0 ? `+${difference}` : `−${-difference}`;
   };
   const added = baseline.entries.filter((entry) => entry.origin === 'initial_leveling');
+  const current = new Map(board.placements.map((placement) => [placement.capabilityId, placement.levelId]));
+  const baselineLevel = new Map(baseline.entries.map((entry) => [entry.capabilityId, entry.levelId]));
+  const compared = onBoard(board).filter((capability) => baselineLevel.has(capability.id));
 
   return (
     <section className="panel stack" aria-labelledby={headingId}>
-      <h3 id={headingId}>Línea base</h3>
+      <h3 id={headingId}>Línea base vs estado actual</h3>
       <p className="muted">Fijada el {longDate(baseline.setAt)}. Sus niveles no cambian; es el punto de partida del avance.</p>
       {calibration !== null && (
         <>
@@ -201,28 +208,32 @@ export function BaselineSummary({ board }: { board: Board }) {
             Calibración del {longDate(calibration.heldOn)}. Asistieron: {calibration.attendees.map((person) => person.name).join(', ')}.
           </p>
           {calibration.notes !== '' && <p className="notes">{calibration.notes}</p>}
-          <table aria-label="Autoevaluación y nivel acordado">
-            <thead>
-              <tr>
-                <th scope="col">Capacidad</th>
-                <th scope="col">Autoevaluación</th>
-                <th scope="col">Acordado</th>
-                <th scope="col">Diferencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calibration.levels.map((level) => (
-                <tr key={level.capabilityId}>
-                  <th scope="row">{statement.get(level.capabilityId) ?? level.capabilityId}</th>
-                  <td>{levelLabel(board, level.selfAssessedLevelId) ?? 'Sin propuesta'}</td>
-                  <td>{levelLabel(board, level.agreedLevelId)}</td>
-                  <td>{steps(level.selfAssessedLevelId, level.agreedLevelId)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </>
       )}
+      <table aria-label="Línea base y estado actual">
+        <thead>
+          <tr>
+            <th scope="col">Capacidad</th>
+            <th scope="col">Línea base</th>
+            <th scope="col">Actual</th>
+            <th scope="col">Diferencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {compared.map((capability) => {
+            const from = baselineLevel.get(capability.id) ?? null;
+            const to = current.get(capability.id) ?? null;
+            return (
+              <tr key={capability.id}>
+                <th scope="row">{capability.statement}</th>
+                <td>{levelLabel(board, from)}</td>
+                <td>{levelLabel(board, to) ?? 'Sin ubicar'}</td>
+                <td>{steps(from, to)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
       {added.length > 0 && (
         <>
           <h4>Agregadas después de la calibración</h4>

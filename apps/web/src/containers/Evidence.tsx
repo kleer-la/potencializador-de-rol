@@ -25,17 +25,25 @@ const today = () => localToday();
 /**
  * Evidence and what is decided with it, after the baseline: level changes (invariants 4 to
  * 6), bonuses (invariant 7) and mentoring sessions. The owner proposes; the panel decides.
+ * Each section is placed on the board on its own, in the order the board is read.
  */
-export function EvidenceSections({ board, onChanged }: { board: Board; onChanged: () => Promise<void> }) {
-  if (!board.hasBaseline) return null;
-  return (
-    <>
-      <EvidenceSection board={board} onChanged={onChanged} />
-      <LevelChangesSection board={board} onChanged={onChanged} />
-      <BonusesSection board={board} onChanged={onChanged} />
-      <MentoringSection board={board} onChanged={onChanged} />
-    </>
-  );
+type SectionProps = { board: Board; onChanged: () => Promise<void> };
+
+export function EvidenceSection(props: SectionProps) {
+  return props.board.hasBaseline ? <EvidenceList {...props} /> : null;
+}
+
+export function LevelChangesSection(props: SectionProps) {
+  return props.board.hasBaseline ? <LevelChanges {...props} /> : null;
+}
+
+export function BonusesSection(props: SectionProps) {
+  return props.board.hasBaseline ? <Bonuses {...props} /> : null;
+}
+
+/** Mentoring belongs to the panel (mentor, leader, specialist): the participant does not see it. */
+export function MentoringSection(props: SectionProps) {
+  return props.board.hasBaseline && !props.board.viewer.isOwner ? <Mentoring {...props} /> : null;
 }
 
 /** A titled section with its own failure notice; `change` runs a write and reloads. */
@@ -77,7 +85,7 @@ function Section(props: {
   );
 }
 
-function EvidenceSection({ board, onChanged }: { board: Board; onChanged: () => Promise<void> }) {
+function EvidenceList({ board, onChanged }: SectionProps) {
   const [description, setDescription] = useState('');
   const [occurredOn, setOccurredOn] = useState(today);
   const [link, setLink] = useState('');
@@ -210,7 +218,7 @@ function DecisionControls(props: { subject: string; onDecide: (approve: boolean,
   );
 }
 
-function LevelChangesSection({ board, onChanged }: { board: Board; onChanged: () => Promise<void> }) {
+function LevelChanges({ board, onChanged }: SectionProps) {
   const [capabilityId, setCapabilityId] = useState('');
   const [levelId, setLevelId] = useState('');
   const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
@@ -312,7 +320,7 @@ function LevelChangesSection({ board, onChanged }: { board: Board; onChanged: ()
   );
 }
 
-function BonusesSection({ board, onChanged }: { board: Board; onChanged: () => Promise<void> }) {
+function Bonuses({ board, onChanged }: SectionProps) {
   const [capabilityId, setCapabilityId] = useState('');
   const [bonusRuleId, setBonusRuleId] = useState('');
   const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
@@ -402,7 +410,7 @@ function BonusesSection({ board, onChanged }: { board: Board; onChanged: () => P
   );
 }
 
-function MentoringSection({ board, onChanged }: { board: Board; onChanged: () => Promise<void> }) {
+function Mentoring({ board, onChanged }: SectionProps) {
   const [heldOn, setHeldOn] = useState(today);
   const [notes, setNotes] = useState('');
   const [experimentIds, setExperimentIds] = useState<string[]>([]);

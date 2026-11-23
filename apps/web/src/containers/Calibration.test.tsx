@@ -100,6 +100,16 @@ const calibrated: Board = {
   },
 };
 
+/** After the baseline, an approved level change moved the first capability one level up. */
+const movedOn: Board = {
+  ...calibrated,
+  viewer: viewer({ canRemove: false }),
+  placements: [
+    { capabilityId: 'capability-1', levelId: 'level-2', addedAt: '2026-11-13T10:00:00Z' },
+    { capabilityId: 'capability-2', levelId: 'level-0', addedAt: '2026-11-13T10:00:00Z' },
+  ],
+};
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -185,24 +195,39 @@ describe('calibration', () => {
 
     expect(screen.queryByRole('region', { name: 'Calibración' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Capacidades por nivelar' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Línea base' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Línea base vs estado actual' })).toBeTruthy();
   });
 });
 
 describe('baseline', () => {
-  it('shows the calibration, the agreed level beside the self-assessed one and the difference', async () => {
-    await open(calibrated);
+  it('shows the calibration, the baseline beside the current level and the difference', async () => {
+    await open(movedOn);
 
-    const baseline = screen.getByRole('region', { name: 'Línea base' });
-    expect(within(baseline).getByText(/Ana Gómez, Luis Mora/)).toBeTruthy();
-    expect(within(baseline).getByText('Revisamos dos entregas del trimestre.')).toBeTruthy();
-    const table = within(baseline).getByRole('table', { name: 'Autoevaluación y nivel acordado' });
+    const comparison = screen.getByRole('region', { name: 'Línea base vs estado actual' });
+    expect(within(comparison).getByText(/Ana Gómez, Luis Mora/)).toBeTruthy();
+    expect(within(comparison).getByText('Revisamos dos entregas del trimestre.')).toBeTruthy();
+    const table = within(comparison).getByRole('table', { name: 'Línea base y estado actual' });
     const first = within(table).getByRole('row', { name: /Identifica a quién sirve el producto/ });
-    expect(within(first).getByText('2 · Practicante')).toBeTruthy();
     expect(within(first).getByText('1 · Principiante')).toBeTruthy();
-    expect(within(first).getByText('−1')).toBeTruthy();
+    expect(within(first).getByText('2 · Practicante')).toBeTruthy();
+    expect(within(first).getByText('+1')).toBeTruthy();
     const second = within(table).getByRole('row', { name: /Lee el estado actual del producto/ });
-    expect(within(second).getByText('Sin propuesta')).toBeTruthy();
+    expect(within(second).getByText('=')).toBeTruthy();
+    expect(within(comparison).queryByText(/Autoevaluación|Sin propuesta/)).toBeNull();
+  });
+
+  it('marks the current level and the baseline on the board, no longer the self-assessment', async () => {
+    await open(movedOn);
+
+    const kanban = screen.getByRole('table', { name: 'Tablero' });
+    const first = within(kanban).getByRole('row', { name: /Identifica a quién sirve el producto/ });
+    const cells = within(first).getAllByRole('cell');
+    // Cells: statement, unplaced, then levels 0, 1 and 2.
+    expect(within(cells[3]!).getByLabelText('Línea base')).toBeTruthy();
+    expect(within(cells[4]!).getByLabelText('Estado actual')).toBeTruthy();
+    expect(within(kanban).queryByLabelText('Autoevaluación')).toBeNull();
+    expect(screen.getByText('● estado actual · ○ línea base')).toBeTruthy();
+    expect(screen.queryByText(/○ autoevaluación/)).toBeNull();
   });
 
   it('lets a panel member record the initial level of a capability added after the baseline', async () => {
