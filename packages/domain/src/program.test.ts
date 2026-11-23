@@ -15,6 +15,7 @@ const board: BoardAccess = {
     { personId: 'luis', role: 'leader' },
     { personId: 'kleer-mentor', role: 'mentor' },
   ],
+  programLeaders: ['luis', 'marta'],
   hasBaseline: false,
 };
 
@@ -38,6 +39,12 @@ describe('enrollment roles', () => {
 });
 
 describe('INV-9 who sees the content of a board', () => {
+  it('INV-9 includes a leader of the program who is not on the panel, read-only', () => {
+    expect(canSeeBoardContent('marta', board)).toBe(true);
+    expect(canAdjustSelection('marta', board, 'add')).toBe(false);
+    expect(canAdjustSelection('marta', board, 'remove')).toBe(false);
+  });
+
   it('INV-9 its owner and each member of their panel', () => {
     expect(canSeeBoardContent('ana', board)).toBe(true);
     expect(canSeeBoardContent('luis', board)).toBe(true);

@@ -443,7 +443,7 @@ describe('participante sin rol en la organización', () => {
   it('llega a sus tableros y no ve el menú de organizaciones', async () => {
     const calls = fakeBackend({
       ...signedInAs({ isSuperAdmin: false, memberships: [] }),
-      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [] } }),
+      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [], program: [] } }),
     });
 
     render(<App />);
@@ -472,7 +472,7 @@ describe('cerrar sesión', () => {
           : { status: 401, body: { error: 'not_signed_in' } },
       'GET /api/auth/providers': () => ({ status: 200, body: { providers: ['google'] } }),
       'GET /api/organizations': () => ({ status: 200, body: { organizations: [] } }),
-      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [] } }),
+      'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [], program: [] } }),
       'POST /api/auth/logout': () => {
         signedIn = false;
         return { status: 204 };

@@ -285,8 +285,15 @@ describe('evidence, level changes, bonuses and mentoring storage', () => {
 
   it('INV-9 INV-11 only the owner and their panel read any of it, and nothing crosses organizations', async () => {
     const tables = ['evidence', 'level_change_proposals', 'proposal_evidence', 'bonus_awards', 'bonus_evidence', 'mentoring_sessions'];
+    // Of this board only: its leader also leads the program, so reads the other boards (decision of 2026-11-23).
     const seenBy = async (personId: string, organizationId = program.organizationId) =>
-      (await as(personId, tables.map((table) => [`select count(*)::int as n from ${table}`] as [string]), organizationId)).map(
+      (
+        await as(
+          personId,
+          tables.map((table) => [`select count(*)::int as n from ${table} where board_id = $1`, [board.boardId]] as [string, unknown[]]),
+          organizationId,
+        )
+      ).map(
         (result) => result.rows[0].n,
       );
     const owner = await seenBy(board.owner);

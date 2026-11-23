@@ -370,7 +370,8 @@ describe('program storage', () => {
     it('INV-9 a participant cannot enroll themself, join a panel or create a board', async () => {
       const selfEnrollment = (
         await ownerPool.query<{ id: string }>(
-          "insert into enrollments (organization_id, program_id, person_id, role) values ($1, $2, $3, 'leader') returning id",
+          // A specialist: a leader of the program reads its boards (decision of 2026-11-23).
+          "insert into enrollments (organization_id, program_id, person_id, role) values ($1, $2, $3, 'specialist') returning id",
           [organizationA, program.programId, people.otherParticipant],
         )
       ).rows[0]!.id;
@@ -382,7 +383,7 @@ describe('program storage', () => {
               program.programId,
               people.otherParticipant,
             ]),
-            one(people.otherParticipant, "insert into panel_assignments (organization_id, participant_enrollment_id, member_enrollment_id, role) values ($1, $2, $3, 'leader')", [
+            one(people.otherParticipant, "insert into panel_assignments (organization_id, participant_enrollment_id, member_enrollment_id, role) values ($1, $2, $3, 'specialist')", [
               organizationA,
               enrollments.participant,
               selfEnrollment,

@@ -1,6 +1,6 @@
 // Rules of improvement cycles, focuses and experiments. Conceptual base: sections 5.1
 // (invariants 8 and 9), 6.2 steps 3 to 5, 6.3.
-import { canSeeBoardContent, isOnPanel, type BoardAccess } from './program.ts';
+import { isOnPanel, takesPartIn, type BoardAccess } from './program.ts';
 
 export const CYCLE_STATES = ['planned', 'active', 'closed'] as const;
 export type CycleState = (typeof CYCLE_STATES)[number];
@@ -13,7 +13,7 @@ export type ExperimentResult = (typeof EXPERIMENT_RESULTS)[number];
 
 /** Participant and panel plan cycles together, once the board has its baseline. */
 export function canPlanCycle(personId: string, board: BoardAccess): boolean {
-  return board.hasBaseline && canSeeBoardContent(personId, board);
+  return board.hasBaseline && takesPartIn(personId, board);
 }
 
 /** Starting the cycle is the panel's agreement on its focuses. */

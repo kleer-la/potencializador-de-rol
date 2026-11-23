@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { ApiError, boardApi, type Board, type BoardSummary, type ProposedLevel } from '../api/client.ts';
+import { ApiError, boardApi, type Board, type BoardLists, type BoardSummary, type ProposedLevel } from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineSummary, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
@@ -7,9 +7,9 @@ import { EvidenceSections } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
 import { boardStatusLabels, enrollmentRoleLabels, messages, programErrors } from '../copy.ts';
 
-/** The boards a person owns and the ones they accompany, and the board they open. */
+/** The boards a person owns, accompanies or reads as leader of their program, and the board they open. */
 export function BoardsPage() {
-  const [lists, setLists] = useState<{ mine: BoardSummary[]; accompanied: BoardSummary[] } | null>(null);
+  const [lists, setLists] = useState<BoardLists | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -40,13 +40,16 @@ export function BoardsPage() {
     );
   }
   if (lists === null) return <p>{messages.loading}</p>;
-  if (lists.mine.length === 0 && lists.accompanied.length === 0) {
+  if (lists.mine.length === 0 && lists.accompanied.length === 0 && lists.program.length === 0) {
     return <p className="panel">Todavía no tienes tableros. Aparecen cuando te inscriben en un programa.</p>;
   }
   return (
     <div className="columns">
       <BoardList title="Mis tableros" boards={lists.mine} onOpen={setOpenId} showOwner={false} />
       <BoardList title="Tableros que acompaño" boards={lists.accompanied} onOpen={setOpenId} showOwner />
+      {lists.program.length > 0 && (
+        <BoardList title="Tableros de mis programas" boards={lists.program} onOpen={setOpenId} showOwner />
+      )}
     </div>
   );
 }

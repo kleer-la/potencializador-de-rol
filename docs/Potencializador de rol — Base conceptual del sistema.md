@@ -189,7 +189,7 @@ Estas reglas son las que convierten el tablero en un instrumento confiable; el s
 6. **Los niveles que exigen transferencia piden evidencia de haber enseñado a otros.** En el caso de origen es el nivel 4.
 7. **Una bonificación solo cuenta con su condición cumplida y evidenciada.** Se registra como `BonusAward` sobre una ubicación: el participante la propone con al menos una evidencia y un integrante de su panel la aprueba. Solo las aprobadas suman, y hay a lo sumo una por regla y capacidad. En el caso de origen: usó IA para potenciar la capacidad y transfirió esa práctica a sus compañeros.
 8. **Focos acotados.** Un ciclo no admite más focos que el máximo del programa, y cada foco tiene al menos un experimento.
-9. **Sin comparación entre personas.** No existen rankings ni vistas que ordenen participantes por puntaje. Un tablero lo ven su dueño y su panel.
+9. **Sin comparación entre personas.** No existen rankings ni vistas que ordenen participantes por puntaje. Un tablero lo ven su dueño, su panel y los líderes inscritos en su programa; esos líderes solo lo leen si no están en su panel (decisión del 23 de noviembre de 2026).
 10. **Un mapa publicado solo crece.** Las dimensiones y capacidades existentes no se modifican ni se eliminan; esos cambios crean una versión nueva. Sí se pueden agregar dimensiones y capacidades nuevas en cualquier momento, y quedan disponibles para los tableros de los programas que usan ese mapa.
 11. **Aislamiento por organización.** El sistema aloja varias organizaciones y ningún dato de una es visible desde otra. Los mapas plantilla son de la firma de mentores, no de las organizaciones cliente. La única excepción son las personas de la firma de mentores: son superadministradoras, crean las cuentas de las organizaciones cliente y pueden administrar dentro de ellas cuando se requiere por soporte.
 
@@ -329,6 +329,8 @@ La descripción de origen no define todo; lo que sigue separa lo que se asumió 
 | Autenticación | Inicio de sesión solo con cuenta de Google o de Microsoft, para delegar en ellos la autenticación; el sistema no guarda contraseñas. El acceso es por invitación |
 | Tarjetas verdes del mapa de ejemplo | Son las capacidades priorizadas para la organización y el programa de ejemplo; en los datos de prueba se cargan como selección base de ese programa |
 | Tecnología | Monolito modular con arquitectura hexagonal, TypeScript de punta a punta: Fastify, Zod y Drizzle en la API; React y Vite en la web; PostgreSQL con aislamiento por organización; todo en contenedores con Docker Compose |
+
+El 23 de noviembre de 2026 se decidió que quien está inscrito como líder en un programa ve el contenido de todos los tableros de ese programa, en solo lectura: las acciones del panel (ajustar la selección, calibrar, registrar evidencia, decidir) siguen siendo del dueño y su panel. Un borrador de autoevaluación sigue siendo solo del dueño.
 
 ### 9.3 Decisiones abiertas
 

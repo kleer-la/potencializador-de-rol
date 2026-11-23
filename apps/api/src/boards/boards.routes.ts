@@ -146,7 +146,7 @@ type BoardRow = {
   program_name: string;
   owner_name: string;
   status: string;
-  relation: 'owner' | 'panel';
+  relation: 'owner' | 'panel' | 'program';
   panel_roles: PanelRole[];
 };
 
@@ -189,7 +189,16 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         .from(panelAssignments)
         .innerJoin(enrollments, eq(enrollments.id, panelAssignments.memberEnrollmentId))
         .where(eq(panelAssignments.participantEnrollmentId, row.enrollmentId));
-      const access: BoardAccess = { ownerPersonId: row.ownerPersonId, panel, hasBaseline: row.baselineSetAt !== null };
+      const leaders = await tx
+        .select({ personId: enrollments.personId })
+        .from(enrollments)
+        .where(and(eq(enrollments.programId, row.programId), eq(enrollments.role, 'leader')));
+      const access: BoardAccess = {
+        ownerPersonId: row.ownerPersonId,
+        panel,
+        programLeaders: leaders.map((leader) => leader.personId),
+        hasBaseline: row.baselineSetAt !== null,
+      };
       return work(tx, { access, personId, row });
     });
   };
@@ -557,6 +566,8 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
     return {
       mine: rows.filter((row) => row.relation === 'owner').map(summary),
       accompanied: rows.filter((row) => row.relation === 'panel').map(summary),
+      // Boards read only as leader of their program (user decision of 2026-11-23).
+      program: rows.filter((row) => row.relation === 'program').map(summary),
     };
   });
 

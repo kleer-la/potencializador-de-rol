@@ -19,18 +19,28 @@ export function canEnrollAs(person: { isFirmPerson: boolean }, role: EnrollmentR
 export type BoardAccess = {
   ownerPersonId: string;
   panel: readonly { personId: string; role: PanelRole }[];
+  /** People enrolled as leader in the board's program, on its panel or not. */
+  programLeaders: readonly string[];
   hasBaseline: boolean;
 };
 
 export const isOnPanel = (personId: string, board: BoardAccess) =>
   board.panel.some((member) => member.personId === personId);
 
+/** The owner and their panel: the people who work on the board, not only read it. */
+export const takesPartIn = (personId: string, board: BoardAccess) =>
+  personId === board.ownerPersonId || isOnPanel(personId, board);
+
+/** A leader of the board's program reads it, even off its panel (user decision of 2026-11-23). */
+export const leadsProgram = (personId: string, board: BoardAccess) => board.programLeaders.includes(personId);
+
 /**
- * Invariant 9: a board is seen by its owner and their panel. Administrators, super
- * administrators included, see that it exists and its state, never its content.
+ * Invariant 9: a board is seen by its owner, their panel and the leaders of its program;
+ * those leaders only read it. Administrators, super administrators included, see that it
+ * exists and its state, never its content.
  */
 export function canSeeBoardContent(personId: string, board: BoardAccess): boolean {
-  return personId === board.ownerPersonId || isOnPanel(personId, board);
+  return takesPartIn(personId, board) || leadsProgram(personId, board);
 }
 
 /**

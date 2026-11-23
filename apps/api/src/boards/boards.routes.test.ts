@@ -15,7 +15,7 @@ describe('boards', () => {
   let organizationA: string;
   let program: SeededProgram;
   let boardId: string;
-  let sessions: Record<'participant' | 'otherParticipant' | 'leader' | 'firmMentor' | 'administrator' | 'superAdministrator', string>;
+  let sessions: Record<'participant' | 'otherParticipant' | 'leader' | 'programLeader' | 'firmMentor' | 'administrator' | 'superAdministrator', string>;
 
   const call = (session: string, method: Method, url: string, body?: unknown) =>
     app.inject({
@@ -41,6 +41,7 @@ describe('boards', () => {
       participant: await seed.person(organizationA),
       otherParticipant: await seed.person(organizationA),
       leader: await seed.person(organizationA),
+      programLeader: await seed.person(organizationA),
       firmMentor: await seed.person(null),
       administrator: await seed.person(organizationA),
       superAdministrator: await seed.person(null),
@@ -49,6 +50,7 @@ describe('boards', () => {
     const participant = await enroll(ownerPool, program, people.participant, 'participant');
     await enroll(ownerPool, program, people.otherParticipant, 'participant');
     const leader = await enroll(ownerPool, program, people.leader, 'leader');
+    await enroll(ownerPool, program, people.programLeader, 'leader');
     const mentor = await enroll(ownerPool, program, people.firmMentor, 'mentor');
     for (const [member, role] of [
       [leader, 'leader'],
@@ -92,7 +94,9 @@ describe('boards', () => {
       expect.objectContaining({ id: boardId, organizationId: organizationA, status: 'not_started' }),
     ]);
     expect(ofParticipant.accompanied).toEqual([]);
+    expect(ofParticipant.program).toEqual([]);
     expect(ofMentor.mine).toEqual([]);
+    expect(ofMentor.program).toEqual([]);
     expect(ofMentor.accompanied).toEqual([expect.objectContaining({ id: boardId, panelRoles: ['mentor'] })]);
     expect(JSON.stringify([ofParticipant, ofMentor])).not.toMatch(/placement|level/i);
   });
@@ -137,6 +141,23 @@ describe('boards', () => {
     expect(mentor.json().placements).toHaveLength(2);
   });
 
+  it('INV-9 lists every board of the program for a leader of it off the panel, and shows it read-only', async () => {
+    const listed = (await call(sessions.programLeader, 'GET', '')).json();
+    const response = await call(sessions.programLeader, 'GET', `/${boardId}`);
+    const board = response.json();
+
+    expect(listed.mine).toEqual([]);
+    expect(listed.accompanied).toEqual([]);
+    expect(listed.program).toEqual([expect.objectContaining({ id: boardId, panelRoles: [] })]);
+    expect(response.statusCode).toBe(200);
+    expect(board.placements).toHaveLength(2);
+    expect(board.viewer.isOwner).toBe(false);
+    expect(board.viewer.panelRoles).toEqual([]);
+    expect(Object.entries(board.viewer).filter(([key, value]) => key.startsWith('can') && value !== false)).toEqual([]);
+    const added = await call(sessions.programLeader, 'POST', `/${boardId}/capabilities`, { capabilityId: program.capabilityIds[2] });
+    expect(added.statusCode).toBe(403);
+  });
+
   it('INV-9 answers another participant, the administrator and a super administrator off the panel as if the board did not exist', async () => {
     const responses = await Promise.all([
       call(sessions.otherParticipant, 'GET', `/${boardId}`),
@@ -148,7 +169,7 @@ describe('boards', () => {
     expect(responses.map((response) => response.statusCode)).toEqual([404, 404, 404, 404]);
     expect(new Set(responses.map((response) => response.body)).size).toBe(1);
     const listed = (await call(sessions.administrator, 'GET', '')).json();
-    expect(listed).toEqual({ mine: [], accompanied: [] });
+    expect(listed).toEqual({ mine: [], accompanied: [], program: [] });
   });
 
   it('INV-1 lets the panel add a capability of the map once, and not the owner', async () => {
