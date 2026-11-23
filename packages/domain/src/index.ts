@@ -48,6 +48,7 @@ export {
   EXPERIMENT_RESULTS,
   EXPERIMENT_STATES,
   canMoveExperiment,
+  closeBlockers,
   canPlanCycle,
   canReviewExperiment,
   canStartCycle,

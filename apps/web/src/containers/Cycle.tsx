@@ -158,6 +158,31 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
     }
   };
 
+  const close = async () => {
+    try {
+      await boardApi.closeCycle(board.id, cycle.id);
+      await change(async () => undefined);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'cannot_close') {
+        const unreviewed = (error.details as { unreviewed?: string[] }).unreviewed ?? [];
+        const named = new Map(
+          cycle.focuses.flatMap((focus) =>
+            focus.experiments.map((experiment) => [
+              experiment.id,
+              `«${experiment.description}» · ${statement.get(focus.capabilityId) ?? focus.capabilityId}`,
+            ]),
+          ),
+        );
+        props.onFailure({
+          text: 'El ciclo todavía no puede cerrarse. Revisa estos experimentos:',
+          items: unreviewed.map((experimentId) => named.get(experimentId) ?? experimentId),
+        });
+      } else {
+        props.onFailure(failureOf(error));
+      }
+    }
+  };
+
   return (
     <div className="stack">
       <p>
@@ -181,9 +206,9 @@ function CurrentCycle(props: { board: Board; cycle: Cycle; change: Change; onFai
         <div className="actions">
           <ConfirmAction
             label="Cerrar ciclo"
-            prompt="¿Cerrar el ciclo? Al cerrarlo se toma una fotografía del tablero y el ciclo ya no cambia."
+            prompt="¿Cerrar el ciclo? Todos sus experimentos deben estar revisados; uno que nunca corrió se revisa como descartado. Al cerrarlo se toma una fotografía del tablero y el ciclo ya no cambia."
             confirmLabel="Confirmar cierre"
-            onConfirm={() => change(() => boardApi.closeCycle(board.id, cycle.id))}
+            onConfirm={close}
           />
         </div>
       )}

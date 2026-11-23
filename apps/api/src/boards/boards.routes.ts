@@ -10,6 +10,7 @@ import {
   canCloseCycle,
   canDecideProposal,
   canMoveExperiment,
+  closeBlockers,
   canProposeChange,
   canRecordEvidence,
   canRecalibrate,
@@ -1537,11 +1538,22 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
         const cycle = await cycleOfBoard(tx, row.id, params.data.cycleId);
         if (!canCloseCycle(personId, access, 'active')) throw new Refusal(403, { error: 'forbidden' });
         if (cycle.state !== 'active') throw new Refusal(409, { error: 'cycle_not_active' });
+        const unreviewed = closeBlockers(
+          await tx
+            .select({ id: experiments.id, state: experiments.state })
+            .from(experiments)
+            .innerJoin(focuses, eq(focuses.id, experiments.focusId))
+            .where(eq(focuses.cycleId, cycle.id))
+            .orderBy(asc(focuses.createdAt), asc(experiments.createdAt)),
+        );
+        if (unreviewed.length > 0) throw new Refusal(422, { error: 'cannot_close', unreviewed });
         try {
           const snapshot = await tx.execute<{ id: string }>(sql`select app_close_cycle(${cycle.id}::uuid) as id`);
           return { body: { snapshotId: snapshot.rows[0]!.id } };
         } catch (error) {
           if (postgresCode(error) === 'PM050') throw new Refusal(409, { error: 'cycle_not_active' });
+          // The database repeats the check under a lock: an experiment moved in between.
+          if (postgresCode(error) === 'PM008') throw new Refusal(409, { error: 'cycle_changed' });
           throw error;
         }
       }),

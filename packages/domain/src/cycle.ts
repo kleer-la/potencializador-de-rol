@@ -48,6 +48,15 @@ export function startBlockers(
 }
 
 /**
+ * What keeps an active cycle from closing: experiments not reviewed yet, planned or in
+ * progress (user decision of 2026-11-23), named in the given order. A planned one that
+ * never ran is reviewed as discarded, so the panel can always close.
+ */
+export function closeBlockers(experiments: readonly { id: string; state: ExperimentState }[]): string[] {
+  return experiments.filter((experiment) => experiment.state !== 'reviewed').map((experiment) => experiment.id);
+}
+
+/**
  * A focus aims above where the capability is now. A capability without a level (added
  * after the baseline, before its initial leveling) cannot be a focus yet.
  */

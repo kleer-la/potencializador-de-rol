@@ -160,7 +160,7 @@ export const cycleErrors: Record<string, string> = {
   cycle_not_planned: 'Los focos solo se agregan o se quitan mientras el ciclo está planeado.',
   cycle_closed: 'El ciclo está cerrado.',
   board_not_ready: 'El tablero no está en un estado que permita iniciar un ciclo.',
-  cycle_changed: 'El ciclo cambió mientras se iniciaba. Vuelve a abrir el tablero.',
+  cycle_changed: 'El ciclo cambió mientras se guardaba. Vuelve a abrir el tablero.',
   invalid_transition: 'Ese experimento no puede pasar a ese estado.',
   experiment_final: 'Un experimento revisado ya no cambia.',
   invalid_request: 'Revisa los datos: hay un valor que no es válido.',

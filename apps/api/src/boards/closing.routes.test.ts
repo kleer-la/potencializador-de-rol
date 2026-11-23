@@ -117,6 +117,19 @@ describe('score, evolution, closing and recalibration', () => {
 
     expect((await view(sessions.leader)).viewer.canCloseCycle).toBe(true);
     expect((await call(sessions.owner, 'POST', `/cycles/${cycleId}/close`)).statusCode).toBe(403);
+    // Not while an experiment is unreviewed, planned or in progress: the refusal names them.
+    const inProgressId = (
+      await call(sessions.owner, 'POST', `/cycles/${cycleId}/focuses/${focusId}/experiments`, { description: 'Probar otra vez' })
+    ).json().experimentId;
+    await call(sessions.owner, 'PATCH', `/experiments/${inProgressId}`, { state: 'in_progress' });
+    const refused = await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`);
+    expect([refused.statusCode, refused.json()]).toEqual([422, { error: 'cannot_close', unreviewed: [experimentId, inProgressId] }]);
+    await call(sessions.leader, 'PATCH', `/experiments/${experimentId}`, { state: 'reviewed', result: 'discarded', learnings: '' });
+    expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).json()).toEqual({
+      error: 'cannot_close',
+      unreviewed: [inProgressId],
+    });
+    await call(sessions.leader, 'PATCH', `/experiments/${inProgressId}`, { state: 'reviewed', result: 'consolidated', learnings: 'Funcionó' });
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).statusCode).toBe(200);
     expect((await call(sessions.leader, 'POST', `/cycles/${cycleId}/close`)).json()).toEqual({ error: 'cycle_not_active' });
     const retargeted = await call(sessions.owner, 'PATCH', `/cycles/${cycleId}/focuses/${focusId}`, {
@@ -141,7 +154,10 @@ describe('score, evolution, closing and recalibration', () => {
             id: focusId,
             capabilityId: program.capabilityIds[0],
             targetLevelId: program.levelIds[1],
-            experiments: [expect.objectContaining({ description: 'Probar', hypothesis: '', state: 'planned', result: null })],
+            experiments: [
+              expect.objectContaining({ description: 'Probar', hypothesis: '', state: 'reviewed', result: 'discarded' }),
+              expect.objectContaining({ description: 'Probar otra vez', state: 'reviewed', result: 'consolidated' }),
+            ],
           },
         ],
       }),

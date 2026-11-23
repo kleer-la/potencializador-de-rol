@@ -143,10 +143,41 @@ describe('closing and recalibration', () => {
 
     const cycle = screen.getByRole('region', { name: 'Ciclo de mejora' });
     await user.click(within(cycle).getByRole('button', { name: 'Cerrar ciclo' }));
+    expect(within(cycle).getByText(/Todos sus experimentos deben estar revisados/)).toBeTruthy();
     expect(within(cycle).getByText(/se toma una fotografía del tablero/)).toBeTruthy();
     await user.click(within(cycle).getByRole('button', { name: 'Confirmar cierre' }));
 
     expect(calls.some((call) => call.route === 'POST /api/boards/board-1/cycles/cycle-1/close')).toBe(true);
+  });
+
+  it('names the experiments still to review when the cycle cannot close', async () => {
+    const experiment = {
+      id: 'experiment-1',
+      description: 'Escribir el resumen semanal',
+      hypothesis: '',
+      expectedResult: '',
+      state: 'in_progress' as const,
+      result: null,
+      observedResult: '',
+      learnings: '',
+      reviewedAt: null,
+    };
+    const withExperiment: Cycle = {
+      ...activeCycle,
+      focuses: [{ id: 'focus-1', capabilityId: 'capability-1', targetLevelId: 'level-1', experiments: [experiment] }],
+    };
+    const { user } = await open(board(viewer({ canCloseCycle: true }), { status: 'in_cycle', cycle: withExperiment }), {
+      'POST /api/boards/board-1/cycles/cycle-1/close': () =>
+        json({ error: 'cannot_close', unreviewed: ['experiment-1'] }, 422),
+    });
+
+    const cycle = screen.getByRole('region', { name: 'Ciclo de mejora' });
+    await user.click(within(cycle).getByRole('button', { name: 'Cerrar ciclo' }));
+    await user.click(within(cycle).getByRole('button', { name: 'Confirmar cierre' }));
+
+    const alert = await within(cycle).findByRole('alert');
+    expect(within(alert).getByText('El ciclo todavía no puede cerrarse. Revisa estos experimentos:')).toBeTruthy();
+    expect(within(alert).getByText('«Escribir el resumen semanal» · Identifica a quién sirve el producto')).toBeTruthy();
   });
 
   it('lets a panel member recalibrate between cycles, starting from the current levels', async () => {
