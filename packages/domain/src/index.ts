@@ -72,6 +72,6 @@ export {
   type ProposalProblem,
   type ProposalState,
 } from './evidence.ts';
-export { canCloseBoard, canCloseCycle, canRecalibrate, computeScore, withChanges, type ScoreEntry } from './score.ts';
+export { canCloseBoard, canCloseCycle, canRecalibrate, computeScore, progressAgainstBaseline, withChanges, type ScoreEntry } from './score.ts';
 export { canSeeSelfAssessment, canWriteSelfAssessment, missingFromSelfAssessment } from './self-assessment.ts';
 export { BOARD_MARKS, canMarkCapability, isMarkedByHand, type BoardMark } from './marks.ts';

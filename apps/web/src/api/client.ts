@@ -246,6 +246,24 @@ export type BoardSummary = {
 };
 /** `program`: boards read only as leader of their program, never owned nor accompanied. */
 export type BoardLists = { mine: BoardSummary[]; accompanied: BoardSummary[]; program: BoardSummary[] };
+/**
+ * One participant in the progress report of a program: the change against their own
+ * baseline only, never an absolute score (invariant 9). No baseline yet: no change.
+ */
+export type ProgramReportRow = {
+  boardId: string;
+  participantName: string;
+  status: BoardStatus;
+  cycle: { number: number; state: 'planned' | 'active' } | null;
+  change: number | null;
+  percent: number | null;
+  /** Reviewed experiments across every cycle of the board. */
+  finishedExperiments: number;
+  /** Experiments in progress across every cycle of the board. */
+  experimentsInProgress: number;
+};
+/** The progress report of a program the person leads, participants by name. */
+export type ProgramReport = { programId: string; programName: string; organizationName: string; participants: ProgramReportRow[] };
 /** Marks on a capability of a board, in catalog order (see the domain catalog). */
 export type BoardMark = 'candidate' | 'wip';
 
@@ -385,6 +403,7 @@ export type SelfAssessment = { submittedAt: string | null; levels: ProposedLevel
 
 export const boardApi = {
   list: () => request<BoardLists>('/boards'),
+  programReports: async () => (await request<{ reports: ProgramReport[] }>('/program-reports')).reports,
   board: (boardId: string) => request<Board>(`/boards/${boardId}`),
   add: (boardId: string, capabilityId: string) =>
     request<unknown>(`/boards/${boardId}/capabilities`, 'POST', { capabilityId }),

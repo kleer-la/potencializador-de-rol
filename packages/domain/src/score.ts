@@ -56,6 +56,16 @@ export function withChanges<T extends { total: number }>(points: readonly T[]): 
   return points.map((point, index) => ({ ...point, change: index === 0 ? null : point.total - points[index - 1]!.total }));
 }
 
+/**
+ * How far a board moved from its own baseline, for the program report: the change in
+ * points and in percent of the baseline score (none when that score is 0). Never an
+ * absolute score, so the report does not invite comparing people (invariant 9).
+ */
+export function progressAgainstBaseline(baseline: number, today: number): { change: number; percent: number | null } {
+  const change = today - baseline;
+  return { change, percent: baseline === 0 ? null : (change / baseline) * 100 };
+}
+
 /** A panel member closes the active cycle; the board then waits between cycles. */
 export function canCloseCycle(personId: string, board: BoardAccess, cycleState: string): boolean {
   return board.hasBaseline && isOnPanel(personId, board) && cycleState === 'active';

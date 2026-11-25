@@ -16,6 +16,7 @@ import {
   canRecalibrate,
   canRecordMentoring,
   computeScore,
+  progressAgainstBaseline,
   isEvidenceLink,
   withChanges,
   proposalProblems,
@@ -627,6 +628,89 @@ export async function registerBoards(api: FastifyInstance, options: { database: 
       // Boards read only as leader of their program (user decision of 2026-11-23).
       program: rows.filter((row) => row.relation === 'program').map(summary),
     };
+  });
+
+  /**
+   * The progress report of each program the person leads (user decisions of 2026-11-25):
+   * every participant by name, with the change against their own baseline, the board's
+   * status, its current cycle and its experiments finished and in progress. Never an absolute score (invariant 9). A leader reads
+   * every board of the program (migration 0012); a program without boards has no report.
+   */
+  api.get('/program-reports', async (request, reply) => {
+    const personId = request.personId;
+    if (personId === null) return reply.code(401).send({ error: 'not_signed_in' });
+    const rows = await withScope(db, { personId, organizationId: null }, async (tx) =>
+      (await tx.execute<BoardRow>(sql`select * from app_my_boards()`)).rows,
+    );
+    const organizationIds = [...new Set(rows.map((row) => row.organization_id))];
+    const reports = [];
+    for (const organizationId of organizationIds) {
+      const inOrganization = rows.filter((row) => row.organization_id === organizationId);
+      reports.push(
+        ...(await withScope(db, { personId, organizationId }, async (tx) => {
+          const led = await tx
+            .select({ programId: enrollments.programId, mapId: programs.mapId })
+            .from(enrollments)
+            .innerJoin(programs, eq(programs.id, enrollments.programId))
+            .where(
+              and(
+                eq(enrollments.personId, personId),
+                eq(enrollments.role, 'leader'),
+                inArray(enrollments.programId, [...new Set(inOrganization.map((row) => row.program_id))]),
+              ),
+            );
+          const found = [];
+          for (const { programId, mapId } of led) {
+            const multipliers = await tx.select({ multiplier: levels.multiplier }).from(levels).where(eq(levels.mapId, mapId));
+            const topMultiplier = Math.max(0, ...multipliers.map((level) => Number(level.multiplier)));
+            const ofProgram = inOrganization
+              .filter((row) => row.program_id === programId)
+              .sort((a, b) => a.owner_name.localeCompare(b.owner_name, 'es'));
+            const participants = [];
+            for (const row of ofProgram) {
+              const [board] = await tx.select({ baselineSetAt: boards.baselineSetAt }).from(boards).where(eq(boards.id, row.board_id));
+              const [cycle] = await tx
+                .select({ number: cycles.number, state: cycles.state })
+                .from(cycles)
+                .where(and(eq(cycles.boardId, row.board_id), ne(cycles.state, 'closed')))
+                .orderBy(desc(cycles.number), desc(cycles.createdAt))
+                .limit(1);
+              // Experiments reviewed (S8) and in progress (S9), across every cycle of the board.
+              const byState = await tx
+                .select({ state: experiments.state, count: sql<number>`count(*)::int` })
+                .from(experiments)
+                .innerJoin(focuses, eq(focuses.id, experiments.focusId))
+                .innerJoin(cycles, eq(cycles.id, focuses.cycleId))
+                .where(and(eq(cycles.boardId, row.board_id), inArray(experiments.state, ['reviewed', 'in_progress'])))
+                .groupBy(experiments.state);
+              const countOf = (state: string) => byState.find((counted) => counted.state === state)?.count ?? 0;
+              let progress: { change: number | null; percent: number | null } = { change: null, percent: null };
+              if (board?.baselineSetAt) {
+                const { evolution } = await readProgress(tx, row.board_id, board.baselineSetAt, topMultiplier);
+                progress = progressAgainstBaseline(evolution[0]!.total, evolution[evolution.length - 1]!.total);
+              }
+              participants.push({
+                boardId: row.board_id,
+                participantName: row.owner_name,
+                status: row.status,
+                cycle: cycle ?? null,
+                ...progress,
+                finishedExperiments: countOf('reviewed'),
+                experimentsInProgress: countOf('in_progress'),
+              });
+            }
+            found.push({
+              programId,
+              programName: ofProgram[0]!.program_name,
+              organizationName: ofProgram[0]!.organization_name,
+              participants,
+            });
+          }
+          return found;
+        })),
+      );
+    }
+    return { reports };
   });
 
   api.get('/boards/:boardId', async (request, reply) => {

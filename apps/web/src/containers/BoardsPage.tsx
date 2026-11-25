@@ -1,33 +1,53 @@
 import { useEffect, useId, useState } from 'react';
-import { ApiError, boardApi, type Board, type BoardLists, type BoardMark, type BoardSummary, type ProposedLevel } from '../api/client.ts';
+import {
+  ApiError,
+  boardApi,
+  type Board,
+  type BoardLists,
+  type BoardMark,
+  type BoardSummary,
+  type ProgramReport,
+  type ProposedLevel,
+} from '../api/client.ts';
 import { ConfirmAction } from '../components/ConfirmAction.tsx';
 import { BaselineNote, CalibrationEditor, InitialLevels } from './Calibration.tsx';
 import { CycleSection } from './Cycle.tsx';
+import { ProgramReportList, ProgramReportView } from './ProgramReport.tsx';
 import { BonusesSection, EvidenceSection, LevelChangesSection, MentoringSection } from './Evidence.tsx';
 import { CloseBoard, RecalibrationEditor, ScoreSection } from './Score.tsx';
 import { boardStatusLabels, created, enrollmentRoleLabels, markHints, markLabels, messages, programErrors } from '../copy.ts';
 import { notifyCreated } from '../feedback.ts';
 
-/** The boards a person owns, accompanies or reads as leader of their program, and the board they open. */
+/**
+ * The boards a person owns, accompanies or reads as leader of their program, the board
+ * they open, and the progress report of each program they lead.
+ */
 export function BoardsPage() {
   const [lists, setLists] = useState<BoardLists | null>(null);
+  const [reports, setReports] = useState<ProgramReport[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let current = true;
     setFailed(false);
-    boardApi
-      .list()
-      .then((loaded) => current && setLists(loaded))
+    Promise.all([boardApi.list(), boardApi.programReports()])
+      .then(([loaded, led]) => {
+        if (!current) return;
+        setLists(loaded);
+        setReports(led);
+      })
       .catch(() => current && setFailed(true));
     return () => {
       current = false;
     };
-  }, [openId, attempt]);
+  }, [openId, reportId, attempt]);
 
   if (openId !== null) return <BoardView boardId={openId} onBack={() => setOpenId(null)} />;
+  const report = reports.find((candidate) => candidate.programId === reportId);
+  if (report !== undefined) return <ProgramReportView report={report} onBack={() => setReportId(null)} />;
   if (failed) {
     return (
       <div className="stack">
@@ -51,6 +71,7 @@ export function BoardsPage() {
       {lists.program.length > 0 && (
         <BoardList title="Tableros de mis programas" boards={lists.program} onOpen={setOpenId} showOwner />
       )}
+      {reports.length > 0 && <ProgramReportList reports={reports} onOpen={setReportId} />}
     </div>
   );
 }
