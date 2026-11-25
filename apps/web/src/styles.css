@@ -868,3 +868,43 @@ textarea:user-invalid {
   color: var(--ink-muted);
   font-size: 20px;
 }
+
+/* Program report: one row per participant; the first cell opens its capabilities. */
+.program-report > tbody > tr > th {
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.report-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.report-toggle::before {
+  content: '▸';
+  display: inline-block;
+  width: 1.25em;
+}
+.report-toggle[aria-expanded='true']::before {
+  content: '▾';
+}
+.report-detail > td {
+  background: var(--surface-muted);
+}
+.report-capabilities .report-level {
+  width: 11rem;
+}
+.report-capabilities .report-dimension {
+  background: transparent;
+  color: var(--ink);
+  font: 700 17px/24px var(--font-sans);
+  padding-top: var(--space-4);
+}
+.report-capabilities .report-improved > td {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}

@@ -444,6 +444,7 @@ describe('participante sin rol en la organización', () => {
     const calls = fakeBackend({
       ...signedInAs({ isSuperAdmin: false, memberships: [] }),
       'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [], program: [] } }),
+      'GET /api/program-reports': () => ({ status: 200, body: { reports: [] } }),
     });
 
     render(<App />);
@@ -473,6 +474,7 @@ describe('cerrar sesión', () => {
       'GET /api/auth/providers': () => ({ status: 200, body: { providers: ['google'] } }),
       'GET /api/organizations': () => ({ status: 200, body: { organizations: [] } }),
       'GET /api/boards': () => ({ status: 200, body: { mine: [], accompanied: [], program: [] } }),
+      'GET /api/program-reports': () => ({ status: 200, body: { reports: [] } }),
       'POST /api/auth/logout': () => {
         signedIn = false;
         return { status: 204 };

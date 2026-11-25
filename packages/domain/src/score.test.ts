@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardAccess } from './program.ts';
-import { canCloseBoard, canCloseCycle, canRecalibrate, computeScore, withChanges, type ScoreEntry } from './score.ts';
+import {
+  canCloseBoard,
+  canCloseCycle,
+  canRecalibrate,
+  computeScore,
+  progressAgainstBaseline,
+  withChanges,
+  type ScoreEntry,
+} from './score.ts';
 
 const entry = (capabilityId: string, multiplier: number | null, overrides: Partial<ScoreEntry> = {}): ScoreEntry => ({
   capabilityId,
@@ -86,5 +94,17 @@ describe('who closes and recalibrates', () => {
     expect(canCloseBoard('eva', board, 'in_cycle')).toBe(false);
     expect(canCloseBoard('eva', board, 'closed')).toBe(false);
     expect(canCloseBoard('ana', board, 'between_cycles')).toBe(false);
+  });
+});
+
+describe('progress against the own baseline (program report)', () => {
+  it('gives the change in points and in percent of the baseline score', () => {
+    expect(progressAgainstBaseline(4, 6)).toEqual({ change: 2, percent: 50 });
+    expect(progressAgainstBaseline(4, 3)).toEqual({ change: -1, percent: -25 });
+    expect(progressAgainstBaseline(4, 4)).toEqual({ change: 0, percent: 0 });
+  });
+
+  it('gives no percent when the baseline score is 0', () => {
+    expect(progressAgainstBaseline(0, 2)).toEqual({ change: 2, percent: null });
   });
 });

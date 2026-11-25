@@ -91,6 +91,7 @@ afterEach(() => {
 describe('Mis tableros', () => {
   it('lists the boards the person owns and those they accompany', async () => {
     fakeBackend({
+      'GET /api/program-reports': () => json({ reports: [] }),
       'GET /api/boards': () =>
         json({ mine: [summary], accompanied: [{ ...summary, id: 'board-2', ownerName: 'Luis Mora', panelRoles: ['mentor'] }], program: [] }),
     });
@@ -107,6 +108,7 @@ describe('Mis tableros', () => {
 
   it('lists the boards of the programs the person leads apart, only when there are some', async () => {
     fakeBackend({
+      'GET /api/program-reports': () => json({ reports: [] }),
       'GET /api/boards': () =>
         json({ mine: [], accompanied: [], program: [{ ...summary, id: 'board-3', ownerName: 'Marta Ruiz', panelRoles: [] }] }),
     });
@@ -120,7 +122,7 @@ describe('Mis tableros', () => {
   });
 
   it('hides the program boards when the person leads no program', async () => {
-    fakeBackend({ 'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }) });
+    fakeBackend({ 'GET /api/program-reports': () => json({ reports: [] }), 'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }) });
 
     render(<BoardsPage />);
 
@@ -131,6 +133,7 @@ describe('Mis tableros', () => {
   it('recovers after a failed load when the person comes back', async () => {
     let fail = true;
     fakeBackend({
+      'GET /api/program-reports': () => json({ reports: [] }),
       'GET /api/boards': () => (fail ? json({ error: 'unavailable' }, 503) : json({ mine: [summary], accompanied: [], program: [] })),
       'GET /api/boards/board-1': () => json(board(owner)),
     });
@@ -145,8 +148,111 @@ describe('Mis tableros', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('S1 S3 S8 S9 lists the programs the person leads and opens the report of one, by name and against the own baseline', async () => {
+    fakeBackend({
+      'GET /api/program-reports': () =>
+        json({
+          reports: [
+            {
+              programId: 'program-1',
+              programName: 'Product Owners 2027',
+              organizationName: 'Universidad A',
+              participants: [
+                { boardId: 'board-1', participantName: 'Ana Gómez', status: 'self_assessed', cycle: null, change: null, percent: null, finishedExperiments: 0, experimentsInProgress: 0 },
+                { boardId: 'board-2', participantName: 'Luis Mora', status: 'in_cycle', cycle: { number: 2, state: 'active' }, change: 2, percent: 50, finishedExperiments: 3, experimentsInProgress: 2 },
+                { boardId: 'board-3', participantName: 'Marta Ruiz', status: 'between_cycles', cycle: null, change: -1, percent: -12.5, finishedExperiments: 1, experimentsInProgress: 0 },
+              ],
+            },
+          ],
+        }),
+      'GET /api/boards': () => json({ mine: [], accompanied: [], program: [{ ...summary, panelRoles: [] }] }),
+    });
+    const user = userEvent.setup();
+
+    render(<BoardsPage />);
+    const list = await screen.findByRole('region', { name: 'Informe de mis programas' });
+    await user.click(within(list).getByRole('button', { name: 'Ver el informe de Product Owners 2027' }));
+
+    const table = await screen.findByRole('table', { name: 'Progreso de los participantes' });
+    const cells = (row: HTMLElement) => [...row.querySelectorAll('th, td')].map((cell) => cell.textContent);
+    expect(within(table).getAllByRole('row').map(cells)).toEqual([
+      ['Participante', 'Estado', 'Ciclo actual', 'Avance frente a su línea base', 'Experimentos finalizados', 'Experimentos en curso'],
+      ['Ana Gómez', 'Autoevaluado', '—', 'Sin línea base', '0', '0'],
+      ['Luis Mora', 'En ciclo', 'Ciclo 2 · Activo', '+2 puntos (+50 %)', '3', '2'],
+      ['Marta Ruiz', 'Entre ciclos', '—', '−1 punto (−13 %)', '1', '0'],
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Volver' }));
+    expect(await screen.findByRole('region', { name: 'Informe de mis programas' })).toBeTruthy();
+  });
+
+  it('S5 S6 opens a participant row and shows each capability by dimension with its baseline and current level, numbered', async () => {
+    const calls = fakeBackend({
+      'GET /api/program-reports': () =>
+        json({
+          reports: [
+            {
+              programId: 'program-1',
+              programName: 'Product Owners 2027',
+              organizationName: 'Universidad A',
+              participants: [
+                { boardId: 'board-1', participantName: 'Ana Gómez', status: 'calibrated', cycle: null, change: 0, percent: 0, finishedExperiments: 0, experimentsInProgress: 0 },
+              ],
+            },
+          ],
+        }),
+      'GET /api/boards': () => json({ mine: [], accompanied: [], program: [{ ...summary, panelRoles: [] }] }),
+      'GET /api/boards/board-1': () =>
+        json({
+          ...board(owner),
+          baseline: {
+            setAt: '2026-11-20T10:00:00Z',
+            entries: [{ capabilityId: 'capability-3', levelId: 'level-0', origin: 'calibration', setAt: '2026-11-20T10:00:00Z' }],
+          },
+        }),
+    });
+    const user = userEvent.setup();
+
+    render(<BoardsPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver el informe de Product Owners 2027' }));
+    expect(calls.some((call) => call.route === 'GET /api/boards/board-1')).toBe(false);
+    const toggle = await screen.findByRole('button', { name: 'Ana Gómez' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+    const capabilities = await screen.findByRole('table', { name: 'Capacidades de Ana Gómez' });
+    const cells = (row: HTMLElement) => [...row.querySelectorAll('th, td')].map((cell) => cell.textContent);
+    // Only the capabilities on the board, by dimension in map order, with aligned columns.
+    expect(within(capabilities).getAllByRole('row').map(cells)).toEqual([
+      ['Capacidad observable', 'Línea base', 'Estado actual'],
+      ['Entender'],
+      ['Identifica a quién sirve el producto', '—', 'Sin ubicar'],
+      ['Comunicación'],
+      ['Comunica por escrito de forma clara', '0 · No sabe', '1 · Principiante'],
+    ]);
+
+    // S7: only the capability above its baseline is highlighted.
+    const improved = within(capabilities)
+      .getAllByRole('row')
+      .filter((row) => row.classList.contains('report-improved'))
+      .map((row) => row.querySelector('td')?.textContent);
+    expect(improved).toEqual(['Comunica por escrito de forma clara']);
+
+    await user.click(toggle);
+    expect(screen.queryByRole('table', { name: 'Capacidades de Ana Gómez' })).toBeNull();
+  });
+
+  it('hides the report when the person leads no program', async () => {
+    fakeBackend({ 'GET /api/program-reports': () => json({ reports: [] }), 'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }) });
+
+    render(<BoardsPage />);
+
+    expect(await screen.findByRole('region', { name: 'Mis tableros' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Informe de mis programas' })).toBeNull();
+  });
+
   it('says so when the person has no board yet', async () => {
-    fakeBackend({ 'GET /api/boards': () => json({ mine: [], accompanied: [], program: [] }) });
+    fakeBackend({ 'GET /api/program-reports': () => json({ reports: [] }), 'GET /api/boards': () => json({ mine: [], accompanied: [], program: [] }) });
 
     render(<BoardsPage />);
 
@@ -157,6 +263,7 @@ describe('Mis tableros', () => {
 describe('the board', () => {
   const open = async (viewer: Board['viewer'], extra: Routes = {}, selfAssessment: Board['selfAssessment'] = null) => {
     const calls = fakeBackend({
+      'GET /api/program-reports': () => json({ reports: [] }),
       'GET /api/boards': () => json({ mine: [summary], accompanied: [], program: [] }),
       'GET /api/boards/board-1': () => json({ ...board(viewer), selfAssessment }),
       ...extra,
